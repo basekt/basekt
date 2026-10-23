@@ -188,6 +188,7 @@ private fun Report.toAdmin(): AdminReport = AdminReport(
     timeZone = timeZone,
     filters = filters,
     range = range,
+    compare = compare,
 )
 
 private fun Field.toAdmin(scopedValues: Set<String>?): AdminField =

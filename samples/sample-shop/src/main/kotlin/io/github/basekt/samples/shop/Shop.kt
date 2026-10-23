@@ -23,6 +23,7 @@ import io.github.basekt.data.exposed.IndexSpec
 import io.github.basekt.data.exposed.TableMapping
 import io.github.basekt.schema.Chart
 import io.github.basekt.schema.Model
+import io.github.basekt.schema.ReportCompare
 import io.github.basekt.schema.ReportOperator
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
@@ -139,6 +140,7 @@ public val Orders: Model<Order> = model("orders") {
     belongsTo(Order::productId, "products")
     field(Order::quantity) { min(1); max(99) }
     report("orderCount", Chart.NUMBER)
+    report("ordersThisMonth", Chart.NUMBER) { range("placedAt", 1, TimeBucket.MONTH); compare(ReportCompare.PREVIOUS_PERIOD) }
     report("ordersByStatus", Chart.PIE) { groupBy("status") }
     report("ordersPerDay", Chart.LINE) {
         groupBy("placedAt", TimeBucket.DAY); where("status", ReportOperator.NE, "cancelled"); range("placedAt", 30, TimeBucket.DAY)

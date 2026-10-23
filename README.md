@@ -266,6 +266,7 @@ resource("orders") {
         sum("total")
         where("status", ReportOperator.NE, "cancelled")
         range("placedAt", 30, TimeBucket.DAY)                           // today and the 29 days before
+        compare(ReportCompare.PREVIOUS_PERIOD)                          // beside the 30 days before them
     }
 }
 ```
@@ -279,7 +280,13 @@ time zone region. `where(...)` counts only the records that match, with the oper
 whose instant falls in the last spans up to now, the current one included, such as the last 14 days or this month. It
 is turned into dates each time the report is drawn, so it never goes stale, and a time series over it shows every span
 of the window, empty ones too. The home screen has a picker (today, 7, 30 or 90 days, 12 months) that replaces the
-range of every report that has one, and the browser remembers the choice. A report gives no new access: the caller needs read
+range of every report that has one, and the browser remembers the choice.
+
+Each card with a range also has its own menu, which wins over the home screen's picker: the same windows, dates picked
+on a calendar (both days included, in the report's time zone), and a comparison with the previous period of the same
+length or the same dates a year earlier. `compare(...)` makes a comparison the report's default. A comparison runs the
+aggregate a second time for the earlier window: a line draws it dashed, span by span; bars pair up by group; and a
+number shows how it moved, such as "↑ 12% vs previous period (1,204)". A pie can't be compared. A report gives no new access: the caller needs read
 access to the resource, its scope applies to the numbers, and the panel fetches them from the aggregate route. The
 panel draws them with shadcn/ui's charts, in the theme's `chart-1` to `chart-5` colours.
 

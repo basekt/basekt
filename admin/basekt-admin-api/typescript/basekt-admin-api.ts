@@ -154,6 +154,7 @@ export interface AdminReport {
   timeZone: string | null;
   filters: ReportFilter[];
   range: ReportRange | null;
+  compare: ReportCompare | null;
 }
 
 export type Chart = "number" | "bar" | "line" | "pie";
@@ -177,6 +178,8 @@ export interface ReportRange {
   last: number;
   unit: TimeBucket;
 }
+
+export type ReportCompare = "previousPeriod" | "previousYear";
 
 export interface AdminPage {
   items: JsonObject[];

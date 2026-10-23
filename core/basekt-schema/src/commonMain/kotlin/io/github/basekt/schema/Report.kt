@@ -32,6 +32,8 @@ public data class Report(
     val filters: List<ReportFilter> = emptyList(),
     /** The rolling window of time a record must fall in to count, such as the last 14 days, or `null` for all time. */
     val range: ReportRange? = null,
+    /** The earlier window to show beside [range]'s, or `null` to show it alone. A viewer can change it. */
+    val compare: ReportCompare? = null,
 ) {
     /** The order of the groups: [order], or by group for a line and by value, largest first, otherwise. */
     public val orderOrDefault: ReportOrder
@@ -124,6 +126,16 @@ public data class ReportRange(
     val unit: TimeBucket,
 )
 
+/** An earlier window a [Report] shows beside its range, to compare with. */
+@Serializable
+public enum class ReportCompare {
+    /** The window of the same length just before. */
+    @SerialName("previousPeriod") PREVIOUS_PERIOD,
+
+    /** The same dates a year earlier. */
+    @SerialName("previousYear") PREVIOUS_YEAR,
+}
+
 /** The most spans a [ReportRange] may hold. */
 public const val MAX_RANGE_SPANS: Int = 1000
 
@@ -183,6 +195,7 @@ public class ReportBuilder internal constructor(private val name: String, privat
     private var timeZone: String? = null
     private val filters = mutableListOf<ReportFilter>()
     private var range: ReportRange? = null
+    private var compare: ReportCompare? = null
 
     /** Makes one group per value of [field]. */
     public fun groupBy(field: String) {
@@ -222,6 +235,11 @@ public class ReportBuilder internal constructor(private val name: String, privat
         range = ReportRange(field, last, unit)
     }
 
+    /** Shows the [compare] window beside the [range]'s by default, such as the previous period. A range is needed. */
+    public fun compare(compare: ReportCompare) {
+        this.compare = compare
+    }
+
     /** Counts only the records whose [field] is empty, or set when [empty] is false. */
     public fun whereNull(field: String, empty: Boolean = true): Unit = where(field, ReportOperator.NULL, empty.toString())
 
@@ -255,5 +273,5 @@ public class ReportBuilder internal constructor(private val name: String, privat
         this.field = field
     }
 
-    internal fun build(): Report = Report(name, chart, groupBy, function, field, order, limit, bucket, timeZone, filters.toList(), range)
+    internal fun build(): Report = Report(name, chart, groupBy, function, field, order, limit, bucket, timeZone, filters.toList(), range, compare)
 }

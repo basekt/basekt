@@ -106,15 +106,29 @@ class ReportTest {
             resource("deposits") {
                 instant("at")
                 decimal("amount")
-                report("lastQuarter", Chart.NUMBER) { sum("amount"); range("at", 3, TimeBucket.MONTH); timeZone("Europe/Lisbon") }
+                report("lastQuarter", Chart.NUMBER) {
+                    sum("amount"); range("at", 3, TimeBucket.MONTH); timeZone("Europe/Lisbon"); compare(ReportCompare.PREVIOUS_PERIOD)
+                }
             }
         }
         val report = ledger.resource("deposits")!!.reports.single()
         assertEquals(ReportRange("at", 3, TimeBucket.MONTH), report.range)
         assertEquals("Europe/Lisbon", report.timeZone)
+        assertEquals(ReportCompare.PREVIOUS_PERIOD, report.compare)
         assertEquals(ledger, Schema.fromJson(ledger.toJson()))
         assertFailsWith<InvalidSchemaException> {
             schema { resource("deposits") { instant("at"); report("never", Chart.NUMBER) { range("at", 0, TimeBucket.DAY) } } }
+        }
+        assertFailsWith<InvalidSchemaException> {
+            schema { resource("deposits") { instant("at"); report("alone", Chart.NUMBER) { compare(ReportCompare.PREVIOUS_YEAR) } } }
+        }
+        assertFailsWith<InvalidSchemaException> {
+            schema {
+                resource("deposits") {
+                    instant("at"); string("kind")
+                    report("slices", Chart.PIE) { groupBy("kind"); range("at", 7, TimeBucket.DAY); compare(ReportCompare.PREVIOUS_PERIOD) }
+                }
+            }
         }
     }
 

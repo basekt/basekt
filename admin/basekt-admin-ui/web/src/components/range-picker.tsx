@@ -1,9 +1,9 @@
 import { useCallback, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { describeRange, type RangeChoice } from "@/lib/reports"
+import { describeRange, type RollingRange } from "@/lib/reports"
 
 /** The windows a viewer can pick for every report with a range, besides each report's own. */
-export const rangeChoices: RangeChoice[] = [
+export const rangeChoices: RollingRange[] = [
   { last: 1, unit: "day" },
   { last: 7, unit: "day" },
   { last: 30, unit: "day" },
@@ -14,8 +14,8 @@ export const rangeChoices: RangeChoice[] = [
 const storageKey = "basekt.reportRange"
 
 /** The viewer's range, kept in this browser so the home screen opens on it again. `null` means each report's own. */
-export function useRangeChoice(): [RangeChoice | null, (choice: RangeChoice | null) => void] {
-  const [choice, setChoice] = useState<RangeChoice | null>(() => {
+export function useRangeChoice(): [RollingRange | null, (choice: RollingRange | null) => void] {
+  const [choice, setChoice] = useState<RollingRange | null>(() => {
     try {
       const saved = localStorage.getItem(storageKey)
       return rangeChoices.find((c) => saved === key(c)) ?? null
@@ -23,7 +23,7 @@ export function useRangeChoice(): [RangeChoice | null, (choice: RangeChoice | nu
       return null
     }
   })
-  const choose = useCallback((next: RangeChoice | null) => {
+  const choose = useCallback((next: RollingRange | null) => {
     setChoice(next)
     try {
       if (next) localStorage.setItem(storageKey, key(next))
@@ -36,8 +36,8 @@ export function useRangeChoice(): [RangeChoice | null, (choice: RangeChoice | nu
 }
 
 /** Buttons that set the window of every report with a range: each report's own, or one for all of them. */
-export function RangePicker({ value, onChange }: { value: RangeChoice | null; onChange: (choice: RangeChoice | null) => void }) {
-  const option = (choice: RangeChoice | null, label: string) => {
+export function RangePicker({ value, onChange }: { value: RollingRange | null; onChange: (choice: RollingRange | null) => void }) {
+  const option = (choice: RollingRange | null, label: string) => {
     const selected = (choice && value ? key(choice) === key(value) : choice === value)
     return (
       <Button key={choice ? key(choice) : "own"} size="sm" variant={selected ? "secondary" : "ghost"} aria-pressed={selected} onClick={() => onChange(choice)}>
@@ -53,7 +53,7 @@ export function RangePicker({ value, onChange }: { value: RangeChoice | null; on
   )
 }
 
-function key(choice: RangeChoice): string {
+function key(choice: RollingRange): string {
   return `${choice.last}${choice.unit}`
 }
 

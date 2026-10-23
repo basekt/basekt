@@ -250,6 +250,10 @@ internal object SchemaChecker {
             if (visible(range.field)?.type != FieldType.INSTANT) problem("$at.range", "A range needs an instant field, not '${range.field}'.")
             if (range.last !in 1..MAX_RANGE_SPANS) problem("$at.range", "A range holds from 1 to $MAX_RANGE_SPANS spans, not ${range.last}.")
         }
+        if (report.compare != null) {
+            if (report.range == null) problem("$at.compare", "A comparison needs a range to compare with an earlier one.")
+            if (report.chart == Chart.PIE) problem("$at.compare", "A pie can't show a comparison: use a bar, a line or a number.")
+        }
     }
 
     private fun checkReportFilter(visible: (String) -> Field?, filter: ReportFilter, at: String, problem: (String, String) -> Unit) {

@@ -5,6 +5,7 @@ import io.github.basekt.schema.Auto
 import io.github.basekt.schema.Chart
 import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Operation
+import io.github.basekt.schema.ReportCompare
 import io.github.basekt.schema.ReportFilter
 import io.github.basekt.schema.ReportFunction
 import io.github.basekt.schema.ReportOrder
@@ -105,6 +106,8 @@ public data class AdminReport(
     val filters: List<ReportFilter> = emptyList(),
     /** The rolling window of time a record must fall in, or `null` for all time. */
     val range: ReportRange? = null,
+    /** The earlier window to show beside [range]'s by default, or `null`. A panel runs the aggregate again for it. */
+    val compare: ReportCompare? = null,
 )
 
 /** An action as an admin panel sees it: a button, and a form for its input. */
