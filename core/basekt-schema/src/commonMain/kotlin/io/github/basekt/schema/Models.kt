@@ -94,6 +94,7 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
     private val types = mutableMapOf<String, FieldType>()
     private val values = mutableMapOf<String, List<String>>()
     private val targets = mutableMapOf<String, String>()
+    private val buckets = mutableMapOf<String, String>()
     private val relations = mutableListOf<Relation>()
     private var permissions = Permissions()
 
@@ -122,6 +123,12 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
     public fun reference(property: KProperty1<T, String?>, target: String, block: FieldBuilder.() -> Unit = {}) {
         builder(property.name).apply(block)
         targets[property.name] = target
+    }
+
+    /** Makes [property] a stored file in [bucket]: it holds the file's key, such as `images/3f1c…/lamp.jpg`. */
+    public fun file(property: KProperty1<T, String?>, bucket: String, block: FieldBuilder.() -> Unit = {}) {
+        builder(property.name).apply(block)
+        buckets[property.name] = bucket
     }
 
     /**
@@ -153,7 +160,11 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
     internal fun build(): Model<T> {
         val built = fields.map { (property, builder) ->
             val target = targets[property]
-            if (target != null) {
+            val bucket = buckets[property]
+            if (bucket != null) {
+                require(types[property] == FieldType.STRING) { "$className.$property must be a String to hold a file." }
+                builder.build(property, FieldType.FILE, null, null, bucket)
+            } else if (target != null) {
                 require(types[property] == FieldType.STRING) { "$className.$property must be a String to reference '$target'." }
                 builder.build(property, FieldType.REFERENCE, null, target)
             } else {

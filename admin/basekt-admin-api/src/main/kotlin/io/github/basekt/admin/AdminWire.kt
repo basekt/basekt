@@ -74,6 +74,8 @@ public data class AdminField(
     val target: String?,
     /** The checks on the field's value, for the panel to check forms with too. */
     val rules: List<Rule>,
+    /** The bucket a file field's files are uploaded to, or `null`. */
+    val bucket: String? = null,
     /**
      * The values the caller may give the field when they create a record, when a scope limits them, or `null`. A
      * panel can prefill the only one or offer a choice; a create that leaves out a field with one value gets it.

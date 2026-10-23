@@ -81,6 +81,8 @@ public data class Field(
     val target: String? = null,
     /** Extra checks on the field's value. */
     val rules: List<Rule> = emptyList(),
+    /** The bucket the field's files are stored in, for a [FieldType.FILE] field only. */
+    val bucket: String? = null,
 )
 
 /** The type of a [Field], which decides its [Value] kind. */
@@ -109,6 +111,12 @@ public enum class FieldType {
 
     /** The id of a record of the field's [Field.target] resource, as [Value.Text]. */
     @SerialName("reference") REFERENCE,
+
+    /**
+     * A stored file: its key in the field's [Field.bucket], such as `images/3f1c…/lamp.jpg`, as [Value.Text]. The
+     * bytes live elsewhere; `basekt-files` stores and serves them.
+     */
+    @SerialName("file") FILE,
 }
 
 /** A named link from one resource to another. */

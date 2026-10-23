@@ -46,6 +46,7 @@ class BaseKtAdminUiTest {
         assertEquals("/admin", config["path"]!!.jsonPrimitive.content)
         assertEquals("/admin/api", config["apiPath"]!!.jsonPrimitive.content)
         assertEquals("system", config["defaultMode"]!!.jsonPrimitive.content)
+        assertEquals("/files", config["filesPath"]!!.jsonPrimitive.content)
 
         val script = assertNotNull(moduleScript.find(html)).groupValues[1]
         val asset = client.get(script)
@@ -61,6 +62,7 @@ class BaseKtAdminUiTest {
             install(BaseKtAdminUi) {
                 path = "/back-office/"
                 apiPath = "/api/back-office"
+                filesPath = "/uploads/"
                 defaultMode = ThemeMode.Dark
                 brand {
                     name = "Acme <Ops>"
@@ -79,6 +81,7 @@ class BaseKtAdminUiTest {
         val config = shellConfig("/back-office")
         assertEquals("/back-office", config["path"]!!.jsonPrimitive.content)
         assertEquals("/api/back-office", config["apiPath"]!!.jsonPrimitive.content)
+        assertEquals("/uploads", config["filesPath"]!!.jsonPrimitive.content)
         assertEquals("Acme <Ops>", config["brand"]!!.jsonObject["name"]!!.jsonPrimitive.content)
         assertEquals("/static/logo.svg", config["brand"]!!.jsonObject["logo"]!!.jsonPrimitive.content)
 

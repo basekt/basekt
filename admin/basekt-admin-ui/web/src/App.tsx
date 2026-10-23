@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { ADMIN_SCHEMA_VERSION, type AdminSchema } from "@wire"
 import { AdminApi, ApiFailure } from "@/api/client"
+import { FilesApi } from "@/api/files"
 import { TokenStore, useToken } from "@/auth"
 import { Home } from "@/components/home"
 import { Layout } from "@/components/layout"
@@ -31,6 +32,7 @@ export function App({ config, tokens: givenTokens, fetchImpl }: {
   const [token, signIn, signOut] = useToken(tokens)
   const [signInReason, setSignInReason] = useState<string | null>(null)
   const api = useMemo(() => new AdminApi(config.apiPath, () => tokens.get(), fetchImpl), [config.apiPath, tokens, fetchImpl])
+  const files = useMemo(() => new FilesApi(config.filesPath, () => tokens.get(), fetchImpl), [config.filesPath, tokens, fetchImpl])
   const schema = useAsync(() => api.schema(), [api, token])
 
   const trySignIn = async (value: string, remember: boolean): Promise<string | null> => {
@@ -71,6 +73,7 @@ export function App({ config, tokens: givenTokens, fetchImpl }: {
   const panel: Panel = {
     config,
     api,
+    files,
     schema: schema.data as AdminSchema,
     signedIn: token != null,
     requestSignIn: (reason) => setSignInReason(reason ?? ""),

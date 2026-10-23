@@ -22,9 +22,11 @@ import io.github.basekt.schema.Value
 import io.github.basekt.schema.WriteMode
 import io.github.basekt.schema.decodeRecord
 import io.github.basekt.schema.validateRecord
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The operations behind the REST routes, with no Ktor types: permission checks, validation, [hooks], referential
@@ -49,9 +51,16 @@ public class ResourceService(
     /** The code that runs around writes. */
     private val hooks: Hooks = Hooks.None,
 ) {
+    private val extensions = CopyOnWriteArrayList<WriteExtension>()
+
     init {
         val unknown = hooks.resources.filter { schema.resource(it) == null }
         require(unknown.isEmpty()) { "Hooks name resources the schema doesn't have: ${unknown.joinToString()}." }
+    }
+
+    /** Adds [extension] to every later write. Modules call it when they are installed. */
+    public fun extend(extension: WriteExtension) {
+        extensions += extension
     }
 
     /** Returns the resource called [name], or throws [ErrorCode.NOT_FOUND]. */
@@ -103,6 +112,7 @@ public class ResourceService(
             for (hook in hooks.beforeCreate[resource.name].orEmpty()) record = context.hook(record).accepted()
             if (record != decoded) revalidate(resource, record, WriteMode.CREATE)
             checkReferences(tx, resource, record)
+            checkExtensions(tx, resource, record)
             val created = try {
                 tx.create(resource, record)
             } catch (e: DuplicateIdException) {
@@ -110,7 +120,7 @@ public class ResourceService(
             }
             for (hook in hooks.afterCreate[resource.name].orEmpty()) context.hook(created)
             created
-        }
+        }.also { committed(Change.Created(resource, it)) }
     }
 
     /** Validates [body] and applies it to the record of [resource] with [id], if [caller] may. */
@@ -126,22 +136,28 @@ public class ResourceService(
             }
             if (changes != decoded) revalidate(resource, changes, WriteMode.UPDATE)
             checkReferences(tx, resource, changes)
+            checkExtensions(tx, resource, changes)
             val updated = tx.update(resource, id, changes) ?: throw notFound(resource, id)
             for (hook in hooks.afterUpdate[resource.name].orEmpty()) context.hook(Updated(current, updated))
-            updated
+            current to updated
+        }.let { (before, after) ->
+            committed(Change.Updated(resource, before, after))
+            after
         }
     }
 
     /** Deletes the record of [resource] with [id], if [caller] may. */
     public suspend fun delete(resource: Resource, caller: Identity?, id: String) {
         authorize(resource, Operation.DELETE, caller)
-        dataSource.transaction { tx ->
+        val deleted = dataSource.transaction { tx ->
             val context = HookContext(resource, caller, tx)
             val current = writable(tx, resource, Operation.DELETE, caller, id)
             for (hook in hooks.beforeDelete[resource.name].orEmpty()) context.hook(Deletion(id, current)).accepted()
             if (!tx.delete(resource, id)) throw notFound(resource, id)
             for (hook in hooks.afterDelete[resource.name].orEmpty()) context.hook(current)
+            current
         }
+        committed(Change.Deleted(resource, deleted))
     }
 
     /** Returns the one record that the record [id] of [resource] belongs to through [relation]. */
@@ -269,6 +285,24 @@ public class ResourceService(
         if (missing.isNotEmpty()) throw invalid(missing)
     }
 
+    private suspend fun checkExtensions(source: DataSource, resource: Resource, record: Record) {
+        val errors = extensions.flatMap { it.check(resource, record, source) }
+        if (errors.isNotEmpty()) throw invalid(errors)
+    }
+
+    /** Tells every extension of a committed write. An extension's failure doesn't undo or fail the write. */
+    private suspend fun committed(change: Change) {
+        for (extension in extensions) {
+            try {
+                extension.committed(change)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // The write has happened; the extension reports its own failures.
+            }
+        }
+    }
+
     private inline fun <T> queried(block: () -> T): T = try {
         block()
     } catch (e: InvalidQueryException) {
@@ -293,7 +327,7 @@ private fun Query.narrowed(filter: Filter?): Query =
     if (filter == null) this else copy(filter = this.filter?.let { Filter.And(listOf(it, filter)) } ?: filter)
 
 private fun Value.fits(type: FieldType): Boolean = when (type) {
-    FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE -> this is Value.Text
+    FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE, FieldType.FILE -> this is Value.Text
     FieldType.INT, FieldType.LONG -> this is Value.Integer
     FieldType.DECIMAL -> this is Value.Decimal
     FieldType.BOOL -> this is Value.Bool

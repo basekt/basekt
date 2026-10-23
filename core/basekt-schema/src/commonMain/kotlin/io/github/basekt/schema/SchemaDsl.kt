@@ -74,6 +74,13 @@ public class ResourceBuilder internal constructor(private val name: String) {
         field(name, FieldType.REFERENCE, block, target = target)
 
     /**
+     * Declares a field that holds a stored file in [bucket]: its key, such as `images/3f1c…/lamp.jpg`. Install
+     * `BaseKtFiles` with that bucket to upload and serve the files.
+     */
+    public fun file(name: String, bucket: String, block: FieldBuilder.() -> Unit = {}): Unit =
+        field(name, FieldType.FILE, block, bucket = bucket)
+
+    /**
      * Declares that this resource belongs to a [target] record: adds the reference field [field] (by default
      * `<name>Id`) and the relation [name].
      */
@@ -103,8 +110,9 @@ public class ResourceBuilder internal constructor(private val name: String) {
         block: FieldBuilder.() -> Unit,
         values: List<String>? = null,
         target: String? = null,
+        bucket: String? = null,
     ) {
-        fields += FieldBuilder().apply(block).build(name, type, values, target)
+        fields += FieldBuilder().apply(block).build(name, type, values, target, bucket)
     }
 
     internal fun build(): Resource = Resource(name, fields.toList(), relations.toList(), permissions)
@@ -156,8 +164,8 @@ public class FieldBuilder internal constructor() {
         rules += Rule.Custom(name)
     }
 
-    internal fun build(name: String, type: FieldType, values: List<String>?, target: String?): Field =
-        Field(name, type, required, values, target, rules.toList())
+    internal fun build(name: String, type: FieldType, values: List<String>?, target: String?, bucket: String? = null): Field =
+        Field(name, type, required, values, target, rules.toList(), bucket)
 }
 
 /** Declares who may perform each [Operation]. */

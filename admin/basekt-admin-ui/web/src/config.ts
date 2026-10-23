@@ -16,6 +16,8 @@ export interface PanelConfig {
   path: string
   /** Where the JSON admin API is mounted, such as `/admin/api`. */
   apiPath: string
+  /** Where BaseKtFiles serves files, such as `/files`, for file fields. */
+  filesPath: string
   brand: Brand
   defaultMode: ThemeMode
 }
@@ -23,6 +25,7 @@ export interface PanelConfig {
 const fallback: PanelConfig = {
   path: "/admin",
   apiPath: "/admin/api",
+  filesPath: "/files",
   brand: { name: "BaseKt", logo: null },
   defaultMode: "system",
 }
@@ -35,6 +38,7 @@ export function readConfig(doc: Document = document): PanelConfig {
   return {
     path: trimSlash(parsed.path ?? fallback.path),
     apiPath: trimSlash(parsed.apiPath ?? fallback.apiPath),
+    filesPath: trimSlash(parsed.filesPath ?? fallback.filesPath),
     brand: { ...fallback.brand, ...parsed.brand },
     defaultMode: parsed.defaultMode ?? fallback.defaultMode,
   }

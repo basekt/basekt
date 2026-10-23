@@ -29,6 +29,9 @@ internal val SchemaJson: Json = Json {
 
 private val namePattern = Regex("[A-Za-z][A-Za-z0-9_]*")
 
+/** A bucket name: the first segment of a file's key. */
+private val bucketPattern = Regex("[A-Za-z0-9][A-Za-z0-9._-]*")
+
 internal object SchemaChecker {
     fun check(schema: Schema): List<SchemaProblem> {
         val problems = mutableListOf<SchemaProblem>()
@@ -61,10 +64,14 @@ internal object SchemaChecker {
                 field.target == null -> problem(at, "A reference field needs a target resource.")
                 schema.resource(field.target) == null -> problem(at, "The target resource '${field.target}' doesn't exist.")
             }
+            FieldType.FILE -> if (field.bucket == null || !bucketPattern.matches(field.bucket)) {
+                problem(at, "A file field needs a bucket name of letters, digits, '.', '_' and '-', starting with a letter or digit.")
+            }
             else -> Unit
         }
         if (field.type != FieldType.ENUM && field.values != null) problem(at, "Only an enum field has values.")
         if (field.type != FieldType.REFERENCE && field.target != null) problem(at, "Only a reference field has a target.")
+        if (field.type != FieldType.FILE && field.bucket != null) problem(at, "Only a file field has a bucket.")
         for (rule in field.rules) checkRule(field, rule, at, problem)
     }
 

@@ -40,10 +40,11 @@ export interface AdminField {
   values: string[] | null;
   target: string | null;
   rules: Rule[];
+  bucket: string | null;
   scopedValues: string[] | null;
 }
 
-export type FieldType = "string" | "int" | "long" | "decimal" | "bool" | "instant" | "enum" | "reference";
+export type FieldType = "string" | "int" | "long" | "decimal" | "bool" | "instant" | "enum" | "reference" | "file";
 
 export type Rule = RuleCustom | RuleLength | RuleMax | RuleMin | RulePattern;
 

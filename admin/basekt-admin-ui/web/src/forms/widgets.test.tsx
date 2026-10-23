@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useState } from "react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { AdminField, FieldType, JsonValue } from "@wire"
 import { fallbackWidget, fromLocalInput, toLocalInput, widgetFor, widgets } from "@/forms/widgets"
 import { books, fakeFetch, librarySchema, page, tickets } from "@/test/fixtures"
@@ -10,7 +10,7 @@ import { renderInPanel } from "@/test/panel"
 const fieldOf = (resource: { fields: AdminField[] }, name: string) => resource.fields.find((f) => f.name === name)!
 
 /** Renders [field]'s widget with [initial], and returns a reader for the last value it reported. */
-function renderWidget(field: AdminField, initial: JsonValue = null, fetch = fakeFetch(() => undefined)) {
+function renderWidget(field: AdminField, initial: JsonValue = null, fetch = fakeFetch(() => undefined), xhr?: () => XMLHttpRequest) {
   const seen: { value: JsonValue | undefined } = { value: initial }
   function Host() {
     const [value, setValue] = useState<JsonValue | undefined>(initial)
@@ -22,13 +22,13 @@ function renderWidget(field: AdminField, initial: JsonValue = null, fetch = fake
       </>
     )
   }
-  renderInPanel(<Host />, librarySchema, fetch)
+  renderInPanel(<Host />, librarySchema, fetch, xhr)
   return { fetch, value: () => seen.value }
 }
 
 describe("the widget registry", () => {
   it("has a widget for every field type, and a fallback for new ones", () => {
-    const types: FieldType[] = ["string", "int", "long", "decimal", "bool", "instant", "enum", "reference"]
+    const types: FieldType[] = ["string", "int", "long", "decimal", "bool", "instant", "enum", "reference", "file"]
     expect(Object.keys(widgets).sort()).toEqual([...types].sort())
     expect(widgetFor({ ...fieldOf(books, "title"), type: "geopoint" as FieldType })).toBe(fallbackWidget)
   })
@@ -96,5 +96,62 @@ describe("the widget registry", () => {
     await waitFor(() => expect(fetch.calls.at(-1)!.url.searchParams.get("search")).toBe("jane"))
     await userEvent.click(await screen.findByRole("option", { name: /Jane Austen/ }))
     expect(author.value()).toBe("a2")
+  })
+
+  it("uploads a file to the field's bucket with progress, and keeps its key", async () => {
+    const screenshot = fieldOf(tickets, "screenshot")
+    const sent: { url?: string; body?: FormData } = {}
+    let finish: (status: number, body: unknown) => void = () => {}
+    const xhr = () => {
+      const listeners: Record<string, () => void> = {}
+      const progress: ((event: { lengthComputable: boolean; loaded: number; total: number }) => void)[] = []
+      const request = {
+        status: 0,
+        responseText: "",
+        withCredentials: false,
+        upload: { addEventListener: (_: string, listener: (typeof progress)[number]) => progress.push(listener) },
+        open: (_method: string, url: string) => { sent.url = url },
+        setRequestHeader: () => {},
+        addEventListener: (type: string, listener: () => void) => { listeners[type] = listener },
+        send: (body: FormData) => {
+          sent.body = body
+          progress.forEach((listener) => listener({ lengthComputable: true, loaded: 5, total: 10 }))
+        },
+      }
+      finish = (status, body) => {
+        request.status = status
+        request.responseText = JSON.stringify(body)
+        listeners.load()
+      }
+      return request as unknown as XMLHttpRequest
+    }
+    const shot = renderWidget(screenshot, null, fakeFetch(() => undefined), xhr)
+
+    await userEvent.upload(screen.getByLabelText("screenshot"), new File(["png"], "jam.png", { type: "image/png" }))
+    expect(sent.url).toBe("/files/screens")
+    expect((sent.body!.get("file") as File).name).toBe("jam.png")
+    expect(await screen.findByRole("progressbar", { name: "Uploading" })).toHaveAttribute("aria-valuenow", "50")
+
+    const ref = { key: "screens/ab12/jam.png", bucket: "screens", name: "jam.png", size: 3, contentType: "image/png", url: "/files/screens/ab12/jam.png" }
+    finish(201, ref)
+    await waitFor(() => expect(shot.value()).toBe("screens/ab12/jam.png"))
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /replace/i })).toBeInTheDocument()
+
+    await userEvent.upload(screen.getByLabelText("screenshot"), new File(["<html>"], "page.png", { type: "image/png" }))
+    finish(415, { error: "unsupported_type", message: "'screens' doesn't take text/html files.", fields: [] })
+    expect(await screen.findByText("'screens' doesn't take text/html files.")).toBeInTheDocument()
+    expect(shot.value()).toBe("screens/ab12/jam.png")
+
+    await userEvent.click(screen.getByRole("button", { name: /remove/i }))
+    expect(shot.value()).toBeNull()
+  })
+
+  it("previews an image with the panel's credentials", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:preview")
+    URL.revokeObjectURL = vi.fn()
+    const fetch = fakeFetch(({ url }) => (url.pathname === "/files/screens/ab12/jam.png" ? { body: "bytes" } : undefined))
+    renderWidget(fieldOf(tickets, "screenshot"), "screens/ab12/jam.png", fetch)
+    expect(await screen.findByRole("img", { name: "jam.png" })).toHaveAttribute("src", "blob:preview")
   })
 })
