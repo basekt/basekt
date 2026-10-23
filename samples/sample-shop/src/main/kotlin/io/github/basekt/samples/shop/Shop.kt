@@ -140,7 +140,9 @@ public val Orders: Model<Order> = model("orders") {
     field(Order::quantity) { min(1); max(99) }
     report("orderCount", Chart.NUMBER)
     report("ordersByStatus", Chart.PIE) { groupBy("status") }
-    report("ordersPerDay", Chart.LINE) { groupBy("placedAt", TimeBucket.DAY); where("status", ReportOperator.NE, "cancelled"); limit(30) }
+    report("ordersPerDay", Chart.LINE) {
+        groupBy("placedAt", TimeBucket.DAY); where("status", ReportOperator.NE, "cancelled"); range("placedAt", 30, TimeBucket.DAY)
+    }
     permissions { read("staff", "customer"); create("customer", "staff"); update("staff"); delete("staff") }
 }
 

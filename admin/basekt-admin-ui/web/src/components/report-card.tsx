@@ -5,19 +5,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { humanize } from "@/lib/fields"
-import { describeReport, reportParams, reportPoints, type ReportPoint } from "@/lib/reports"
+import { describeReport, reportParams, reportPoints, type RangeChoice, type ReportPoint } from "@/lib/reports"
 import { useAsync } from "@/lib/use-async"
 import { usePanel } from "@/panel"
 
 /** The theme's chart colours, which pie slices take in turn. */
 const colors = [1, 2, 3, 4, 5].map((n) => `var(--chart-${n})`)
 
-/** A report of [resource] as a card: its title, what it shows, and its chart, loaded from the aggregate route. */
-export function ReportCard({ resource, report }: { resource: AdminResource; report: AdminReport }) {
+/**
+ * A report of [resource] as a card: its title, what it shows, and its chart, loaded from the aggregate route. [range]
+ * replaces the report's own range, if it has one.
+ */
+export function ReportCard({ resource, report, range = null }: { resource: AdminResource; report: AdminReport; range?: RangeChoice | null }) {
   const { api } = usePanel()
   const { data, error, loading, reload } = useAsync(
-    () => api.aggregate(resource.name, reportParams(report)).then((page) => reportPoints(report, resource, page)),
-    [api, resource, report],
+    () => {
+      const view = { range, now: new Date() }
+      return api.aggregate(resource.name, reportParams(report, view)).then((page) => reportPoints(report, resource, page, view))
+    },
+    [api, resource, report, range?.last, range?.unit],
   )
   return (
     <Card className={report.chart === "number" ? "self-start" : "sm:col-span-2"} role="figure" aria-label={humanize(report.name)}>
@@ -33,7 +39,7 @@ export function ReportCard({ resource, report }: { resource: AdminResource; repo
         ) : (
           <ReportChart report={report} points={data} />
         )}
-        <p className="mt-2 text-sm text-muted-foreground">{describeReport(report)}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{describeReport(report, { range })}</p>
       </CardContent>
     </Card>
   )

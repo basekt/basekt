@@ -153,6 +153,7 @@ export interface AdminReport {
   bucket: TimeBucket | null;
   timeZone: string | null;
   filters: ReportFilter[];
+  range: ReportRange | null;
 }
 
 export type Chart = "number" | "bar" | "line" | "pie";
@@ -170,6 +171,12 @@ export interface ReportFilter {
 }
 
 export type ReportOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "contains" | "null";
+
+export interface ReportRange {
+  field: string;
+  last: number;
+  unit: TimeBucket;
+}
 
 export interface AdminPage {
   items: JsonObject[];

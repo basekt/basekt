@@ -52,8 +52,8 @@ export const tickets: AdminResource = {
   group: null,
   actions: [],
   reports: [
-    { name: "ticketsByState", chart: "pie", groupBy: "state", function: "count", field: null, measure: "count", order: "valueDesc", limit: 12, bucket: null, timeZone: null, filters: [] },
-    { name: "totalViews", chart: "number", groupBy: null, function: "sum", field: "views", measure: "sum_views", order: "valueDesc", limit: 12, bucket: null, timeZone: null, filters: [] },
+    { name: "ticketsByState", chart: "pie", groupBy: "state", function: "count", field: null, measure: "count", order: "valueDesc", limit: 12, bucket: null, timeZone: null, filters: [], range: null },
+    { name: "totalViews", chart: "number", groupBy: null, function: "sum", field: "views", measure: "sum_views", order: "valueDesc", limit: 12, bucket: null, timeZone: null, filters: [], range: null },
   ],
 }
 

@@ -31,6 +31,7 @@ class ReportTest {
             report("sightingsPerWeek", Chart.LINE) { groupBy("seenAt", TimeBucket.WEEK); limit(52) }
             report("brightNights", Chart.BAR) {
                 groupBy("seenAt", TimeBucket.DAY, timeZone = "America/Santiago"); where("night", ReportOperator.IN, "1", "2")
+                range("seenAt", 30, TimeBucket.DAY)
             }
         }
     }
@@ -51,6 +52,7 @@ class ReportTest {
         assertEquals(ReportOrder.VALUE_DESC, plants[0].orderOrDefault)
         val (byNight, perWeek, brightNights) = observatory.resource("sightings")!!.reports
         assertEquals("America/Santiago", brightNights.timeZone)
+        assertEquals(ReportRange("seenAt", 30, TimeBucket.DAY), brightNights.range)
         assertEquals(listOf(ReportFilter("night", ReportOperator.IN, listOf("1", "2"))), brightNights.filters)
         assertEquals(ReportOrder.GROUP, byNight.orderOrDefault)
         assertEquals(null, byNight.bucket)
@@ -78,6 +80,8 @@ class ReportTest {
         assertTrue(problems({ groupBy("night"); sum("observer") }).single().contains("doesn't exist"))
         assertTrue(problems({ groupBy("night"); max("night"); limit(0) }).single().contains("from 1 to"))
         assertTrue(problems({ groupBy("night", TimeBucket.MONTH) }).single().contains("Only an instant field"))
+        assertTrue(problems({ groupBy("night"); range("night", 7, TimeBucket.DAY) }).single().contains("needs an instant field"))
+        assertTrue(problems({ groupBy("night"); timeZone("Asia/Manila") }).single().contains("only applies"))
         assertTrue(problems({ groupBy("night"); where("night", "many") }).single().contains("not a valid value"))
         assertTrue(problems({ groupBy("night"); where("observer", "ann") }).single().contains("doesn't exist"))
         assertTrue(problems({ groupBy("night"); where("night", ReportOperator.EQ, "1", "2") }).single().contains("takes one value"))
@@ -93,6 +97,24 @@ class ReportTest {
             assertFailsWith<InvalidSchemaException>(zone) {
                 schema { resource("sightings") { instant("seenAt"); report("n", Chart.LINE) { groupBy("seenAt", TimeBucket.DAY, zone) } } }
             }
+        }
+    }
+
+    @Test
+    fun `a range is a rolling window on an instant field, in the report's zone`() {
+        val ledger = schema {
+            resource("deposits") {
+                instant("at")
+                decimal("amount")
+                report("lastQuarter", Chart.NUMBER) { sum("amount"); range("at", 3, TimeBucket.MONTH); timeZone("Europe/Lisbon") }
+            }
+        }
+        val report = ledger.resource("deposits")!!.reports.single()
+        assertEquals(ReportRange("at", 3, TimeBucket.MONTH), report.range)
+        assertEquals("Europe/Lisbon", report.timeZone)
+        assertEquals(ledger, Schema.fromJson(ledger.toJson()))
+        assertFailsWith<InvalidSchemaException> {
+            schema { resource("deposits") { instant("at"); report("never", Chart.NUMBER) { range("at", 0, TimeBucket.DAY) } } }
         }
     }
 

@@ -8,6 +8,7 @@ import io.github.basekt.schema.Operation
 import io.github.basekt.schema.ReportFilter
 import io.github.basekt.schema.ReportFunction
 import io.github.basekt.schema.ReportOrder
+import io.github.basekt.schema.ReportRange
 import io.github.basekt.schema.Rule
 import io.github.basekt.schema.TimeBucket
 import kotlinx.serialization.SerialName
@@ -76,7 +77,7 @@ public data class AdminResource(
  * A chart as an admin panel sees it. A panel draws it from `GET {path}/resources/{name}/aggregate` with `groupBy`
  * (`groupBy={field}:{bucket}` and `timeZone` for a time series), `{function}={field}` (or `count`), `sort`, `limit`
  * and its [filters] as `{field}[{operator}]={values}`, and plots each group's [measure]. A time series in group order
- * shows its latest [limit] buckets.
+ * shows its latest [limit] buckets. A [range] is turned into `{field}[gte]` and `{field}[lt]` dates when it is drawn.
  */
 @Serializable
 public data class AdminReport(
@@ -98,10 +99,12 @@ public data class AdminReport(
     val limit: Int,
     /** The span of time the instant [groupBy] field is grouped into, or `null` to group by its values. */
     val bucket: TimeBucket? = null,
-    /** The time zone region whose calendar [bucket] follows, or `null` for UTC. */
+    /** The time zone region whose calendar [bucket] and [range] follow, or `null` for UTC. */
     val timeZone: String? = null,
     /** The conditions a record must meet to count. */
     val filters: List<ReportFilter> = emptyList(),
+    /** The rolling window of time a record must fall in, or `null` for all time. */
+    val range: ReportRange? = null,
 )
 
 /** An action as an admin panel sees it: a button, and a form for its input. */

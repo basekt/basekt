@@ -26,10 +26,12 @@ public data class Report(
     val limit: Int = 12,
     /** The span of time an instant [groupBy] field is grouped into, or `null` to group by its values as they are. */
     val bucket: TimeBucket? = null,
-    /** The time zone whose calendar [bucket] follows, such as `Asia/Manila`, or `null` for UTC. */
+    /** The time zone whose calendar [bucket] and [range] follow, such as `Asia/Manila`, or `null` for UTC. */
     val timeZone: String? = null,
     /** The conditions a record must meet to count, all of them. */
     val filters: List<ReportFilter> = emptyList(),
+    /** The rolling window of time a record must fall in to count, such as the last 14 days, or `null` for all time. */
+    val range: ReportRange? = null,
 ) {
     /** The order of the groups: [order], or by group for a line and by value, largest first, otherwise. */
     public val orderOrDefault: ReportOrder
@@ -107,6 +109,24 @@ public data class ReportFilter(
     val values: List<String>,
 )
 
+/**
+ * A rolling window of time on a [Report]: the records whose instant [field] falls in the [last] spans of [unit] up to
+ * now, the current one included, on the report's time zone calendar. `ReportRange("createdAt", 14, DAY)` is today and
+ * the 13 days before it. Whoever draws the report turns it into dates when it draws it, so it never goes stale.
+ */
+@Serializable
+public data class ReportRange(
+    /** The instant field that must fall in the window. */
+    val field: String,
+    /** How many spans the window holds, from 1 to [MAX_RANGE_SPANS]. */
+    val last: Int,
+    /** The span the window counts in. */
+    val unit: TimeBucket,
+)
+
+/** The most spans a [ReportRange] may hold. */
+public const val MAX_RANGE_SPANS: Int = 1000
+
 /** How a [ReportFilter] compares a field. */
 @Serializable
 public enum class ReportOperator {
@@ -162,12 +182,12 @@ public class ReportBuilder internal constructor(private val name: String, privat
     private var bucket: TimeBucket? = null
     private var timeZone: String? = null
     private val filters = mutableListOf<ReportFilter>()
+    private var range: ReportRange? = null
 
     /** Makes one group per value of [field]. */
     public fun groupBy(field: String) {
         groupBy = field
         bucket = null
-        timeZone = null
     }
 
     /**
@@ -177,6 +197,11 @@ public class ReportBuilder internal constructor(private val name: String, privat
     public fun groupBy(field: String, bucket: TimeBucket, timeZone: String? = null) {
         groupBy = field
         this.bucket = bucket
+        if (timeZone != null) this.timeZone = timeZone
+    }
+
+    /** Follows the calendar of [timeZone], a region such as `Asia/Manila`, for the time buckets and the range. */
+    public fun timeZone(timeZone: String) {
         this.timeZone = timeZone
     }
 
@@ -186,6 +211,15 @@ public class ReportBuilder internal constructor(private val name: String, privat
     /** Counts only the records whose [field] compares by [operator] with [values]. See [ReportFilter]. */
     public fun where(field: String, operator: ReportOperator, vararg values: String) {
         filters += ReportFilter(field, operator, values.toList())
+    }
+
+    /**
+     * Counts only the records whose instant [field] falls in the [last] spans of [unit] up to now, the current one
+     * included: `range("createdAt", 14, TimeBucket.DAY)` is the last 14 days. A time series over [field] then shows
+     * every span of the window, empty ones too. See [ReportRange].
+     */
+    public fun range(field: String, last: Int, unit: TimeBucket) {
+        range = ReportRange(field, last, unit)
     }
 
     /** Counts only the records whose [field] is empty, or set when [empty] is false. */
@@ -221,5 +255,5 @@ public class ReportBuilder internal constructor(private val name: String, privat
         this.field = field
     }
 
-    internal fun build(): Report = Report(name, chart, groupBy, function, field, order, limit, bucket, timeZone, filters.toList())
+    internal fun build(): Report = Report(name, chart, groupBy, function, field, order, limit, bucket, timeZone, filters.toList(), range)
 }

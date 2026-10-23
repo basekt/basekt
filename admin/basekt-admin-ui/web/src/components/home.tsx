@@ -1,13 +1,18 @@
 import { Table2 } from "lucide-react"
+import { RangePicker, useRangeChoice } from "@/components/range-picker"
 import { ReportCard } from "@/components/report-card"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { humanize } from "@/lib/fields"
 import { usePanel } from "@/panel"
 import { Link } from "@/router"
 
-/** The start screen: the charts of the reports the caller may see, then a card for each resource. */
+/**
+ * The start screen: the charts of the reports the caller may see, with a picker for the window of the ones that have
+ * a range, then a card for each resource.
+ */
 export function Home() {
   const { schema, config, requestSignIn } = usePanel()
+  const [range, setRange] = useRangeChoice()
   if (schema.resources.length === 0) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
@@ -27,10 +32,11 @@ export function Home() {
   return (
     <div className="grid gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">{config.brand.name}</h1>
+      {reports.some(({ report }) => report.range) && <RangePicker value={range} onChange={setRange} />}
       {reports.length > 0 && (
         <section aria-label="Reports" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {reports.map(({ resource, report }) => (
-            <ReportCard key={`${resource.name}.${report.name}`} resource={resource} report={report} />
+            <ReportCard key={`${resource.name}.${report.name}`} resource={resource} report={report} range={range} />
           ))}
         </section>
       )}
