@@ -99,6 +99,12 @@ public class ResourceBuilder internal constructor(private val name: String) {
         relations += Relation.HasMany(name, target, foreignField)
     }
 
+    /** Declares the instant fields `createdAt` and `updatedAt`, which the server sets. See [Auto]. */
+    public fun timestamps() {
+        instant("createdAt") { createdAt() }
+        instant("updatedAt") { updatedAt() }
+    }
+
     /** Sets who may read and write this resource's records. Everything not granted is denied. */
     public fun permissions(block: PermissionsBuilder.() -> Unit) {
         permissions = PermissionsBuilder(permissions).apply(block).build()
@@ -123,6 +129,7 @@ public class ResourceBuilder internal constructor(private val name: String) {
 public class FieldBuilder internal constructor() {
     private var required = false
     private val rules = mutableListOf<Rule>()
+    private var auto: Auto? = null
 
     /** Makes the field required: a record must have a non-null value. */
     public fun required() {
@@ -164,8 +171,32 @@ public class FieldBuilder internal constructor() {
         rules += Rule.Custom(name)
     }
 
+    /** The server sets the field to [auto] instead of the client. */
+    public fun auto(auto: Auto) {
+        this.auto = auto
+    }
+
+    /** The server sets the field to when the record was created. */
+    public fun createdAt(): Unit = auto(Auto.CreatedAt)
+
+    /** The server sets the field to when the record was last written. */
+    public fun updatedAt(): Unit = auto(Auto.UpdatedAt)
+
+    /** The server sets the field to the id of the caller who created the record. */
+    public fun createdBy(): Unit = auto(Auto.CreatedBy)
+
+    /** The server sets the field to the id of the caller who last wrote the record. */
+    public fun updatedBy(): Unit = auto(Auto.UpdatedBy)
+
+    /**
+     * The server numbers each new record, from [start] up, without repeats or gaps. A string field gets [prefix] and
+     * the number padded to [digits], such as `REF-000042`. See [Auto.Sequence].
+     */
+    public fun sequence(prefix: String = "", digits: Int = 0, start: Long = 1): Unit =
+        auto(Auto.Sequence(prefix, digits, start))
+
     internal fun build(name: String, type: FieldType, values: List<String>?, target: String?, bucket: String? = null): Field =
-        Field(name, type, required, values, target, rules.toList(), bucket)
+        Field(name, type, required, values, target, rules.toList(), bucket, auto)
 }
 
 /** Declares who may perform each [Operation]. */

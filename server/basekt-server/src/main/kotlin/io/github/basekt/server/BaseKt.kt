@@ -16,6 +16,7 @@ import io.ktor.server.application.hooks.MonitoringEvent
 import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
+import kotlin.time.Clock
 
 /**
  * The configuration of [BaseKt]. Settings can come from the `basekt` section of the application's configuration:
@@ -51,6 +52,9 @@ public class BaseKtConfig internal constructor(config: ApplicationConfig) {
 
     /** The validators that the schema's custom rules name. */
     public val validators: MutableMap<String, FieldValidator> = mutableMapOf()
+
+    /** Where the times of `createdAt()` and `updatedAt()` fields come from. The system clock by default. */
+    public var clock: Clock = Clock.System
 
     private val hookBuilder = HooksBuilder()
 
@@ -134,7 +138,7 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     }
     val basePath = "/" + pluginConfig.basePath.trim('/')
 
-    val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks())
+    val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock)
     val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList())
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }

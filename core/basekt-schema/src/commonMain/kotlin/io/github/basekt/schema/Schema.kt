@@ -83,7 +83,58 @@ public data class Field(
     val rules: List<Rule> = emptyList(),
     /** The bucket the field's files are stored in, for a [FieldType.FILE] field only. */
     val bucket: String? = null,
+    /** What the server sets this field to on every write, or `null` for a field the client writes. See [Auto]. */
+    val auto: Auto? = null,
 )
+
+/**
+ * A value the server sets instead of the client. A client that sends one gets a `read_only` error, and a `null`
+ * is ignored. The service sets it inside the write's transaction, before the before-hooks run.
+ */
+@Serializable
+public sealed interface Auto {
+    /** When the record was created, on an [FieldType.INSTANT] field. */
+    @Serializable
+    @SerialName("createdAt")
+    public data object CreatedAt : Auto
+
+    /** When the record was last written, on an [FieldType.INSTANT] field. Set on create and on every update. */
+    @Serializable
+    @SerialName("updatedAt")
+    public data object UpdatedAt : Auto
+
+    /** The id of the caller who created the record, on a string or reference field. Unset for anonymous callers. */
+    @Serializable
+    @SerialName("createdBy")
+    public data object CreatedBy : Auto
+
+    /** The id of the caller who last wrote the record, on a string or reference field. */
+    @Serializable
+    @SerialName("updatedBy")
+    public data object UpdatedBy : Auto
+
+    /**
+     * The next number of the field's own counter, set once on create. The numbers start at [start], go up by one, and
+     * neither repeat nor skip: a write that fails gives its number back. A string field holds [prefix] and the number
+     * padded with zeros to [digits]; an int or long field holds the number.
+     */
+    @Serializable
+    @SerialName("sequence")
+    public data class Sequence(
+        /** Text before the number, for a string field. */
+        val prefix: String = "",
+        /** The least number of digits, padded with zeros, for a string field. 0 means no padding. */
+        val digits: Int = 0,
+        /** The first number. */
+        val start: Long = 1,
+    ) : Auto {
+        /** Returns the value of a field of [type] for the number [n]. */
+        public fun valueOf(n: Long, type: FieldType): Value = when (type) {
+            FieldType.STRING -> Value.Text(prefix + n.toString().padStart(digits, '0'))
+            else -> Value.Integer(n)
+        }
+    }
+}
 
 /** The type of a [Field], which decides its [Value] kind. */
 @Serializable

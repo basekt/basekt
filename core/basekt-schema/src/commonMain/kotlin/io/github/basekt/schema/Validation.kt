@@ -111,6 +111,10 @@ public fun Resource.decodeRecord(
             errors += FieldError(name, FieldErrorCode.UNKNOWN_FIELD, "'${this.name}' has no field '$name'.")
             continue
         }
+        if (field.auto != null) {
+            if (element !is JsonNull) errors += FieldError(name, FieldErrorCode.READ_ONLY, "'$name' is set by the server.")
+            continue
+        }
         if (element is JsonNull) {
             record[name] = null
             continue
@@ -138,7 +142,8 @@ public fun Resource.validateRecord(
         val present = field.name in record
         val value = record[field.name]
         if (value == null) {
-            if (field.required && (mode == WriteMode.CREATE || present)) {
+            // The server sets an automatic field after the client's record is decoded.
+            if (field.required && (mode == WriteMode.CREATE || present) && !(field.auto != null && !present)) {
                 errors += FieldError(field.name, FieldErrorCode.REQUIRED, "'${field.name}' is required.")
             }
             continue

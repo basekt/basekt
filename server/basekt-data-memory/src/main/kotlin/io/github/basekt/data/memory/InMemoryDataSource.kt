@@ -10,6 +10,7 @@ import io.github.basekt.data.DuplicateIdException
 import io.github.basekt.data.Filter
 import io.github.basekt.data.Page
 import io.github.basekt.data.Query
+import io.github.basekt.data.Sequencing
 import io.github.basekt.data.Sort
 import io.github.basekt.data.checkQuery
 import io.github.basekt.schema.Record
@@ -23,15 +24,17 @@ import java.util.UUID
  * A [DataSource] that keeps records in memory, for tests, samples and prototypes. Nothing survives the instance.
  *
  * Operations run one at a time, and a transaction holds the source until it ends. Writes in a transaction go to a
- * private copy of each table they touch, so a rollback is just dropping it. It also implements [Counting].
+ * private copy of each table they touch, so a rollback is just dropping it. It also implements [Counting] and
+ * [Sequencing], whose counters roll back with the tables.
  *
  * @param newId generates ids for records created without one. Random UUIDs by default.
  */
 public class InMemoryDataSource(
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : DataSource, Counting {
+) : DataSource, Counting, Sequencing {
     private val mutex = Mutex()
     private var tables: Map<String, Map<String, Record>> = emptyMap()
+    private var sequences: Map<String, Long> = emptyMap()
 
     override suspend fun get(resource: Resource, id: String): Record? = read { it.get(resource, id) }
 
@@ -54,17 +57,23 @@ public class InMemoryDataSource(
 
     override suspend fun <T> transaction(block: suspend (DataSource) -> T): T = write { block(it) }
 
-    private suspend fun <T> read(block: suspend (Session) -> T): T = mutex.withLock { block(Session(tables)) }
+    override suspend fun nextValue(name: String, start: Long): Long = write { it.nextValue(name, start) }
+
+    private suspend fun <T> read(block: suspend (Session) -> T): T = mutex.withLock { block(Session(tables, sequences)) }
 
     private suspend fun <T> write(block: suspend (Session) -> T): T = mutex.withLock {
-        val session = Session(tables)
+        val session = Session(tables, sequences)
         val result = block(session)
         tables = session.snapshot()
+        sequences = session.counters
         result
     }
 
-    /** A view of [base] that copies a table the first time it writes to it. */
-    private inner class Session(private val base: Map<String, Map<String, Record>>) : DataSource {
+    /** A view of [base] that copies a table the first time it writes to it, and its own copy of the counters. */
+    private inner class Session(
+        private val base: Map<String, Map<String, Record>>,
+        var counters: Map<String, Long>,
+    ) : DataSource, Sequencing {
         private val written = mutableMapOf<String, LinkedHashMap<String, Record>>()
 
         fun snapshot(): Map<String, Map<String, Record>> = base + written
@@ -126,10 +135,17 @@ public class InMemoryDataSource(
         }
 
         override suspend fun <T> transaction(block: suspend (DataSource) -> T): T {
-            val inner = Session(snapshot())
+            val inner = Session(snapshot(), counters)
             val result = block(inner)
             for ((name, table) in inner.written) written[name] = table
+            counters = inner.counters
             return result
+        }
+
+        override suspend fun nextValue(name: String, start: Long): Long {
+            val next = counters[name]?.plus(1) ?: start
+            counters = counters + (name to next)
+            return next
         }
     }
 }

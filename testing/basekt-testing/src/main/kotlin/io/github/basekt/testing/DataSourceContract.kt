@@ -9,6 +9,7 @@ import io.github.basekt.data.Filter
 import io.github.basekt.data.InvalidQueryException
 import io.github.basekt.data.Query
 import io.github.basekt.data.Repository
+import io.github.basekt.data.Sequencing
 import io.github.basekt.data.Sort
 import io.github.basekt.schema.Model
 import io.github.basekt.schema.Record
@@ -316,6 +317,52 @@ public abstract class DataSourceContract {
         assertEquals(2, source.count(entries, Filter.Compare("rank", Comparison.GTE, int(2))))
         assertEquals(2, source.count(entries, Filter.Not(Filter.Compare("rank", Comparison.GTE, int(2)))))
         assertFailsWith<InvalidQueryException> { source.count(entries, Filter.IsNull("colour")) }
+    }
+
+    /** A source that offers [Sequencing] starts each counter at its start and counts up by one. Others skip this. */
+    @Test
+    public fun sequencesCountUpFromTheirStart(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is Sequencing) return@runTest
+        assertEquals(listOf(1L, 2L, 3L), List(3) { source.nextValue("contract.a") })
+        assertEquals(100, source.nextValue("contract.b", start = 100))
+        assertEquals(4, source.nextValue("contract.a", start = 100))
+        assertEquals(101, source.transaction { tx -> (tx as Sequencing).nextValue("contract.b") })
+    }
+
+    /** A number taken in a transaction that rolls back, whole or nested, is given back. */
+    @Test
+    public fun sequencesRollBackWithTheirTransaction(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is Sequencing) return@runTest
+        assertEquals(1, source.nextValue("contract.c"))
+        assertFailsWith<IllegalStateException> {
+            source.transaction { tx ->
+                assertEquals(2, (tx as Sequencing).nextValue("contract.c"))
+                error("rolls back")
+            }
+        }
+        val taken = source.transaction { tx ->
+            runCatching {
+                tx.transaction { inner ->
+                    (inner as Sequencing).nextValue("contract.c")
+                    error("inner rolls back")
+                }
+            }
+            (tx as Sequencing).nextValue("contract.c")
+        }
+        assertEquals(2, taken)
+        assertEquals(3, source.nextValue("contract.c"))
+    }
+
+    /** Concurrent transactions never take the same number, and none is skipped. */
+    @Test
+    public fun sequencesNeverRepeat(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is Sequencing) return@runTest
+        source.nextValue("contract.d")
+        val taken = List(20) { async { source.transaction { tx -> (tx as Sequencing).nextValue("contract.d") } } }.awaitAll()
+        assertEquals((2L..21L).toList(), taken.sorted())
     }
 
     /** A typed model of `entries` is the same resource, and its typed queries return what the dynamic ones do. */

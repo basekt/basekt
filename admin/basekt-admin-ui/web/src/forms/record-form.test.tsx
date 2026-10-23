@@ -7,6 +7,23 @@ import { renderPanel } from "@/test/render"
 const dune = { id: "b1", title: "Dune", pages: 412, fee: "1.50", lendable: true, authorId: null }
 
 describe("record forms", () => {
+  it("leaves out the fields the server sets", async () => {
+    const stamped = {
+      ...librarySchema,
+      resources: librarySchema.resources.map((r) => r.name !== "books" ? r : {
+        ...r,
+        fields: [...r.fields, { name: "createdAt", type: "instant" as const, required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: { kind: "createdAt" as const } }],
+      }),
+    }
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: stamped }
+    })
+    renderPanel("/admin/r/books/new", fetch)
+
+    expect(await screen.findByLabelText("Title*")).toBeInTheDocument()
+    expect(screen.queryByLabelText(/created/i)).not.toBeInTheDocument()
+  })
+
   it("shows validation errors under the fields they name", async () => {
     const user = userEvent.setup()
     const fetch = fakeFetch(({ url, method }) => {

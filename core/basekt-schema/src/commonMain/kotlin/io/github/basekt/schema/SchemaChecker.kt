@@ -73,6 +73,28 @@ internal object SchemaChecker {
         if (field.type != FieldType.REFERENCE && field.target != null) problem(at, "Only a reference field has a target.")
         if (field.type != FieldType.FILE && field.bucket != null) problem(at, "Only a file field has a bucket.")
         for (rule in field.rules) checkRule(field, rule, at, problem)
+        field.auto?.let { checkAuto(field, it, at, problem) }
+    }
+
+    private fun checkAuto(field: Field, auto: Auto, at: String, problem: (String, String) -> Unit) {
+        when (auto) {
+            Auto.CreatedAt, Auto.UpdatedAt -> if (field.type != FieldType.INSTANT) {
+                problem(at, "A creation or update time needs an instant field.")
+            }
+            Auto.CreatedBy, Auto.UpdatedBy -> if (field.type != FieldType.STRING && field.type != FieldType.REFERENCE) {
+                problem(at, "A caller id needs a string or reference field.")
+            }
+            is Auto.Sequence -> {
+                if (field.type != FieldType.STRING && field.type != FieldType.INT && field.type != FieldType.LONG) {
+                    problem(at, "A sequence needs a string, int or long field.")
+                }
+                if (field.type != FieldType.STRING && (auto.prefix.isNotEmpty() || auto.digits != 0)) {
+                    problem(at, "Only a string sequence has a prefix or digits.")
+                }
+                if (auto.digits !in 0..18) problem(at, "A sequence's digits must be between 0 and 18, not ${auto.digits}.")
+                if (auto.start < 0) problem(at, "A sequence can't start below 0.")
+            }
+        }
     }
 
     private fun checkRule(field: Field, rule: Rule, at: String, problem: (String, String) -> Unit) {

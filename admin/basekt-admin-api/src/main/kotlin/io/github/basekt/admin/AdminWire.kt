@@ -1,5 +1,6 @@
 package io.github.basekt.admin
 
+import io.github.basekt.schema.Auto
 import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Operation
 import io.github.basekt.schema.Rule
@@ -81,6 +82,8 @@ public data class AdminField(
      * panel can prefill the only one or offer a choice; a create that leaves out a field with one value gets it.
      */
     val scopedValues: List<String>? = null,
+    /** What the server sets the field to, or `null` for a field the caller writes. A panel leaves it out of forms. */
+    val auto: Auto? = null,
 )
 
 /** A relation as an admin panel sees it. */

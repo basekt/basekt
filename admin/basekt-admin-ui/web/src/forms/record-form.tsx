@@ -91,7 +91,7 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
           )}
         </Alert>
       )}
-      {resource.fields.map((field) => {
+      {resource.fields.filter((field) => field.auto == null).map((field) => {
         const id = `field-${field.name}`
         const fieldErrors = errors.fields[field.name] ?? []
         const Widget = widgetFor(field)

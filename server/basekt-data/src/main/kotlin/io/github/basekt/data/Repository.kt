@@ -7,9 +7,9 @@ import io.github.basekt.schema.Resource
  * Typed access to a [Model]'s records in [source]: every call takes and returns [T], converted through [T]'s
  * serializer, over the same [DataSource] calls dynamic code makes.
  *
- * A repository is data access. It doesn't check permissions, validate or run the server's hooks: use it in trusted
- * server code such as seeding, jobs and hooks themselves (pass a hook's transaction as [source]). Requests from
- * callers go through the server's resource service instead.
+ * A repository is data access. It doesn't check permissions, validate, set automatic fields or run the server's
+ * hooks: use it in trusted server code such as seeding, jobs and hooks themselves (pass a hook's transaction as
+ * [source]). Requests from callers go through the server's resource service instead.
  */
 public class Repository<T>(
     /** The model whose records this repository reads and writes. */
