@@ -86,6 +86,18 @@ public abstract class DataSourceContract {
         assertEquals(values, source.get(entries, created.id())!! - Resource.ID)
     }
 
+    /** getMany returns the existing records by id and skips missing ones. */
+    @Test
+    public fun getManyLoadsRecordsById(): Unit = runTest {
+        val source = createDataSource()
+        source.seedRanks(1, 2, 3)
+        val found = source.getMany(entries, listOf("e02", "missing", "e00", "e02"))
+        assertEquals(setOf("e00", "e02"), found.keys)
+        assertEquals(int(3), found.getValue("e02")["rank"])
+        assertEquals(emptyMap(), source.getMany(entries, emptyList()))
+        assertEquals(found, source.transaction { it.getMany(entries, listOf("e00", "e02")) })
+    }
+
     /** The same id may exist in two resources. */
     @Test
     public fun resourcesAreSeparate(): Unit = runTest {
@@ -229,6 +241,8 @@ public abstract class DataSourceContract {
         val page = source.list(entries, Query(limit = 3))
         assertEquals(3, page.items.size)
         assertNull(page.nextCursor)
+        assertFalse(page.hasNext)
+        assertTrue(source.list(entries, Query(limit = 2)).hasNext)
     }
 
     /** Unknown fields, mistyped values and foreign cursors are refused. */

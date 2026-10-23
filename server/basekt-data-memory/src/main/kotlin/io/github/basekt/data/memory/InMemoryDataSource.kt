@@ -34,6 +34,9 @@ public class InMemoryDataSource(
 
     override suspend fun get(resource: Resource, id: String): Record? = read { it.get(resource, id) }
 
+    override suspend fun getMany(resource: Resource, ids: Collection<String>): Map<String, Record> =
+        read { it.getMany(resource, ids) }
+
     override suspend fun list(resource: Resource, query: Query): Page = read { it.list(resource, query) }
 
     override suspend fun create(resource: Resource, record: Record): Record = write { it.create(resource, record) }
@@ -67,6 +70,11 @@ public class InMemoryDataSource(
             written.getOrPut(resource.name) { LinkedHashMap(base[resource.name].orEmpty()) }
 
         override suspend fun get(resource: Resource, id: String): Record? = table(resource)[id]
+
+        override suspend fun getMany(resource: Resource, ids: Collection<String>): Map<String, Record> {
+            val table = table(resource)
+            return ids.mapNotNull { id -> table[id]?.let { id to it } }.toMap()
+        }
 
         override suspend fun list(resource: Resource, query: Query): Page {
             resource.checkQuery(query)

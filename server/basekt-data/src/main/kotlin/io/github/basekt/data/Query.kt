@@ -36,7 +36,10 @@ public data class Page(
     val items: List<Record>,
     /** The cursor of the next page, or `null` if this is the last one. */
     val nextCursor: String?,
-)
+) {
+    /** Whether there is a next page. */
+    val hasNext: Boolean get() = nextCursor != null
+}
 
 /** One sort key. */
 public data class Sort(

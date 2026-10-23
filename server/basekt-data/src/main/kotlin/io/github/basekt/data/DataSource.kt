@@ -18,6 +18,12 @@ public interface DataSource {
     public suspend fun get(resource: Resource, id: String): Record?
 
     /**
+     * Returns the records of [resource] whose ids are in [ids], keyed by id, in one round trip. Ids with no record are
+     * absent from the map. Relation loaders use it to avoid one query per record.
+     */
+    public suspend fun getMany(resource: Resource, ids: Collection<String>): Map<String, Record>
+
+    /**
      * Returns one page of [resource]'s records that match [query]. Throws [InvalidQueryException] if the query names
      * an unknown field, compares a field with a value of another type, or has a cursor this source didn't issue for
      * the same sort.
