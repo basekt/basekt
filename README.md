@@ -162,7 +162,8 @@ Releases are cut by pushing a version tag; see [RELEASING.md](RELEASING.md).
 
 ## Building
 
-JDK 17 or later.
+JDK 17 or later, and Node 22 or later for the admin panel's web build. Node is only needed to build BaseKt: the
+panel ships prebuilt in `basekt-admin-ui`'s jar.
 
 ```bash
 ./gradlew build
