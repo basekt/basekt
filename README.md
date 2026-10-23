@@ -56,7 +56,7 @@ That serves:
 | Route | What it does |
 |---|---|
 | `GET /api/schema` | the schema as JSON. The same model can be written as JSON and read with `Schema.fromJson`. |
-| `GET /api/{resource}` | a page of records. Takes `field=value` and `field[op]=value` filters (`op` is eq, ne, gt, gte, lt, lte, in, contains or null), plus `sort=-price,name`, `limit` and `cursor`. |
+| `GET /api/{resource}` | a page of records: `items`, `nextCursor` and `hasNext`. Takes `field=value` and `field[op]=value` filters (`op` is eq, ne, gt, gte, lt, lte, in, contains or null), plus `sort=-price,name`, `limit` and `cursor`. |
 | `POST /api/{resource}` | creates a record |
 | `GET`, `PATCH`, `DELETE /api/{resource}/{id}` | reads, patches or deletes one record |
 | `GET /api/{resource}/{id}/{relation}` | the record a `belongsTo` points to, or a page of a `hasMany` |
@@ -80,6 +80,7 @@ The base path and page sizes come from the `basekt` section of `ApplicationConfi
 | `testing:basekt-testing` | ✓ works | the `DataSourceContract` suite every adapter runs, plus test fixtures |
 | `samples:sample-shop` | ✓ works | a small shop backend (the admin comes with `basekt-admin-api`) |
 | `admin:basekt-admin-ui` | later | a schema-driven admin panel (Compose Multiplatform for the web), served by the plugin |
+| `server:basekt-graphql` | later | a GraphQL API generated at runtime from the same schema, on the same `DataSource` and service layer |
 | `server:basekt-realtime` | later | change feeds over WebSockets |
 | `server:basekt-storage` (+ `-local`, `-s3`, `-gcs`) | later | file uploads behind one interface |
 | `server:basekt-audit` | later | an audit log of who changed what |
