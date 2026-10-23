@@ -189,6 +189,12 @@ public class FieldBuilder internal constructor() {
     public fun updatedBy(): Unit = auto(Auto.UpdatedBy)
 
     /**
+     * The server counts the record's writes in the field, and refuses an update that sends a version other than the
+     * current one. See [Auto.Version].
+     */
+    public fun version(): Unit = auto(Auto.Version)
+
+    /**
      * The server numbers each new record, from [start] up, without repeats or gaps. A string field gets [prefix] and
      * the number padded to [digits], such as `REF-000042`. See [Auto.Sequence].
      */

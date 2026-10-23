@@ -1,6 +1,8 @@
 package io.github.basekt.testing
 
 import io.github.basekt.data.Comparison
+import io.github.basekt.data.ConditionalUpdate
+import io.github.basekt.data.ConditionalWrites
 import io.github.basekt.data.Counting
 import io.github.basekt.data.DataSource
 import io.github.basekt.data.Direction
@@ -363,6 +365,71 @@ public abstract class DataSourceContract {
         source.nextValue("contract.d")
         val taken = List(20) { async { source.transaction { tx -> (tx as Sequencing).nextValue("contract.d") } } }.awaitAll()
         assertEquals((2L..21L).toList(), taken.sorted())
+    }
+
+    /** A conditional update writes only a record that matches, and tells a failed condition from a missing record. */
+    @Test
+    public fun conditionalUpdatesCheckTheirCondition(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is ConditionalWrites) return@runTest
+        source.create(entries, mapOf(Resource.ID to text("e1"), "title" to text("draft"), "rank" to int(3)))
+        val atLeastTwo = Filter.Compare("rank", Comparison.GTE, int(2))
+
+        val updated = source.updateIf(entries, "e1", atLeastTwo, mapOf("title" to text("final")), mapOf("rank" to int(-2)))
+        assertEquals(ConditionalUpdate.Updated::class, updated::class)
+        assertEquals(text("final"), (updated as ConditionalUpdate.Updated).record["title"])
+        assertEquals(int(1), updated.record["rank"])
+
+        assertEquals(ConditionalUpdate.ConditionFailed, source.updateIf(entries, "e1", atLeastTwo, increments = mapOf("rank" to int(-1))))
+        assertEquals(int(1), source.get(entries, "e1")!!["rank"])
+        assertEquals(ConditionalUpdate.NotFound, source.updateIf(entries, "missing", null, mapOf("title" to text("x"))))
+        assertEquals(ConditionalUpdate.Updated::class, source.updateIf(entries, "e1", atLeastTwo.copy(op = Comparison.LT))::class)
+        assertFailsWith<InvalidQueryException> { source.updateIf(entries, "e1", null, increments = mapOf("title" to int(1))) }
+        assertFailsWith<InvalidQueryException> {
+            source.updateIf(entries, "e1", null, changes = mapOf("rank" to int(5)), increments = mapOf("rank" to int(1)))
+        }
+    }
+
+    /** Increments add to int, long and decimal fields, and leave a null field null. */
+    @Test
+    public fun conditionalUpdatesIncrementNumbers(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is ConditionalWrites) return@runTest
+        source.create(entries, mapOf(Resource.ID to text("e1"), "rank" to int(10), "size" to int(5), "amount" to Value.Decimal.of("1.25")))
+        source.create(entries, mapOf(Resource.ID to text("e2")))
+        val bumped = source.updateIf(
+            entries, "e1", null,
+            increments = mapOf("rank" to int(-3), "size" to int(1_000_000_000_000), "amount" to Value.Decimal.of("0.75")),
+        ) as ConditionalUpdate.Updated
+        assertEquals(int(7), bumped.record["rank"])
+        assertEquals(int(1_000_000_000_005), bumped.record["size"])
+        assertEquals(Value.Decimal.of("2"), bumped.record["amount"])
+        val unset = source.updateIf(entries, "e2", null, increments = mapOf("rank" to int(1))) as ConditionalUpdate.Updated
+        assertNull(unset.record["rank"])
+    }
+
+    /** Concurrent "take one if any are left" updates never take more than there is, and roll back with a transaction. */
+    @Test
+    public fun conditionalUpdatesNeverOvershoot(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is ConditionalWrites) return@runTest
+        source.create(entries, mapOf(Resource.ID to text("e1"), "rank" to int(10)))
+        val anyLeft = Filter.Compare("rank", Comparison.GTE, int(1))
+        val taken = List(20) {
+            async { source.transaction { tx -> (tx as ConditionalWrites).updateIf(entries, "e1", anyLeft, increments = mapOf("rank" to int(-1))) } }
+        }.awaitAll()
+        assertEquals(10, taken.count { it is ConditionalUpdate.Updated })
+        assertEquals(10, taken.count { it == ConditionalUpdate.ConditionFailed })
+        assertEquals(int(0), source.get(entries, "e1")!!["rank"])
+
+        source.updateIf(entries, "e1", null, mapOf("rank" to int(1)))
+        assertFailsWith<IllegalStateException> {
+            source.transaction { tx ->
+                (tx as ConditionalWrites).updateIf(entries, "e1", anyLeft, increments = mapOf("rank" to int(-1)))
+                error("rolls back")
+            }
+        }
+        assertEquals(int(1), source.get(entries, "e1")!!["rank"])
     }
 
     /** A typed model of `entries` is the same resource, and its typed queries return what the dynamic ones do. */

@@ -10,6 +10,21 @@ import io.github.basekt.schema.Resource
 /**
  * What a hook sees besides the record: the [resource], the [caller], and the [data] source of the write's
  * transaction. Reads and writes through [data] commit or roll back with the write.
+ *
+ * To change a number another write may be changing at the same time, use [io.github.basekt.data.ConditionalWrites]
+ * on [data] rather than reading and writing it back:
+ *
+ * ```kotlin
+ * val pools = schema.resource("pools")!!
+ * beforeCreate("claims") { claim ->
+ *     val pool = (claim["poolId"] as Value.Text).value
+ *     val anyLeft = Filter.Compare("left", Comparison.GTE, Value.Integer(1))
+ *     when ((data as ConditionalWrites).updateIf(pools, pool, anyLeft, increments = mapOf("left" to Value.Integer(-1)))) {
+ *         is ConditionalUpdate.Updated -> proceed(claim)
+ *         else -> veto("poolId", "None left.")
+ *     }
+ * }
+ * ```
  */
 public class HookContext internal constructor(
     /** The resource being written. */

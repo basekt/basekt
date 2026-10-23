@@ -144,5 +144,8 @@ function changes(resource: AdminResource, initial: JsonObject, values: JsonObjec
     const after = values[field.name] ?? null
     if (JSON.stringify(before) !== JSON.stringify(after)) changed[field.name] = after
   }
+  // The version the form was opened at, so the server refuses the save if someone changed the record since.
+  const version = resource.fields.find((field) => field.auto?.kind === "version")
+  if (version && initial[version.name] != null) changed[version.name] = initial[version.name]
   return changed
 }

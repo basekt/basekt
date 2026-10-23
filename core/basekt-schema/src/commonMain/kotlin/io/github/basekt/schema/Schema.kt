@@ -114,6 +114,15 @@ public sealed interface Auto {
     public data object UpdatedBy : Auto
 
     /**
+     * How many times the record was written, on an int or long field: 1 on create, one more on every update. An
+     * update may send the version it last read in this field; if the record has moved on since, the update is refused
+     * as a conflict instead of overwriting someone else's change.
+     */
+    @Serializable
+    @SerialName("version")
+    public data object Version : Auto
+
+    /**
      * The next number of the field's own counter, set once on create. The numbers start at [start], go up by one, and
      * neither repeat nor skip: a write that fails gives its number back. A string field holds [prefix] and the number
      * padded with zeros to [digits]; an int or long field holds the number.

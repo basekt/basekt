@@ -47,6 +47,8 @@ internal object SchemaChecker {
             for (field in resource.fields) checkField(schema, field, "$at.fields.${field.name}", ::problem)
             duplicates(resource.relations.map { it.name }).forEach { problem("$at.relations.$it", "Relation '$it' is declared twice.") }
             for (relation in resource.relations) checkRelation(schema, resource, relation, "$at.relations.${relation.name}", ::problem)
+            val versions = resource.fields.filter { it.auto == Auto.Version }
+            if (versions.size > 1) problem("$at.fields", "A resource has at most one version field, not ${versions.joinToString { it.name }}.")
             resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
         }
         return problems
@@ -80,6 +82,9 @@ internal object SchemaChecker {
         when (auto) {
             Auto.CreatedAt, Auto.UpdatedAt -> if (field.type != FieldType.INSTANT) {
                 problem(at, "A creation or update time needs an instant field.")
+            }
+            Auto.Version -> if (field.type != FieldType.INT && field.type != FieldType.LONG) {
+                problem(at, "A version needs an int or long field.")
             }
             Auto.CreatedBy, Auto.UpdatedBy -> if (field.type != FieldType.STRING && field.type != FieldType.REFERENCE) {
                 problem(at, "A caller id needs a string or reference field.")

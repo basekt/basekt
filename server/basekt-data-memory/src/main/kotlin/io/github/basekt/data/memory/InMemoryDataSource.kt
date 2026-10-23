@@ -1,6 +1,8 @@
 package io.github.basekt.data.memory
 
 import io.github.basekt.data.Comparison
+import io.github.basekt.data.ConditionalUpdate
+import io.github.basekt.data.ConditionalWrites
 import io.github.basekt.data.Counting
 import io.github.basekt.data.CursorCodec
 import io.github.basekt.data.CursorKey
@@ -12,7 +14,9 @@ import io.github.basekt.data.Page
 import io.github.basekt.data.Query
 import io.github.basekt.data.Sequencing
 import io.github.basekt.data.Sort
+import io.github.basekt.data.checkConditionalUpdate
 import io.github.basekt.data.checkQuery
+import io.github.basekt.data.plus
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Value
@@ -24,14 +28,15 @@ import java.util.UUID
  * A [DataSource] that keeps records in memory, for tests, samples and prototypes. Nothing survives the instance.
  *
  * Operations run one at a time, and a transaction holds the source until it ends. Writes in a transaction go to a
- * private copy of each table they touch, so a rollback is just dropping it. It also implements [Counting] and
- * [Sequencing], whose counters roll back with the tables.
+ * private copy of each table they touch, so a rollback is just dropping it. It also implements [Counting],
+ * [Sequencing], whose counters roll back with the tables, and [ConditionalWrites], atomic because operations take
+ * turns.
  *
  * @param newId generates ids for records created without one. Random UUIDs by default.
  */
 public class InMemoryDataSource(
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : DataSource, Counting, Sequencing {
+) : DataSource, Counting, Sequencing, ConditionalWrites {
     private val mutex = Mutex()
     private var tables: Map<String, Map<String, Record>> = emptyMap()
     private var sequences: Map<String, Long> = emptyMap()
@@ -59,6 +64,14 @@ public class InMemoryDataSource(
 
     override suspend fun nextValue(name: String, start: Long): Long = write { it.nextValue(name, start) }
 
+    override suspend fun updateIf(
+        resource: Resource,
+        id: String,
+        condition: Filter?,
+        changes: Record,
+        increments: Map<String, Value>,
+    ): ConditionalUpdate = write { it.updateIf(resource, id, condition, changes, increments) }
+
     private suspend fun <T> read(block: suspend (Session) -> T): T = mutex.withLock { block(Session(tables, sequences)) }
 
     private suspend fun <T> write(block: suspend (Session) -> T): T = mutex.withLock {
@@ -73,7 +86,7 @@ public class InMemoryDataSource(
     private inner class Session(
         private val base: Map<String, Map<String, Record>>,
         var counters: Map<String, Long>,
-    ) : DataSource, Sequencing {
+    ) : DataSource, Sequencing, ConditionalWrites {
         private val written = mutableMapOf<String, LinkedHashMap<String, Record>>()
 
         fun snapshot(): Map<String, Map<String, Record>> = base + written
@@ -140,6 +153,20 @@ public class InMemoryDataSource(
             for ((name, table) in inner.written) written[name] = table
             counters = inner.counters
             return result
+        }
+
+        override suspend fun updateIf(
+            resource: Resource,
+            id: String,
+            condition: Filter?,
+            changes: Record,
+            increments: Map<String, Value>,
+        ): ConditionalUpdate {
+            resource.checkConditionalUpdate(condition, changes, increments)
+            val current = table(resource)[id] ?: return ConditionalUpdate.NotFound
+            if (condition != null && !current.matches(condition)) return ConditionalUpdate.ConditionFailed
+            val added = increments.mapValues { (name, amount) -> current[name]?.plus(amount) }
+            return ConditionalUpdate.Updated(update(resource, id, changes + added)!!)
         }
 
         override suspend fun nextValue(name: String, start: Long): Long {

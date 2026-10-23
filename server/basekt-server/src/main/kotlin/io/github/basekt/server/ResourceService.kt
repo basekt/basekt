@@ -1,6 +1,8 @@
 package io.github.basekt.server
 
 import io.github.basekt.data.Comparison
+import io.github.basekt.data.ConditionalUpdate
+import io.github.basekt.data.ConditionalWrites
 import io.github.basekt.data.DataSource
 import io.github.basekt.data.DuplicateIdException
 import io.github.basekt.data.Filter
@@ -65,6 +67,10 @@ public class ResourceService(
         val numbered = schema.resources.flatMap { r -> r.fields.filter { it.auto is Auto.Sequence }.map { "${r.name}.${it.name}" } }
         require(numbered.isEmpty() || dataSource is Sequencing) {
             "The sequence fields ${numbered.joinToString()} need a data source that offers Sequencing."
+        }
+        val versioned = schema.resources.flatMap { r -> r.fields.filter { it.auto == Auto.Version }.map { "${r.name}.${it.name}" } }
+        require(versioned.isEmpty() || dataSource is ConditionalWrites) {
+            "The version fields ${versioned.joinToString()} need a data source that offers ConditionalWrites."
         }
     }
 
@@ -137,10 +143,15 @@ public class ResourceService(
     /** Validates [body] and applies it to the record of [resource] with [id], if [caller] may. */
     public suspend fun update(resource: Resource, caller: Identity?, id: String, body: JsonObject): Record {
         authorize(resource, Operation.UPDATE, caller)
-        val decoded = decode(resource, scoped(resource, Operation.UPDATE, caller, body), WriteMode.UPDATE)
+        val input = decode(resource, scoped(resource, Operation.UPDATE, caller, body), WriteMode.UPDATE)
+        // The version a client sends is the one it last read, not a value to write.
+        val version = resource.fields.firstOrNull { it.auto == Auto.Version }
+        val expected = version?.let { input[it.name] }
+        val decoded = if (version == null) input else input - version.name
         return dataSource.transaction { tx ->
             val context = HookContext(resource, caller, tx)
             val current = writable(tx, resource, Operation.UPDATE, caller, id)
+            if (version != null && expected != null && current[version.name] != expected) throw stale(resource, id, current[version.name])
             val stamped = stamped(tx, resource, caller, decoded, WriteMode.UPDATE)
             var changes = stamped
             for (hook in hooks.beforeUpdate[resource.name].orEmpty()) {
@@ -149,7 +160,11 @@ public class ResourceService(
             if (changes != stamped) revalidate(resource, changes, WriteMode.UPDATE)
             checkReferences(tx, resource, changes)
             checkExtensions(tx, resource, changes)
-            val updated = tx.update(resource, id, changes) ?: throw notFound(resource, id)
+            val updated = if (version == null) {
+                tx.update(resource, id, changes) ?: throw notFound(resource, id)
+            } else {
+                versionedUpdate(tx, resource, id, version.name, expected, current, changes)
+            }
             for (hook in hooks.afterUpdate[resource.name].orEmpty()) context.hook(Updated(current, updated))
             current to updated
         }.let { (before, after) ->
@@ -273,6 +288,7 @@ public class ResourceService(
                 Auto.UpdatedAt -> now
                 Auto.CreatedBy -> callerId.takeIf { creating }
                 Auto.UpdatedBy -> callerId
+                Auto.Version -> Value.Integer(1).takeIf { creating }
                 is Auto.Sequence -> if (creating) {
                     val number = (tx as Sequencing).nextValue("${resource.name}.${field.name}", auto.start)
                     auto.valueOf(number, field.type)
@@ -282,6 +298,39 @@ public class ResourceService(
         }
         return stamped
     }
+
+    /**
+     * Writes [changes] to the record [id] and adds one to its [version] field in one atomic step, if the version is
+     * still [expected] (or whatever it is, when the client sent none). A record from before the field existed starts
+     * at 1.
+     */
+    private suspend fun versionedUpdate(
+        tx: DataSource,
+        resource: Resource,
+        id: String,
+        version: String,
+        expected: Value?,
+        current: Record,
+        changes: Record,
+    ): Record {
+        val rest = changes - version
+        val condition = expected?.let { Filter.Compare(version, Comparison.EQ, it) }
+        val result = if (current[version] == null) {
+            (tx as ConditionalWrites).updateIf(resource, id, condition ?: Filter.IsNull(version), rest + (version to Value.Integer(1)))
+        } else {
+            (tx as ConditionalWrites).updateIf(resource, id, condition, rest, mapOf(version to Value.Integer(1)))
+        }
+        return when (result) {
+            is ConditionalUpdate.Updated -> result.record
+            ConditionalUpdate.NotFound -> throw notFound(resource, id)
+            ConditionalUpdate.ConditionFailed -> throw stale(resource, id, tx.get(resource, id)?.get(version))
+        }
+    }
+
+    private fun stale(resource: Resource, id: String, now: Value?) = ApiException(
+        ErrorCode.CONFLICT,
+        "'${resource.name}/$id' changed since you read it; it is at version ${now ?: "unknown"} now. Reload it and try again.",
+    )
 
     private fun outsideScope(resource: Resource, field: String) =
         ApiException(ErrorCode.FORBIDDEN, "You can't give '${resource.name}.$field' a value outside your own.")
