@@ -4,7 +4,5 @@ plugins { id("basekt.jvm-library") }
 dependencies {
     api(project(":server:basekt-data"))
     api(libs.ktor.server.core)
-    implementation(libs.ktor.server.content.negotiation)
-    implementation(libs.ktor.serialization.kotlinx.json)
     testImplementation(project(":testing:basekt-testing"))
 }
