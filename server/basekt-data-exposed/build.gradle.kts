@@ -13,12 +13,14 @@ dependencies {
     testImplementation(project(":testing:basekt-testing"))
     testImplementation(libs.h2)
     testImplementation(libs.postgresql)
+    testImplementation(libs.testcontainers.postgresql)
 }
 
-// Tests run on H2. Pass -Pbasekt.postgres.url=jdbc:postgresql://... (and .user, .password) to also run the contract
-// suite on Postgres.
+// Tests run on H2, and the contract suite on Postgres too: in a Testcontainers container when Docker is available,
+// or on the database -Pbasekt.postgres.url=jdbc:postgresql://... (and .user, .password) names.
+// -Pbasekt.postgres.required=true makes the Postgres tests fail instead of skipping when there's no Docker, as in CI.
 tasks.test {
-    for (name in listOf("url", "user", "password")) {
+    for (name in listOf("url", "user", "password", "required")) {
         providers.gradleProperty("basekt.postgres.$name").orNull?.let { systemProperty("basekt.postgres.$name", it) }
     }
 }
