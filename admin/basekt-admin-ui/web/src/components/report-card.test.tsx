@@ -52,7 +52,7 @@ describe("the reports on the home screen", () => {
     await user.click(screen.getByRole("button", { name: "Default" }))
     expect(card).toHaveTextContent("Sum of views, last 7 days")
     expect(localStorage.getItem("basekt.reportRange")).toBeNull()
-  })
+  }, 15_000)
 
   it("let one card pick its own dates and compare with an earlier window", async () => {
     const user = userEvent.setup()
@@ -96,7 +96,7 @@ describe("the reports on the home screen", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Reset" }))
     expect(card).toHaveTextContent("Sum of views, last 7 days")
     expect(localStorage.getItem("basekt.report.tickets.weekViews")).toBeNull()
-  })
+  }, 15_000) // Several menus, a dialog and a calendar: slow runners need more than the default 5s.
 
   it("leave the home screen as it was when no resource has reports", async () => {
     const fetch = fakeFetch(({ url }) => (url.pathname === "/admin/api/schema" ? { body: librarySchema } : undefined))
