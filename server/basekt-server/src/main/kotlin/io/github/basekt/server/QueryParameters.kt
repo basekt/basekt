@@ -1,8 +1,11 @@
 package io.github.basekt.server
 
+import io.github.basekt.data.AggregateFunction
+import io.github.basekt.data.AggregateQuery
 import io.github.basekt.data.Comparison
 import io.github.basekt.data.Direction
 import io.github.basekt.data.Filter
+import io.github.basekt.data.Measure
 import io.github.basekt.data.Query
 import io.github.basekt.data.Sort
 import io.github.basekt.data.fieldType
@@ -49,6 +52,61 @@ public fun parseQuery(
     }
     return Query(filter, sort, limit, cursor)
 }
+
+/**
+ * Turns URL query parameters into an [AggregateQuery] for [resource]:
+ * - `groupBy=kind,siteId` groups by those fields;
+ * - `count` or `count=*` counts records, and `count=field` the records with the field set: `count=*,field` asks
+ *   for both;
+ * - `sum=`, `avg=`, `min=` and `max=` take one or more fields, comma-separated, each a measure named
+ *   `sum_<field>` and so on;
+ * - `sort=-sum_quantity,kind` sorts by measures and group fields, descending when prefixed with `-`;
+ * - `limit` caps the groups, between 1 and [maxLimit] ([maxLimit] when absent);
+ * - any other parameter is a filter, as in [parseQuery].
+ *
+ * Throws [ApiException] with [ErrorCode.INVALID_QUERY] for anything it can't parse.
+ */
+public fun parseAggregateQuery(resource: Resource, parameters: Map<String, List<String>>, maxLimit: Int): AggregateQuery {
+    val filters = mutableListOf<Filter>()
+    val measures = mutableListOf<Measure>()
+    var groupBy = emptyList<String>()
+    var sort = emptyList<Sort>()
+    var limit = maxLimit
+    for ((name, values) in parameters) {
+        // A bare `?count` has no value at all.
+        val value = values.lastOrNull() ?: ""
+        val function = AggregateFunction.entries.firstOrNull { it.name.lowercase() == name }
+        when {
+            name == "groupBy" -> groupBy = value.split(',').filter { it.isNotBlank() }
+            name == "sort" -> sort = value.split(',').filter { it.isNotBlank() }.map { key ->
+                Sort(key.removePrefix("-"), if (key.startsWith('-')) Direction.DESC else Direction.ASC)
+            }
+            name == "limit" -> limit = value.toIntOrNull()?.takeIf { it in 1..maxLimit }
+                ?: invalidQuery("limit must be a whole number from 1 to $maxLimit.")
+            function != null -> for (given in values.ifEmpty { listOf("") }) {
+                val fields = given.split(',').filter { it.isNotBlank() }
+                when {
+                    fields.isNotEmpty() -> measures += fields.map { field ->
+                        if (field == ALL_RECORDS && function == AggregateFunction.COUNT) Measure(function) else Measure(function, field)
+                    }
+                    function == AggregateFunction.COUNT -> measures += Measure(function)
+                    else -> invalidQuery("$name needs at least one field.")
+                }
+            }
+            else -> filters += parseFilter(resource, name, value)
+        }
+    }
+    if (measures.isEmpty()) invalidQuery("An aggregate needs at least one of count, sum, avg, min or max.")
+    val filter = when (filters.size) {
+        0 -> null
+        1 -> filters.single()
+        else -> Filter.And(filters)
+    }
+    return AggregateQuery(groupBy, measures, filter, sort, limit)
+}
+
+/** The `count` of every record, as opposed to of a field. */
+private const val ALL_RECORDS = "*"
 
 private val filterName = Regex("""([A-Za-z][A-Za-z0-9_]*)(?:\[([a-z]+)])?""")
 

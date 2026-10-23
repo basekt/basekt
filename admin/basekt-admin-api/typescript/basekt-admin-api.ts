@@ -133,6 +133,16 @@ export interface AdminPage {
   total: number | null;
 }
 
+export interface AdminAggregatePage {
+  groups: AdminAggregateGroup[];
+  hasMore: boolean;
+}
+
+export interface AdminAggregateGroup {
+  key: JsonObject;
+  values: JsonObject;
+}
+
 export interface BulkDeleteRequest {
   ids: string[];
 }
@@ -153,7 +163,7 @@ export interface ApiError {
   fields: FieldError[];
 }
 
-export type ErrorCode = "bad_request" | "invalid_query" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "payload_too_large" | "unsupported_type" | "validation_failed" | "rejected";
+export type ErrorCode = "bad_request" | "invalid_query" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "payload_too_large" | "unsupported_type" | "validation_failed" | "rejected" | "not_implemented";
 
 export interface FieldError {
   field: string;

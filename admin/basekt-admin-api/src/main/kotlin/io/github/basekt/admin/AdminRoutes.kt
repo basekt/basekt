@@ -11,11 +11,13 @@ import io.github.basekt.schema.Operation
 import io.github.basekt.schema.Relation
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.encodeRecord
+import io.github.basekt.schema.toJson
 import io.github.basekt.server.ApiError
 import io.github.basekt.server.ApiException
 import io.github.basekt.server.BaseKtRuntime
 import io.github.basekt.server.ErrorCode
 import io.github.basekt.server.Identity
+import io.github.basekt.server.parseAggregateQuery
 import io.github.basekt.server.parseQuery
 import io.github.basekt.server.toJson
 import io.ktor.http.ContentDisposition
@@ -38,6 +40,7 @@ import io.ktor.util.toMap
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 
 internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) {
@@ -117,6 +120,22 @@ internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) 
                     respondJson(BulkDeleteResult.serializer(), BulkDeleteResult(deleted, failed))
                 }
             }
+            get("aggregate") {
+                handle(runtime) { caller ->
+                    val resource = resource(runtime)
+                    val parameters = call.request.queryParameters.toMap()
+                    var query = parseAggregateQuery(resource, parameters - SEARCH, runtime.maxAggregateGroups)
+                    search(resource, parameters)?.let { search -> query = query.copy(filter = query.filter?.let { Filter.And(listOf(it, search)) } ?: search) }
+                    val page = service.aggregate(resource, caller, query)
+                    val groups = page.groups.map { group ->
+                        AdminAggregateGroup(
+                            JsonObject(group.key.mapValues { (_, value) -> value?.toJson() ?: JsonNull }),
+                            JsonObject(group.values.mapValues { (_, value) -> value?.toJson() ?: JsonNull }),
+                        )
+                    }
+                    respondJson(AdminAggregatePage.serializer(), AdminAggregatePage(groups, page.hasMore))
+                }
+            }
             get("export.csv") {
                 handle(runtime) { caller -> exportCsv(runtime, settings, caller) }
             }
@@ -161,10 +180,7 @@ private fun Resource.searchable(): List<String> =
 private fun RoutingContext.query(resource: Resource, defaultLimit: Int, maxLimit: Int): Query {
     val parameters = call.request.queryParameters.toMap()
     val query = parseQuery(resource, parameters - SEARCH, defaultLimit, maxLimit)
-    val text = parameters[SEARCH]?.lastOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: return query
-    val fields = resource.searchable()
-    if (fields.isEmpty()) throw ApiException(ErrorCode.INVALID_QUERY, "'${resource.name}' has no text fields to search.")
-    val search = Filter.Or(fields.map { Filter.Contains(it, text) })
+    val search = search(resource, parameters) ?: return query
     return query.copy(filter = query.filter?.let { Filter.And(listOf(it, search)) } ?: search)
 }
 
@@ -262,3 +278,11 @@ private suspend fun <T> RoutingContext.respondJson(serializer: KSerializer<T>, v
 }
 
 private const val SEARCH = "search"
+
+/** The condition the `search` parameter makes over the searchable fields, or `null` without one. */
+private fun search(resource: Resource, parameters: Map<String, List<String>>): Filter? {
+    val text = parameters[SEARCH]?.lastOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val fields = resource.searchable()
+    if (fields.isEmpty()) throw ApiException(ErrorCode.INVALID_QUERY, "'${resource.name}' has no text fields to search.")
+    return Filter.Or(fields.map { Filter.Contains(it, text) })
+}

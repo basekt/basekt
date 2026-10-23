@@ -1,5 +1,8 @@
 package io.github.basekt.data.exposed
 
+import io.github.basekt.data.AggregatePage
+import io.github.basekt.data.AggregateQuery
+import io.github.basekt.data.Aggregating
 import io.github.basekt.data.ConditionalUpdate
 import io.github.basekt.data.ConditionalWrites
 import io.github.basekt.data.Counting
@@ -10,6 +13,7 @@ import io.github.basekt.data.Filter
 import io.github.basekt.data.Page
 import io.github.basekt.data.Query
 import io.github.basekt.data.Sequencing
+import io.github.basekt.data.checkAggregate
 import io.github.basekt.data.checkConditionalUpdate
 import io.github.basekt.data.checkQuery
 import io.github.basekt.data.fieldType
@@ -57,7 +61,7 @@ import java.util.concurrent.atomic.AtomicLong
  * [TableMapping.tablePrefix]). Taking a number updates its row, which holds the row's lock until the transaction
  * ends: concurrent writers of the same counter take turns, and a rollback gives the number back. And it implements
  * [ConditionalWrites] as one `UPDATE … WHERE id = ? AND <condition>`: the row's lock makes concurrent updates wait,
- * and the database checks the condition again on the row they then see.
+ * and the database checks the condition again on the row they then see. [Aggregating] is one `SELECT … GROUP BY`.
  *
  * @param database the Exposed database to use. The application creates and owns it.
  * @param schema the resources to store.
@@ -71,7 +75,7 @@ public class ExposedDataSource(
     mapping: TableMapping = TableMapping(),
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : DataSource, Counting, Sequencing, ConditionalWrites {
+) : DataSource, Counting, Sequencing, ConditionalWrites, Aggregating {
     private val tables: Map<String, ResourceTable>
     private val counterTable = SequenceTable(mapping.tablePrefix)
     private val savepoints = AtomicLong()
@@ -117,6 +121,11 @@ public class ExposedDataSource(
     override suspend fun <T> transaction(block: suspend (DataSource) -> T): T = run { block(it) }
 
     override suspend fun nextValue(name: String, start: Long): Long = run { it.nextValue(name, start) }
+
+    override suspend fun aggregate(resource: Resource, query: AggregateQuery): AggregatePage = run {
+        resource.checkAggregate(query)
+        aggregate(table(resource), query)
+    }
 
     override suspend fun updateIf(
         resource: Resource,

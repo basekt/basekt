@@ -56,6 +56,9 @@ public enum class ErrorCode(
 
     /** A hook of the application refused the write; see [ApiError.message]. */
     @SerialName("rejected") REJECTED(422),
+
+    /** The data source can't do what the request needs, such as computing aggregates. */
+    @SerialName("not_implemented") NOT_IMPLEMENTED(501),
 }
 
 /** Thrown by [ResourceService] to answer a request with [error]. */

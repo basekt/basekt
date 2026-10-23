@@ -1,5 +1,10 @@
 package io.github.basekt.data.memory
 
+import io.github.basekt.data.AggregateFunction
+import io.github.basekt.data.AggregateGroup
+import io.github.basekt.data.AggregatePage
+import io.github.basekt.data.AggregateQuery
+import io.github.basekt.data.Aggregating
 import io.github.basekt.data.Comparison
 import io.github.basekt.data.ConditionalUpdate
 import io.github.basekt.data.ConditionalWrites
@@ -14,6 +19,8 @@ import io.github.basekt.data.Page
 import io.github.basekt.data.Query
 import io.github.basekt.data.Sequencing
 import io.github.basekt.data.Sort
+import io.github.basekt.data.averageOf
+import io.github.basekt.data.checkAggregate
 import io.github.basekt.data.checkConditionalUpdate
 import io.github.basekt.data.checkQuery
 import io.github.basekt.data.plus
@@ -29,14 +36,14 @@ import java.util.UUID
  *
  * Operations run one at a time, and a transaction holds the source until it ends. Writes in a transaction go to a
  * private copy of each table they touch, so a rollback is just dropping it. It also implements [Counting],
- * [Sequencing], whose counters roll back with the tables, and [ConditionalWrites], atomic because operations take
- * turns.
+ * [Sequencing], whose counters roll back with the tables, [ConditionalWrites], atomic because operations take
+ * turns, and [Aggregating].
  *
  * @param newId generates ids for records created without one. Random UUIDs by default.
  */
 public class InMemoryDataSource(
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : DataSource, Counting, Sequencing, ConditionalWrites {
+) : DataSource, Counting, Sequencing, ConditionalWrites, Aggregating {
     private val mutex = Mutex()
     private var tables: Map<String, Map<String, Record>> = emptyMap()
     private var sequences: Map<String, Long> = emptyMap()
@@ -63,6 +70,18 @@ public class InMemoryDataSource(
     override suspend fun <T> transaction(block: suspend (DataSource) -> T): T = write { block(it) }
 
     override suspend fun nextValue(name: String, start: Long): Long = write { it.nextValue(name, start) }
+
+    override suspend fun aggregate(resource: Resource, query: AggregateQuery): AggregatePage = read { session ->
+        resource.checkAggregate(query)
+        val matching = session.records(resource).filter { record -> query.filter?.let { record.matches(it) } ?: true }
+        val grouped = matching.groupBy { record -> query.groupBy.map { record[it] } }
+        // Without group fields there is always one group, as in SQL, even of no records.
+        val groups = if (query.groupBy.isEmpty() && grouped.isEmpty()) mapOf(emptyList<Value?>() to emptyList()) else grouped
+        val all = groups.map { (key, records) ->
+            AggregateGroup(query.groupBy.zip(key).toMap(), query.measures.associate { it.name to it.function.over(it.field, records) })
+        }.sortedWith(groupOrder(query))
+        AggregatePage(all.take(query.limit), all.size > query.limit)
+    }
 
     override suspend fun updateIf(
         resource: Resource,
@@ -175,6 +194,32 @@ public class InMemoryDataSource(
             return next
         }
     }
+}
+
+private fun AggregateFunction.over(field: String?, records: List<Record>): Value? {
+    val values = if (field == null) emptyList() else records.mapNotNull { it[field] }
+    return when (this) {
+        AggregateFunction.COUNT -> Value.Integer(if (field == null) records.size.toLong() else values.size.toLong())
+        AggregateFunction.SUM -> values.reduceOrNull { total, value -> total + value }
+        AggregateFunction.AVG -> averageOf(values.reduceOrNull { total, value -> total + value }, values.size.toLong())
+        AggregateFunction.MIN -> values.minOrNull()
+        AggregateFunction.MAX -> values.maxOrNull()
+    }
+}
+
+/** Orders groups by the query's sort keys, then by every group field ascending, nulls after values when ascending. */
+private fun groupOrder(query: AggregateQuery): Comparator<AggregateGroup> = Comparator { a, b ->
+    fun valueOf(group: AggregateGroup, name: String) = if (name in query.groupBy) group.key[name] else group.values[name]
+    for (key in query.sort) {
+        val ascending = compareNullsLast(valueOf(a, key.field), valueOf(b, key.field))
+        val result = if (key.direction == Direction.ASC) ascending else -ascending
+        if (result != 0) return@Comparator result
+    }
+    for (field in query.groupBy) {
+        val result = compareNullsLast(a.key[field], b.key[field])
+        if (result != 0) return@Comparator result
+    }
+    0
 }
 
 /** Orders cursor keys by each sort key, nulls last when ascending, then by id ascending. */

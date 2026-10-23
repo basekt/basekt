@@ -225,6 +225,27 @@ input, and shares an `operationId` with the writes it made. Entries are written 
 so a write that rolls back leaves no entry. Because the log is an ordinary resource, `GET /api/audit?recordId=p1`
 gives one record's history, and the admin panel lists it.
 
+**Aggregates** compute grouped totals in the data source instead of loading every record: stock on hand from a
+ledger of movements, totals per site, or a dashboard's numbers.
+
+```
+GET /api/aggregate/movements?groupBy=itemId,siteId&sum=quantity&count&max=at&quantity[gt]=0&sort=-sum_quantity&limit=50
+→ {"groups": [{"key": {"itemId": "i1", "siteId": "north"}, "values": {"sum_quantity": 7, "count": 2, "max_at": "…"}}],
+   "hasMore": false}
+```
+
+The parameters are:
+- `groupBy`, with one or more fields;
+- `count` (records, or `count=*`), `count=field` (records with the field set), and `sum=`, `avg=`, `min=` and `max=`,
+  each with one or more fields;
+- `sort`, by group fields or measure names, and `limit`, up to `basekt.aggregate.maxLimit` (1000 by default);
+- the usual filters.
+
+Sums keep integers as integers. An average is exact to 12 places on every database. The caller's read scope applies,
+so staff see only their own sites' totals. It needs a data source that offers `Aggregating`, as the in-memory and
+Exposed adapters do (Exposed runs one `SELECT … GROUP BY`). Otherwise it's `501 not_implemented`. The admin API serves
+the same at `GET /admin/api/resources/{name}/aggregate`, with `search` too.
+
 **The admin API** is JSON only, for a panel to render itself from:
 
 | Route under `/admin/api` | What it does |

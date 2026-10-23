@@ -125,6 +125,24 @@ public enum class RelationKind {
     @SerialName("hasMany") HAS_MANY,
 }
 
+/** Grouped totals: `GET {path}/resources/{name}/aggregate`. */
+@Serializable
+public data class AdminAggregatePage(
+    /** The groups, in order. */
+    val groups: List<AdminAggregateGroup>,
+    /** Whether the limit left groups out. */
+    val hasMore: Boolean,
+)
+
+/** One group of an aggregate. */
+@Serializable
+public data class AdminAggregateGroup(
+    /** The value of each group field. */
+    val key: JsonObject,
+    /** The value of each measure, by name, such as `count` or `sum_quantity`. */
+    val values: JsonObject,
+)
+
 /** One page of a list: `GET {path}/resources/{name}/records`. */
 @Serializable
 public data class AdminPage(

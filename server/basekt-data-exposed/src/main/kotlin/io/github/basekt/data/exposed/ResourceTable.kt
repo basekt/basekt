@@ -77,7 +77,7 @@ internal fun Value.toColumn(type: FieldType): Any = when (this) {
     is Value.Timestamp -> value
 }
 
-private fun fromColumn(type: FieldType, stored: Any): Value = when (type) {
+internal fun fromColumn(type: FieldType, stored: Any): Value = when (type) {
     FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE, FieldType.FILE -> Value.Text(stored as String)
     FieldType.INT, FieldType.LONG -> Value.Integer((stored as Number).toLong())
     FieldType.DECIMAL -> Value.Decimal.of((stored as BigDecimal).stripTrailingZeros().toPlainString())

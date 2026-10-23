@@ -47,6 +47,9 @@ public class BaseKtConfig internal constructor(config: ApplicationConfig) {
     /** The largest `limit` a list request may ask for. `basekt.pageSize.max`, 100 by default. */
     public var maxPageSize: Int = config.propertyOrNull("pageSize.max")?.getString()?.toInt() ?: 100
 
+    /** The most groups an aggregate request may return, and the default. `basekt.aggregate.maxLimit`, 1000 by default. */
+    public var maxAggregateGroups: Int = config.propertyOrNull("aggregate.maxLimit")?.getString()?.toInt() ?: 1000
+
     /** Finds out who made each call. Anonymous by default; an auth module replaces it. */
     public var identities: IdentityResolver = IdentityResolver.Anonymous
 
@@ -109,6 +112,8 @@ public class BaseKtRuntime internal constructor(
     public val models: List<Model<*>>,
     /** Where times come from, such as the automatic `createdAt()` fields'. Modules use it for their own times. */
     public val clock: Clock = Clock.System,
+    /** The most groups an aggregate request may return. */
+    public val maxAggregateGroups: Int = 1000,
 )
 
 private val RuntimeKey = AttributeKey<BaseKtRuntime>("BaseKtRuntime")
@@ -142,6 +147,8 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     val missing = schema.missingValidators(validators)
     require(missing.isEmpty()) { "The schema's custom rules name validators that aren't registered: ${missing.joinToString()}." }
     require(schema.resource(SCHEMA_PATH) == null) { "A resource can't be called '$SCHEMA_PATH': GET $SCHEMA_PATH serves the schema." }
+    require(schema.resource(AGGREGATE_PATH) == null) { "A resource can't be called '$AGGREGATE_PATH': GET $AGGREGATE_PATH/{resource} serves aggregates." }
+    require(pluginConfig.maxAggregateGroups >= 1) { "maxAggregateGroups must be at least 1." }
     val defaultPageSize = pluginConfig.defaultPageSize
     val maxPageSize = pluginConfig.maxPageSize
     require(maxPageSize >= 1 && defaultPageSize in 1..maxPageSize) {
@@ -150,7 +157,7 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     val basePath = "/" + pluginConfig.basePath.trim('/')
 
     val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock, pluginConfig.builtActions())
-    val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList(), pluginConfig.clock)
+    val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList(), pluginConfig.clock, pluginConfig.maxAggregateGroups)
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }
 
@@ -164,3 +171,5 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
 }
 
 internal const val SCHEMA_PATH = "schema"
+
+internal const val AGGREGATE_PATH = "aggregate"
