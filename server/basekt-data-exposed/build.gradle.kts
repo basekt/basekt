@@ -1,5 +1,10 @@
 // A DataSource over Exposed (JDBC): Postgres, MySQL, H2 and the rest.
-plugins { id("basekt.jvm-library") }
+plugins {
+    id("basekt.jvm-library")
+    id("basekt.publish")
+}
+
+description = "BaseKt DataSource over Exposed/JDBC: Postgres, MySQL and H2."
 
 dependencies {
     api(project(":server:basekt-data"))

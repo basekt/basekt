@@ -144,6 +144,22 @@ The runnable example is [`samples/sample-shop`](samples/sample-shop): Exposed on
 | `server:basekt-data-jdbc`, `-mongo` | later | more data adapters |
 | `server:basekt-auth-oidc`, `-firebase` | later | more auth providers |
 
+## Installing
+
+Once published, every module is on Maven Central as `io.github.basekt:<module>:<version>`:
+
+```kotlin
+dependencies {
+    implementation("io.github.basekt:basekt-server:0.1.0")
+    implementation("io.github.basekt:basekt-data-exposed:0.1.0")   // or basekt-data-memory
+    implementation("io.github.basekt:basekt-auth:0.1.0")
+    implementation("io.github.basekt:basekt-admin-api:0.1.0")
+    testImplementation("io.github.basekt:basekt-testing:0.1.0")
+}
+```
+
+Releases are cut by pushing a version tag; see [RELEASING.md](RELEASING.md).
+
 ## Building
 
 JDK 17 or later.
