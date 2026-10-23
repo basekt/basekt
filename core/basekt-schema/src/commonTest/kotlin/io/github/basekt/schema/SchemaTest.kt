@@ -104,4 +104,15 @@ class SchemaTest {
         assertEquals(setOf("isbn"), catalogueSchema.missingValidators(emptyMap()))
         assertEquals(emptySet(), catalogueSchema.missingValidators(mapOf("isbn" to isbnValidator)))
     }
+
+    @Test
+    fun `a resource may be listed under a menu group`() {
+        val schema = schema {
+            resource("pots") { group("Kitchen"); string("name") }
+            resource("pans") { string("name") }
+        }
+        assertEquals(listOf("Kitchen", null), schema.resources.map { it.group })
+        assertEquals(schema, Schema.fromJson(schema.toJson()))
+        assertFailsWith<InvalidSchemaException> { schema { resource("pots") { group(" "); string("name") } } }
+    }
 }

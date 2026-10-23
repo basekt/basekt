@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { humanize } from "@/lib/fields"
 import { cn } from "@/lib/utils"
+import { menuSections } from "@/lib/menu"
 import { usePanel } from "@/panel"
 import { Link, useRouter } from "@/router"
 
@@ -21,19 +22,26 @@ export function Layout({ children }: { children: ReactNode }) {
           <span className="truncate">{config.brand.name}</span>
         </Link>
         <nav aria-label="Resources" className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-1 md:flex-col md:overflow-y-auto">
-          {schema.resources.map((resource) => (
-            <Link
-              key={resource.name}
-              to={{ screen: "list", resource: resource.name, search: new URLSearchParams() }}
-              aria-current={current === resource.name ? "page" : undefined}
-              className={cn(
-                "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                current === resource.name && "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+          {menuSections(schema.resources).map((section) => (
+            <div key={section.group ?? ""} role="group" aria-label={section.group ?? undefined} className="flex gap-1 md:flex-col">
+              {section.group && (
+                <h2 className="hidden px-3 pt-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground md:block">{section.group}</h2>
               )}
-            >
-              <Table2 className="size-4 opacity-70" />
-              {humanize(resource.name)}
-            </Link>
+              {section.resources.map((resource) => (
+                <Link
+                  key={resource.name}
+                  to={{ screen: "list", resource: resource.name, search: new URLSearchParams() }}
+                  aria-current={current === resource.name ? "page" : undefined}
+                  className={cn(
+                    "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    current === resource.name && "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+                  )}
+                >
+                  <Table2 className="size-4 opacity-70" />
+                  {humanize(resource.name)}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="hidden border-t border-sidebar-border p-3 text-sm md:block">

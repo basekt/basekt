@@ -61,6 +61,8 @@ public data class AdminResource(
     val sortable: List<String>,
     /** The actions the caller may run. */
     val actions: List<AdminAction> = emptyList(),
+    /** The menu heading to list the resource under, or `null` for the top of the menu. */
+    val group: String? = null,
 )
 
 /** An action as an admin panel sees it: a button, and a form for its input. */

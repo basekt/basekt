@@ -32,6 +32,7 @@ export interface AdminResource {
   searchable: string[];
   sortable: string[];
   actions: AdminAction[];
+  group: string | null;
 }
 
 export interface AdminField {
