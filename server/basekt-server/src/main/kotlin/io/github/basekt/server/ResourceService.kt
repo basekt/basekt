@@ -7,6 +7,8 @@ import io.github.basekt.data.Filter
 import io.github.basekt.data.InvalidQueryException
 import io.github.basekt.data.Page
 import io.github.basekt.data.Query
+import io.github.basekt.data.Sequencing
+import io.github.basekt.schema.Auto
 import io.github.basekt.schema.DecodeResult
 import io.github.basekt.schema.FieldError
 import io.github.basekt.schema.FieldErrorCode
@@ -27,6 +29,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * The operations behind the REST routes, with no Ktor types: permission checks, validation, [hooks], referential
@@ -50,12 +54,18 @@ public class ResourceService(
     private val validators: Map<String, FieldValidator> = emptyMap(),
     /** The code that runs around writes. */
     private val hooks: Hooks = Hooks.None,
+    /** Where the times of [Auto.CreatedAt] and [Auto.UpdatedAt] fields come from. */
+    private val clock: Clock = Clock.System,
 ) {
     private val extensions = CopyOnWriteArrayList<WriteExtension>()
 
     init {
         val unknown = hooks.resources.filter { schema.resource(it) == null }
         require(unknown.isEmpty()) { "Hooks name resources the schema doesn't have: ${unknown.joinToString()}." }
+        val numbered = schema.resources.flatMap { r -> r.fields.filter { it.auto is Auto.Sequence }.map { "${r.name}.${it.name}" } }
+        require(numbered.isEmpty() || dataSource is Sequencing) {
+            "The sequence fields ${numbered.joinToString()} need a data source that offers Sequencing."
+        }
     }
 
     /** Adds [extension] to every later write. Modules call it when they are installed. */
@@ -108,9 +118,10 @@ public class ResourceService(
         val decoded = decode(resource, scoped(resource, Operation.CREATE, caller, body), WriteMode.CREATE)
         return dataSource.transaction { tx ->
             val context = HookContext(resource, caller, tx)
-            var record = decoded
+            val stamped = stamped(tx, resource, caller, decoded, WriteMode.CREATE)
+            var record = stamped
             for (hook in hooks.beforeCreate[resource.name].orEmpty()) record = context.hook(record).accepted()
-            if (record != decoded) revalidate(resource, record, WriteMode.CREATE)
+            if (record != stamped) revalidate(resource, record, WriteMode.CREATE)
             checkReferences(tx, resource, record)
             checkExtensions(tx, resource, record)
             val created = try {
@@ -130,11 +141,12 @@ public class ResourceService(
         return dataSource.transaction { tx ->
             val context = HookContext(resource, caller, tx)
             val current = writable(tx, resource, Operation.UPDATE, caller, id)
-            var changes = decoded
+            val stamped = stamped(tx, resource, caller, decoded, WriteMode.UPDATE)
+            var changes = stamped
             for (hook in hooks.beforeUpdate[resource.name].orEmpty()) {
                 changes = context.hook(Update(id, current, changes)).accepted()
             }
-            if (changes != decoded) revalidate(resource, changes, WriteMode.UPDATE)
+            if (changes != stamped) revalidate(resource, changes, WriteMode.UPDATE)
             checkReferences(tx, resource, changes)
             checkExtensions(tx, resource, changes)
             val updated = tx.update(resource, id, changes) ?: throw notFound(resource, id)
@@ -219,6 +231,8 @@ public class ResourceService(
         if (scoped.isEmpty()) return body
         val filled = body.toMutableMap()
         for ((field, values) in scoped) {
+            // The server sets an automatic field itself, such as the caller's id for ownedBy("createdBy").
+            if (resource.field(field)?.auto != null) continue
             val given = body[field]
             if (given == null && operation == Operation.UPDATE) continue
             if (given == null || given == JsonNull) {
@@ -239,6 +253,34 @@ public class ResourceService(
             if (text !in values) throw outsideScope(resource, field)
         }
         return JsonObject(filled)
+    }
+
+    /**
+     * Returns [record] with [resource]'s automatic fields set for a [mode] write by [caller]: the times, the caller's
+     * id, and on create the next number of each sequence, taken in the write's transaction [tx].
+     */
+    private suspend fun stamped(tx: DataSource, resource: Resource, caller: Identity?, record: Record, mode: WriteMode): Record {
+        val automatic = resource.fields.filter { it.auto != null }
+        if (automatic.isEmpty()) return record
+        val creating = mode == WriteMode.CREATE
+        // Milliseconds, which every adapter stores exactly.
+        val now = Value.Timestamp(Instant.fromEpochMilliseconds(clock.now().toEpochMilliseconds()))
+        val callerId = caller?.id?.let { Value.Text(it) }
+        val stamped = record.toMutableMap()
+        for (field in automatic) {
+            val value = when (val auto = field.auto!!) {
+                Auto.CreatedAt -> now.takeIf { creating }
+                Auto.UpdatedAt -> now
+                Auto.CreatedBy -> callerId.takeIf { creating }
+                Auto.UpdatedBy -> callerId
+                is Auto.Sequence -> if (creating) {
+                    val number = (tx as Sequencing).nextValue("${resource.name}.${field.name}", auto.start)
+                    auto.valueOf(number, field.type)
+                } else null
+            } ?: continue
+            stamped[field.name] = value
+        }
+        return stamped
     }
 
     private fun outsideScope(resource: Resource, field: String) =

@@ -7,6 +7,7 @@ import io.github.basekt.data.DuplicateIdException
 import io.github.basekt.data.Filter
 import io.github.basekt.data.Page
 import io.github.basekt.data.Query
+import io.github.basekt.data.Sequencing
 import io.github.basekt.data.checkQuery
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
@@ -15,10 +16,13 @@ import io.github.basekt.schema.Value
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.plus
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
@@ -42,7 +46,9 @@ import java.util.concurrent.atomic.AtomicLong
  * - A nested [transaction] is a savepoint.
  * - Text sorts by the database's collation. H2 compares like Kotlin strings; Postgres uses the database's locale.
  *
- * It also implements [Counting].
+ * It also implements [Counting], and [Sequencing] with one row per counter in the table `basekt_sequences` (after
+ * [TableMapping.tablePrefix]). Taking a number updates its row, which holds the row's lock until the transaction
+ * ends: concurrent writers of the same counter take turns, and a rollback gives the number back.
  *
  * @param database the Exposed database to use. The application creates and owns it.
  * @param schema the resources to store.
@@ -56,14 +62,18 @@ public class ExposedDataSource(
     mapping: TableMapping = TableMapping(),
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : DataSource, Counting {
+) : DataSource, Counting, Sequencing {
     private val tables: Map<String, ResourceTable>
+    private val counterTable = SequenceTable(mapping.tablePrefix)
     private val savepoints = AtomicLong()
 
     init {
         schema.requireValid()
         mapping.check(schema)
         tables = schema.resources.associate { it.name to ResourceTable(it, mapping) }
+        require(tables.values.none { it.tableName == counterTable.tableName }) {
+            "A resource's table can't be called '${counterTable.tableName}': the sequences are kept there."
+        }
     }
 
     /**
@@ -71,12 +81,12 @@ public class ExposedDataSource(
      * the schema evolves is the application's migration tool's job.
      */
     public suspend fun createTables() {
-        run { SchemaUtils.create(*tables.values.toTypedArray()) }
+        run { SchemaUtils.create(*tables.values.toTypedArray(), counterTable) }
     }
 
     /** Drops every table of the schema. For tests. */
     internal suspend fun dropTables() {
-        run { SchemaUtils.drop(*tables.values.toTypedArray()) }
+        run { SchemaUtils.drop(*tables.values.toTypedArray(), counterTable) }
     }
 
     override suspend fun get(resource: Resource, id: String): Record? = run { it.get(resource, id) }
@@ -97,6 +107,8 @@ public class ExposedDataSource(
 
     override suspend fun <T> transaction(block: suspend (DataSource) -> T): T = run { block(it) }
 
+    override suspend fun nextValue(name: String, start: Long): Long = run { it.nextValue(name, start) }
+
     private suspend fun <T> run(block: suspend (Session) -> T): T = withContext(dispatcher) {
         suspendTransaction(database) {
             // A retry would run the caller's block twice.
@@ -109,7 +121,7 @@ public class ExposedDataSource(
         tables[resource.name] ?: throw IllegalArgumentException("'${resource.name}' is not in this source's schema.")
 
     /** The calls of one open transaction [tx]. */
-    private inner class Session(private val tx: JdbcTransaction) : DataSource, Counting {
+    private inner class Session(private val tx: JdbcTransaction) : DataSource, Counting, Sequencing {
         override suspend fun get(resource: Resource, id: String): Record? {
             val table = table(resource)
             return table.selectAll().where(table.id eq id).firstOrNull()?.let(table::toRecord)
@@ -183,6 +195,26 @@ public class ExposedDataSource(
 
         override suspend fun <T> transaction(block: suspend (DataSource) -> T): T = savepoint { block(this) }
 
+        override suspend fun nextValue(name: String, start: Long): Long {
+            require(name.length <= SequenceTable.NAME_LENGTH) { "A sequence name has at most ${SequenceTable.NAME_LENGTH} characters." }
+            if (bump(name) == 0) {
+                // The first number. A concurrent transaction may insert the row first; then this one takes the next.
+                val inserted = try {
+                    savepoint { counterTable.insert { it[counterTable.name] = name; it[counterTable.value] = start } }
+                    true
+                } catch (e: SQLException) {
+                    if (!e.isConstraintViolation()) throw e
+                    false
+                }
+                if (inserted) return start
+                check(bump(name) == 1) { "The sequence '$name' vanished while it was being created." }
+            }
+            return counterTable.selectAll().where(counterTable.name eq name).single()[counterTable.value]
+        }
+
+        private fun bump(name: String): Int =
+            counterTable.update({ counterTable.name eq name }) { it[counterTable.value] = counterTable.value + 1L }
+
         /** Runs [block] inside a savepoint, and rolls back to it if [block] throws. */
         private suspend fun <T> savepoint(block: suspend () -> T): T {
             val connection = tx.connection
@@ -196,6 +228,17 @@ public class ExposedDataSource(
             connection.releaseSavepoint(savepoint)
             return result
         }
+    }
+}
+
+/** The counters of [Sequencing]: one row per sequence name, holding the last number taken. */
+private class SequenceTable(prefix: String) : Table(prefix + "basekt_sequences") {
+    val name: Column<String> = varchar("name", NAME_LENGTH)
+    val value: Column<Long> = long("value")
+    override val primaryKey: PrimaryKey = PrimaryKey(name)
+
+    companion object {
+        const val NAME_LENGTH = 200
     }
 }
 

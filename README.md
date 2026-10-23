@@ -129,6 +129,24 @@ caller's. A create that leaves the field out gets the caller's value when they h
 them. Scopes are schema data like everything else. Hooks and repositories are trusted server code, so scopes don't
 apply to them.
 
+**Automatic fields** are set by the server, never the client: when and by whom a record was created and last
+changed, and readable numbers for documents.
+
+```kotlin
+resource("requests") {
+    string("ref") { sequence("REQ-", digits = 6) }   // REQ-000001, REQ-000002...
+    timestamps()                                      // createdAt and updatedAt
+    string("createdBy") { createdBy() }               // the caller's id; also updatedBy()
+    permissions { read(authenticated); write(authenticated); ownedBy("createdBy", on = writes) }
+}
+```
+
+They're filled in the write's transaction before the before-hooks, so hooks see them. A client that sends one gets
+`read_only`, and a `null` is ignored. Numbers come from the data source's `Sequencing` capability: they never repeat,
+and a write that fails gives its number back, so there are no gaps. The in-memory and Exposed adapters offer it. The
+Exposed adapter keeps counters in a `basekt_sequences` table. Set `clock` in `install(BaseKt)` to control the times in
+tests.
+
 **The admin API** is JSON only, for a panel to render itself from:
 
 | Route under `/admin/api` | What it does |

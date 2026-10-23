@@ -124,7 +124,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
         AdminResource(
             name = resource.name,
             fields = resource.fields.map {
-                AdminField(it.name, it.type, it.required, it.values, it.target, it.rules, it.bucket, scoped[it.name]?.sorted())
+                AdminField(it.name, it.type, it.required, it.values, it.target, it.rules, it.bucket, scoped[it.name]?.sorted(), it.auto)
             },
             relations = resource.relations.filter { it.target in readable }.map { relation ->
                 when (relation) {

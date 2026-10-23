@@ -42,6 +42,7 @@ export interface AdminField {
   rules: Rule[];
   bucket: string | null;
   scopedValues: string[] | null;
+  auto: Auto | null;
 }
 
 export type FieldType = "string" | "int" | "long" | "decimal" | "bool" | "instant" | "enum" | "reference" | "file";
@@ -73,6 +74,31 @@ export interface RulePattern {
   kind: "pattern";
   regex: string;
   message: string | null;
+}
+
+export type Auto = AutoCreatedAt | AutoCreatedBy | AutoSequence | AutoUpdatedAt | AutoUpdatedBy;
+
+export interface AutoCreatedAt {
+  kind: "createdAt";
+}
+
+export interface AutoCreatedBy {
+  kind: "createdBy";
+}
+
+export interface AutoSequence {
+  kind: "sequence";
+  prefix: string;
+  digits: number;
+  start: number;
+}
+
+export interface AutoUpdatedAt {
+  kind: "updatedAt";
+}
+
+export interface AutoUpdatedBy {
+  kind: "updatedBy";
 }
 
 export interface AdminRelation {
