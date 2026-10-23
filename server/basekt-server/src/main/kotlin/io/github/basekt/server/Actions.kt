@@ -37,21 +37,22 @@ public class ActionContext internal constructor(
     public val data: DataSource,
     private val service: ResourceService,
     private val changes: MutableList<Change>,
+    private val origin: Origin,
 ) {
     /** Creates a record of [resource] from [record], with the same steps as a create through the API. */
     public suspend fun create(resource: Resource, record: Record): Record =
-        service.trustedCreate(data, resource, caller, record).also { changes += Change.Created(resource, it) }
+        service.trustedCreate(data, resource, origin, record).also { changes += Change.Created(resource, it) }
 
     /** Applies [changes] to the record of [resource] with [id], with the same steps as an update through the API. */
     public suspend fun update(resource: Resource, id: String, changes: Record): Record {
-        val (before, after) = service.trustedUpdate(data, resource, caller, id, changes)
+        val (before, after) = service.trustedUpdate(data, resource, origin, id, changes)
         this.changes += Change.Updated(resource, before, after)
         return after
     }
 
     /** Deletes the record of [resource] with [id], with the same steps as a delete through the API. */
     public suspend fun delete(resource: Resource, id: String) {
-        changes += Change.Deleted(resource, service.trustedDelete(data, resource, caller, id))
+        changes += Change.Deleted(resource, service.trustedDelete(data, resource, origin, id))
     }
 
     /** Stops the action and rolls back what it wrote, refusing it with [reason]. */

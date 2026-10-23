@@ -207,6 +207,24 @@ resource action. Everything it writes is one transaction, and `fail` rolls it al
 the action's permission in place of the caller's. A record action needs the record in the caller's update scope. The
 admin API lists the actions each caller may run, and the panel shows them as buttons, with a form for their input.
 
+**Audit** (`basekt-audit`) logs every create, update, delete and action, from every transport, as entries of a
+resource in your own schema:
+
+```kotlin
+resources {
+    auditLog("audit", readers = setOf("admin"))   // read-only through every API
+    // ...
+}
+install(BaseKt) { /* ... */ }
+install(BaseKtAudit) { redact("users.pin"); skip("sessions") }
+```
+
+Each entry has when it happened, the actor, the operation, the resource and record, and what changed: a create's
+fields, an update's `from` and `to` for each changed field, or what a delete removed. An action's entry holds its
+input, and shares an `operationId` with the writes it made. Entries are written in the same transaction as the write,
+so a write that rolls back leaves no entry. Because the log is an ordinary resource, `GET /api/audit?recordId=p1`
+gives one record's history, and the admin panel lists it.
+
 **The admin API** is JSON only, for a panel to render itself from:
 
 | Route under `/admin/api` | What it does |
@@ -299,8 +317,8 @@ theme set in Kotlin. Run
 | `server:basekt-storage` | ✓ works | the `BlobStore` SPI: streamed puts and reads of files, byte ranges, and optional listing and presigned URLs |
 | `server:basekt-storage-memory`, `-local` | ✓ works | in-memory and local-filesystem stores, both passing the `BlobStoreContract` suite |
 | `server:basekt-files` | ✓ works | `install(BaseKtFiles)`: buckets with limits and permissions, streamed uploads, downloads with ranges and safe headers, and `file` fields kept in step with their files |
+| `server:basekt-audit` | ✓ works | `install(BaseKtAudit)`: a log of every create, update, delete and action, with who, when and what changed, in the write's own transaction |
 | `server:basekt-storage-s3` | ✓ works | an S3 store for AWS, MinIO, R2 and other S3-compatible services: Signature V4 with no SDK, multipart uploads, ranges and presigned URLs |
-| `server:basekt-audit` | later | an audit log of who changed what |
 | `client:basekt-client` | later | a typed multiplatform client SDK: auth, queries, realtime, storage |
 | `server:basekt-data-jdbc`, `-mongo` | later | more data adapters |
 | `server:basekt-auth-oidc`, `-firebase` | later | more auth providers |

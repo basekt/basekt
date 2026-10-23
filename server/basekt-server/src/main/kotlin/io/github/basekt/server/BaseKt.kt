@@ -107,6 +107,8 @@ public class BaseKtRuntime internal constructor(
     public val basePath: String,
     /** The typed resources, which [repository] finds by class. */
     public val models: List<Model<*>>,
+    /** Where times come from, such as the automatic `createdAt()` fields'. Modules use it for their own times. */
+    public val clock: Clock = Clock.System,
 )
 
 private val RuntimeKey = AttributeKey<BaseKtRuntime>("BaseKtRuntime")
@@ -148,7 +150,7 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     val basePath = "/" + pluginConfig.basePath.trim('/')
 
     val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock, pluginConfig.builtActions())
-    val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList())
+    val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList(), pluginConfig.clock)
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }
 

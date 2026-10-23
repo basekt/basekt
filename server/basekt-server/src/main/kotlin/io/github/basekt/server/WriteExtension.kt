@@ -24,6 +24,53 @@ public interface WriteExtension {
      * failures are the extension's own: they don't fail the write, which has already happened.
      */
     public suspend fun committed(change: Change) {}
+
+    /**
+     * Learns of a write inside its transaction, after the after-hooks ran. What it writes through
+     * [WriteContext.transaction] commits or rolls back with the write, and a failure fails the write. Writes that
+     * trusted code makes through raw data access, such as a hook's [HookContext.data], aren't reported.
+     */
+    public suspend fun written(change: Change, context: WriteContext) {}
+
+    /** Learns of an action that ran, inside its transaction, after its code returned and before it commits. */
+    public suspend fun ran(run: ActionRun, context: WriteContext) {}
+}
+
+/** Where a write or an action comes from, as [WriteExtension.written] and [WriteExtension.ran] see it. */
+public class WriteContext internal constructor(
+    /** Who made the call, or `null` for an anonymous caller. */
+    public val caller: Identity?,
+    /** The data source of the transaction the write is in. */
+    public val transaction: DataSource,
+    /**
+     * An id of the call: one REST write, or one action with every write it made. Extensions use it to group what
+     * happened together.
+     */
+    public val operation: String,
+    /** The action the write is part of, or `null` for a write of its own. */
+    public val action: ActionRun?,
+)
+
+/** An action that ran. */
+public data class ActionRun(
+    /** The resource the action belongs to. */
+    val resource: Resource,
+    /** The action's name. */
+    val action: String,
+    /** The id of the record it ran on, or `null` for an action on the whole resource. */
+    val id: String?,
+    /** Its checked input. */
+    val input: Record,
+)
+
+/** The caller, call and action a write belongs to, passed along the write steps. */
+internal class Origin(val caller: Identity?, val operation: String, val action: ActionRun? = null) {
+    fun context(transaction: DataSource): WriteContext = WriteContext(caller, transaction, operation, action)
+
+    companion object {
+        /** A new call by [caller]. */
+        fun of(caller: Identity?, action: ActionRun? = null): Origin = Origin(caller, java.util.UUID.randomUUID().toString(), action)
+    }
 }
 
 /** A write that committed, as a [WriteExtension] learns of it. */
