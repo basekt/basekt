@@ -224,6 +224,21 @@ public sealed interface Auto {
     public data object Version : Auto
 
     /**
+     * A copy of [field] of the record that this resource's reference field [via] points to, taken once when the record
+     * is created. A child gets its parent's location or owner this way, so a scope on the child can use it. Create
+     * the child with a [via] that exists, and in the caller's own scope: a create whose copied value falls outside the
+     * caller's scope is refused.
+     */
+    @Serializable
+    @SerialName("inherited")
+    public data class Inherited(
+        /** The reference field on this resource that names the parent. */
+        val via: String,
+        /** The parent's field to copy. It has this field's type. */
+        val field: String,
+    ) : Auto
+
+    /**
      * The next number of the field's own counter, set once on create. The numbers start at [start], go up by one, and
      * neither repeat nor skip: a write that fails gives its number back. A string field holds [prefix] and the number
      * padded with zeros to [digits]; an int or long field holds the number.

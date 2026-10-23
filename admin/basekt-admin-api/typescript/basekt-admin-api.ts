@@ -79,7 +79,7 @@ export interface RulePattern {
   message: string | null;
 }
 
-export type Auto = AutoCreatedAt | AutoCreatedBy | AutoSequence | AutoState | AutoUpdatedAt | AutoUpdatedBy | AutoVersion;
+export type Auto = AutoCreatedAt | AutoCreatedBy | AutoInherited | AutoSequence | AutoState | AutoUpdatedAt | AutoUpdatedBy | AutoVersion;
 
 export interface AutoCreatedAt {
   kind: "createdAt";
@@ -87,6 +87,12 @@ export interface AutoCreatedAt {
 
 export interface AutoCreatedBy {
   kind: "createdBy";
+}
+
+export interface AutoInherited {
+  kind: "inherited";
+  via: string;
+  field: string;
 }
 
 export interface AutoSequence {

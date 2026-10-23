@@ -165,8 +165,9 @@ public class ResourceService(
         authorize(resource, Operation.CREATE, caller)
         val decoded = decode(resource, scoped(resource, Operation.CREATE, caller, body), WriteMode.CREATE)
         val origin = Origin.of(caller)
-        return dataSource.transaction { tx -> createIn(tx, resource, origin, decoded) }
-            .also { committed(Change.Created(resource, it)) }
+        return dataSource.transaction { tx ->
+            createIn(tx, resource, origin, decoded).also { checkInheritedScope(resource, caller, it) }
+        }.also { committed(Change.Created(resource, it)) }
     }
 
     /** Validates [body] and applies it to the record of [resource] with [id], if [caller] may. */
@@ -420,6 +421,22 @@ public class ResourceService(
     }
 
     /**
+     * Refuses a create whose inherited scope field, copied from a parent the caller named, puts the new record outside
+     * the caller's create scope. The transaction rolls the record back.
+     */
+    private fun checkInheritedScope(resource: Resource, caller: Identity?, created: Record) {
+        for (clauses in scopeClauses(resource, Operation.CREATE, caller)) {
+            if (clauses.none { (field, _) -> resource.field(field)?.auto is Auto.Inherited }) continue
+            if (clauses.none { (field, values) -> (created[field] as? Value.Text)?.value in values }) {
+                throw ApiException(
+                    ErrorCode.FORBIDDEN,
+                    "You can't create '${resource.name}' records under a parent outside your own values of ${clauses.joinToString { it.first }}.",
+                )
+            }
+        }
+    }
+
+    /**
      * Checks a create [body] against a scope with several ways in: it must give at least one of the fields a value the
      * caller has. An update is checked against the whole record it produces, by [staysInScope].
      */
@@ -483,6 +500,11 @@ public class ResourceService(
                 Auto.UpdatedBy -> callerId
                 Auto.Version -> Value.Integer(1).takeIf { creating }
                 Auto.State -> resource.workflow?.let { Value.Text(it.initial) }?.takeIf { creating }
+                is Auto.Inherited -> if (creating) {
+                    val parent = (record[auto.via] as? Value.Text)?.value
+                    val target = resource.field(auto.via)?.target
+                    if (parent == null || target == null) null else tx.get(resource(target), parent)?.get(auto.field)
+                } else null
                 is Auto.Sequence -> if (creating) {
                     val number = (tx as Sequencing).nextValue("${resource.name}.${field.name}", auto.start)
                     auto.valueOf(number, field.type)
