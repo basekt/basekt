@@ -37,6 +37,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlin.time.Instant
 
 /**
@@ -504,7 +506,7 @@ public abstract class DataSourceContract {
         assertEquals(int(1), page.groups[2].values["count"])
     }
 
-    /** An instant grouped by a time bucket counts in the bucket that holds it, in UTC, and sorts by the bucket. */
+    /** An instant grouped by a time bucket counts in the bucket that holds it, in UTC or a zone, and sorts by the bucket. */
     @Test
     public fun aggregatesGroupByTimeBuckets(): Unit = runTest {
         val source = createDataSource()
@@ -533,6 +535,19 @@ public abstract class DataSourceContract {
         val latest = source.aggregate(entries, AggregateQuery(listOf("at"), listOf(Measure(AggregateFunction.SUM, "size")), Filter.IsNull("at", false), listOf(Sort("at", Direction.DESC)), 2, mapOf("at" to TimeBucket.MONTH)))
         assertEquals(listOf(stamp("2027-01-01T00:00:00Z") to int(4), stamp("2026-12-01T00:00:00Z") to int(3)), latest.groups.map { it.key["at"] to it.values["sum_size"] })
         assertTrue(latest.hasMore)
+
+        // Manila is eight hours ahead of UTC all year: its days start at 16:00 UTC the day before.
+        val manila = ZoneId.of("Asia/Manila")
+        suspend fun inManila(bucket: TimeBucket) =
+            source.aggregate(entries, AggregateQuery(listOf("at"), listOf(Measure(AggregateFunction.COUNT)), buckets = mapOf("at" to bucket), timeZone = manila))
+                .groups.map { it.key["at"] to it.values["count"] }
+        assertEquals(
+            listOf(stamp("2026-02-15T16:00:00Z") to int(2), stamp("2026-02-16T16:00:00Z") to int(1), stamp("2026-12-31T16:00:00Z") to int(2), null to int(1)),
+            inManila(TimeBucket.DAY),
+        )
+        assertEquals(listOf(stamp("2025-12-31T16:00:00Z") to int(3), stamp("2026-12-31T16:00:00Z") to int(2), null to int(1)), inManila(TimeBucket.YEAR))
+        val offset = AggregateQuery(listOf("at"), listOf(Measure(AggregateFunction.COUNT)), buckets = mapOf("at" to TimeBucket.DAY), timeZone = ZoneOffset.ofHours(8))
+        assertFailsWith<InvalidQueryException> { source.aggregate(entries, offset) }
 
         for (bad in listOf(mapOf("kind" to TimeBucket.DAY), mapOf("rank" to TimeBucket.DAY))) {
             val query = AggregateQuery(listOf("at", "rank"), listOf(Measure(AggregateFunction.COUNT)), buckets = bad)

@@ -1,7 +1,9 @@
 package io.github.basekt.admin
 
 import io.github.basekt.schema.Chart
+import io.github.basekt.schema.ReportFilter
 import io.github.basekt.schema.ReportFunction
+import io.github.basekt.schema.ReportOperator
 import io.github.basekt.schema.ReportOrder
 import io.github.basekt.schema.TimeBucket
 import io.github.basekt.schema.schema
@@ -31,7 +33,10 @@ private val stationSchema = schema {
         decimal("celsius") { required() }
         instant("takenAt")
         report("temperatureByHour", Chart.LINE) { groupBy("hour"); avg("celsius") }
-        report("temperatureByDay", Chart.LINE) { groupBy("takenAt", TimeBucket.DAY); avg("celsius"); limit(7) }
+        enum("quality", listOf("ok", "suspect"))
+        report("temperatureByDay", Chart.LINE) {
+            groupBy("takenAt", TimeBucket.DAY, timeZone = "Asia/Manila"); avg("celsius"); limit(7); where("quality", "ok")
+        }
         permissions { read(everyone); create("sensor") }
     }
 }
@@ -79,5 +84,7 @@ class AdminReportsTest {
         assertEquals(null, line.bucket)
         assertEquals(TimeBucket.DAY, daily.bucket)
         assertEquals(7, daily.limit)
+        assertEquals("Asia/Manila", daily.timeZone)
+        assertEquals(listOf(ReportFilter("quality", ReportOperator.EQ, listOf("ok"))), daily.filters)
     }
 }

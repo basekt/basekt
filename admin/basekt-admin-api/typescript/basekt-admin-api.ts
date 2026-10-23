@@ -151,6 +151,8 @@ export interface AdminReport {
   order: ReportOrder;
   limit: number;
   bucket: TimeBucket | null;
+  timeZone: string | null;
+  filters: ReportFilter[];
 }
 
 export type Chart = "number" | "bar" | "line" | "pie";
@@ -160,6 +162,14 @@ export type ReportFunction = "count" | "sum" | "avg" | "min" | "max";
 export type ReportOrder = "valueDesc" | "valueAsc" | "group";
 
 export type TimeBucket = "day" | "week" | "month" | "year";
+
+export interface ReportFilter {
+  field: string;
+  operator: ReportOperator;
+  values: string[];
+}
+
+export type ReportOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "contains" | "null";
 
 export interface AdminPage {
   items: JsonObject[];
