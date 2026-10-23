@@ -51,6 +51,7 @@ internal object SchemaChecker {
             if (versions.size > 1) problem("$at.fields", "A resource has at most one version field, not ${versions.joinToString { it.name }}.")
             duplicates(resource.actions.map { it.name }).forEach { problem("$at.actions.$it", "Action '$it' is declared twice.") }
             for (action in resource.actions) checkAction(schema, action, "$at.actions.${action.name}", ::problem)
+            checkWorkflow(schema, resource, "$at.workflow", ::problem)
             resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
         }
         return problems
@@ -85,6 +86,7 @@ internal object SchemaChecker {
             Auto.CreatedAt, Auto.UpdatedAt -> if (field.type != FieldType.INSTANT) {
                 problem(at, "A creation or update time needs an instant field.")
             }
+            Auto.State -> if (field.type != FieldType.ENUM) problem(at, "A workflow's state needs an enum field.")
             Auto.Version -> if (field.type != FieldType.INT && field.type != FieldType.LONG) {
                 problem(at, "A version needs an int or long field.")
             }
@@ -147,6 +149,31 @@ internal object SchemaChecker {
                     problem(at, "'${relation.foreignField}' must be a reference field on '${target.name}' that targets '${resource.name}'.")
                 }
             }
+        }
+    }
+
+    private fun checkWorkflow(schema: Schema, resource: Resource, at: String, problem: (String, String) -> Unit) {
+        val states = resource.fields.filter { it.auto == Auto.State }
+        val workflow = resource.workflow
+        if (workflow == null) {
+            for (field in states) problem("${at.removeSuffix(".workflow")}.fields.${field.name}", "A state field needs a workflow.")
+            return
+        }
+        val field = resource.field(workflow.field)
+        if (field == null || field.type != FieldType.ENUM) {
+            problem(at, "The workflow's field '${workflow.field}' must be an enum field of '${resource.name}'.")
+            return
+        }
+        if (field.auto != Auto.State) problem(at, "The workflow's field '${workflow.field}' must be its state, not set otherwise.")
+        val values = field.values.orEmpty()
+        if (workflow.initial !in values) problem(at, "The initial state '${workflow.initial}' isn't one of ${values.joinToString()}.")
+        duplicates(workflow.transitions.map { it.name }).forEach { problem("$at.transitions.$it", "Transition '$it' is declared twice.") }
+        for (transition in workflow.transitions) {
+            val path = "$at.transitions.${transition.name}"
+            checkAction(schema, transition.asAction(), path, problem)
+            if (resource.action(transition.name) != null) problem(path, "'${transition.name}' is also an action's name.")
+            if (transition.from.isEmpty()) problem(path, "A transition needs at least one state to start from.")
+            (transition.from + transition.to).filter { it !in values }.forEach { problem(path, "'$it' isn't one of ${values.joinToString()}.") }
         }
     }
 

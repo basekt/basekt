@@ -98,6 +98,7 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
     private val relations = mutableListOf<Relation>()
     private var permissions = Permissions()
     private val actions = mutableListOf<Action>()
+    private var workflow: Workflow? = null
 
     init {
         val id = (0 until descriptor.elementsCount).firstOrNull { descriptor.getElementName(it) == Resource.ID }
@@ -161,6 +162,11 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
         actions += ActionBuilder(name, target).apply(block).build()
     }
 
+    /** Makes [property], an enum, the state of a [Workflow] that starts in [initial]. See [ResourceBuilder.workflow]. */
+    public fun workflow(property: KProperty1<T, *>, initial: String, block: WorkflowBuilder.() -> Unit) {
+        workflow = WorkflowBuilder(property.name, initial).apply(block).build()
+    }
+
     /** Builds the model. */
     @PublishedApi
     internal fun build(): Model<T> {
@@ -177,7 +183,7 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
                 builder.build(property, types.getValue(property), values[property], null)
             }
         }
-        return Model(Resource(name, built, relations.toList(), permissions, actions.toList()), serializer)
+        return Model(Resource(name, withState(built, workflow), relations.toList(), permissions, actions.toList(), workflow), serializer)
     }
 
     private fun builder(property: String): FieldBuilder = fields[property]

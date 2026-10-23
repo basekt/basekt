@@ -77,7 +77,7 @@ export interface RulePattern {
   message: string | null;
 }
 
-export type Auto = AutoCreatedAt | AutoCreatedBy | AutoSequence | AutoUpdatedAt | AutoUpdatedBy | AutoVersion;
+export type Auto = AutoCreatedAt | AutoCreatedBy | AutoSequence | AutoState | AutoUpdatedAt | AutoUpdatedBy | AutoVersion;
 
 export interface AutoCreatedAt {
   kind: "createdAt";
@@ -92,6 +92,10 @@ export interface AutoSequence {
   prefix: string;
   digits: number;
   start: number;
+}
+
+export interface AutoState {
+  kind: "state";
 }
 
 export interface AutoUpdatedAt {
@@ -122,6 +126,8 @@ export interface AdminAction {
   target: ActionTarget;
   input: AdminField[];
   confirm: string | null;
+  stateField: string | null;
+  from: string[] | null;
 }
 
 export type ActionTarget = "record" | "resource";

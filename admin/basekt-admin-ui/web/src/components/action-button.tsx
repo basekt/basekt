@@ -128,14 +128,19 @@ export function ActionButton({ resource, action, id, onDone }: {
   )
 }
 
-/** The actions of [resource] that run on [target], as buttons. */
-export function ActionButtons({ resource, target, id, onDone }: {
+/**
+ * The actions of [resource] that run on [target], as buttons. With the [record] they'd run on, a workflow's
+ * transitions show only when the record is in a state they start from.
+ */
+export function ActionButtons({ resource, target, id, record, onDone }: {
   resource: AdminResource
   target: AdminAction["target"]
   id?: string
+  record?: JsonObject
   onDone: () => void
 }) {
-  const actions = (resource.actions ?? []).filter((action) => action.target === target)
+  const actions = (resource.actions ?? []).filter((action) =>
+    action.target === target && (action.stateField == null || record == null || (action.from ?? []).includes(String(record[action.stateField]))))
   if (actions.length === 0) return null
   return (
     <>

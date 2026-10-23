@@ -149,7 +149,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
     val readable = runtime.schema.resources.filter { it.permissions.read.allows(roles) }.map { it.name }.toSet()
     val resources = runtime.schema.resources.mapNotNull { resource ->
         val operations = Operation.entries.filter { resource.permissions.of(it).allows(roles) }
-        val actions = resource.actions.filter { it.access.allows(roles) }
+        val actions = resource.runnableActions.filter { it.access.allows(roles) }
         if (operations.isEmpty() && actions.isEmpty()) return@mapNotNull null
         val scoped = runtime.service.scopedValues(resource, Operation.CREATE, caller)
         AdminResource(
@@ -164,7 +164,13 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
             operations = operations,
             searchable = resource.searchable(),
             sortable = listOf(Resource.ID) + resource.fields.map { it.name },
-            actions = actions.map { action -> AdminAction(action.name, action.target, action.input.map { it.toAdmin(null) }, action.confirm) },
+            actions = actions.map { action ->
+                val transition = resource.transition(action.name)
+                AdminAction(
+                    action.name, action.target, action.input.map { it.toAdmin(null) }, action.confirm,
+                    stateField = transition?.let { resource.workflow!!.field }, from = transition?.from,
+                )
+            },
         )
     }
     return AdminSchema(caller = caller?.let { AdminCaller(it.id, it.roles.sorted()) }, resources = resources)

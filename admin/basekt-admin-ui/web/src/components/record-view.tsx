@@ -39,7 +39,7 @@ export function RecordView({ resource, id }: { resource: AdminResource; id: stri
           <h1 className="text-2xl font-semibold tracking-tight">{id}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {record.data && <ActionButtons resource={resource} target="record" id={id} onDone={record.reload} />}
+          {record.data && <ActionButtons resource={resource} target="record" id={id} record={record.data} onDone={record.reload} />}
           {can(resource, "delete") && record.data && <DeleteButton resource={resource} id={id} />}
         </div>
       </div>

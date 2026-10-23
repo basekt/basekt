@@ -54,12 +54,20 @@ public data class Resource(
     val permissions: Permissions = Permissions(),
     /** The named operations beyond create, update and delete that callers may run. See [Action]. */
     val actions: List<Action> = emptyList(),
+    /** The state machine of one of its enum fields, or `null`. See [Workflow]. */
+    val workflow: Workflow? = null,
 ) {
     /** Returns the field called [name], or `null` if there isn't one. */
     public fun field(name: String): Field? = fields.firstOrNull { it.name == name }
 
     /** Returns the action called [name], or `null` if there isn't one. */
     public fun action(name: String): Action? = actions.firstOrNull { it.name == name }
+
+    /** Returns the [workflow]'s transition called [name], or `null` if there isn't one. */
+    public fun transition(name: String): Transition? = workflow?.transitions?.firstOrNull { it.name == name }
+
+    /** Every operation callers may run on records: the [actions] and the [workflow]'s transitions. */
+    public val runnableActions: List<Action> get() = actions + workflow?.transitions?.map { it.asAction() }.orEmpty()
 
     /** Returns the relation called [name], or `null` if there isn't one. */
     public fun relation(name: String): Relation? = relations.firstOrNull { it.name == name }
@@ -91,6 +99,43 @@ public data class Action(
 ) {
     /** The input as a resource of its own, for decoding and checking it like a record. */
     public val inputResource: Resource get() = Resource("$name.input", input)
+}
+
+/**
+ * A state machine on one enum [field]: records start in [initial], and only [transitions] change the state. The
+ * server sets the field; clients can't write it. Each transition runs like an [Action] on one record.
+ */
+@Serializable
+public data class Workflow(
+    /** The enum field that holds the state. */
+    val field: String,
+    /** The state of a new record. */
+    val initial: String,
+    /** The ways the state may change. */
+    val transitions: List<Transition> = emptyList(),
+)
+
+/**
+ * A named change of a [Workflow]'s state, from one of [from] to [to], that callers with [access] may run on a record.
+ * Code registered for it runs first, as a guard that may refuse it and as side effects in the same transaction.
+ */
+@Serializable
+public data class Transition(
+    /** The transition's name, used in routes like an action's. */
+    val name: String,
+    /** The states it may start from. */
+    val from: List<String>,
+    /** The state it moves the record to. */
+    val to: String,
+    /** Who may run it. */
+    val access: Access = Access.Nobody,
+    /** What the caller sends, checked like a record's fields. */
+    val input: List<Field> = emptyList(),
+    /** A question a panel asks before running it, or `null`. */
+    val confirm: String? = null,
+) {
+    /** The transition as the record action it runs as. */
+    public fun asAction(): Action = Action(name, ActionTarget.RECORD, input, access, confirm)
 }
 
 /** What an [Action] runs on. */
@@ -149,6 +194,13 @@ public sealed interface Auto {
     @Serializable
     @SerialName("updatedBy")
     public data object UpdatedBy : Auto
+
+    /**
+     * The state of a [Workflow], on its enum field: its initial state on create, and changed by transitions only.
+     */
+    @Serializable
+    @SerialName("state")
+    public data object State : Auto
 
     /**
      * How many times the record was written, on an int or long field: 1 on create, one more on every update. An

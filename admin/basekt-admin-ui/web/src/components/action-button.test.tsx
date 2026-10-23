@@ -18,8 +18,12 @@ const withActions: AdminSchema = {
         target: "record",
         input: [{ name: "borrower", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null }],
         confirm: "Lend this book?",
+        stateField: null,
+        from: null,
       },
-      { name: "recount", target: "resource", input: [], confirm: null },
+      { name: "recount", target: "resource", input: [], confirm: null, stateField: null, from: null },
+      { name: "shelve", target: "record", input: [], confirm: null, stateField: "state", from: ["returned"] },
+      { name: "retire", target: "record", input: [], confirm: null, stateField: "state", from: ["returned", "lent"] },
     ],
   }),
 }
@@ -49,6 +53,18 @@ describe("actions", () => {
     await user.click(screen.getAllByRole("button", { name: "Lend" }).at(-1)!)
     await waitFor(() => expect(screen.queryByRole("form", { name: "Lend" })).not.toBeInTheDocument())
     expect(fetch.calls.filter((c) => c.url.pathname.endsWith("/actions/lend")).at(-1)!.body).toEqual({ borrower: "Ana" })
+  })
+
+  it("offers a workflow's transitions only from the record's state", async () => {
+    const fetch = fakeFetch(({ url, method }) => {
+      if (url.pathname === "/admin/api/schema") return { body: withActions }
+      if (url.pathname === "/admin/api/resources/books/records/b1" && method === "GET") return { body: { ...dune, state: "lent" } }
+    })
+    renderPanel("/admin/r/books/b1", fetch)
+
+    expect(await screen.findByRole("button", { name: "Retire" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Shelve" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Lend" })).toBeInTheDocument()
   })
 
   it("runs a resource action without input straight from the list", async () => {
