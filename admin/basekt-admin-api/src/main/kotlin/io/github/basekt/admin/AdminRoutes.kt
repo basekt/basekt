@@ -120,7 +120,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
         if (operations.isEmpty()) return@mapNotNull null
         AdminResource(
             name = resource.name,
-            fields = resource.fields.map { AdminField(it.name, it.type, it.required, it.values, it.target, it.rules) },
+            fields = resource.fields.map { AdminField(it.name, it.type, it.required, it.values, it.target, it.rules, it.bucket) },
             relations = resource.relations.filter { it.target in readable }.map { relation ->
                 when (relation) {
                     is Relation.BelongsTo -> AdminRelation(relation.name, RelationKind.BELONGS_TO, relation.target, relation.field)

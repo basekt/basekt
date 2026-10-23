@@ -29,7 +29,7 @@ export default defineConfig(({ command }) => ({
     rollupOptions: { input: here("./src/main.tsx") },
   },
   server: {
-    proxy: { "/admin/api": server, "/admin/theme.css": server },
+    proxy: { "/admin/api": server, "/admin/theme.css": server, "/files": server },
   },
   test: {
     environment: "jsdom",
