@@ -28,6 +28,8 @@ import org.jetbrains.exposed.v1.core.vendors.PostgreSQLDialect
 import org.jetbrains.exposed.v1.core.vendors.currentDialect
 import org.jetbrains.exposed.v1.jdbc.select
 import java.math.BigDecimal
+import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlin.time.Instant
 
 /** A sum wide enough for any int, long or decimal column, read back as a [BigDecimal]. */
@@ -36,13 +38,14 @@ private val WideSum = DecimalColumnType(65, 30)
 /**
  * Runs [query] on [table] as one `SELECT … GROUP BY`. An average is selected as its sum and count and divided here, so
  * every database gives the same exact value. Sorting by an average happens here too, after fetching every group.
- * Time buckets are computed by the database, on H2 and Postgres.
+ * Time buckets are computed by the database, on H2 and Postgres. On H2, a bucket of a time zone with daylight saving
+ * splits on the day the clocks change, as H2 truncates in each value's own offset.
  */
 @Suppress("UNCHECKED_CAST")
 internal fun aggregate(table: ResourceTable, query: AggregateQuery): AggregatePage {
     val resource = table.resource
     val groupColumns: List<Expression<*>> = query.groupBy.map { field ->
-        query.buckets[field]?.let { BucketStart(table.column(field), it) } ?: table.column(field)
+        query.buckets[field]?.let { BucketStart(table.column(field), it, query.timeZone) } ?: table.column(field)
     }
     val parts = query.measures.associateWith { measure ->
         val column = measure.field?.let { table.column(it) }
@@ -82,27 +85,39 @@ internal fun aggregate(table: ResourceTable, query: AggregateQuery): AggregatePa
     return AggregatePage(groups.take(query.limit), groups.size > query.limit)
 }
 
-/** The start of the [bucket] that holds [column]'s instant, in UTC, as [io.github.basekt.data.startOf] defines it. */
-private class BucketStart(private val column: Expression<*>, private val bucket: TimeBucket) : ExpressionWithColumnType<Instant>() {
+/**
+ * The start of the [bucket] that holds [column]'s instant on [timeZone]'s calendar, as [io.github.basekt.data.startOf]
+ * defines it. The zone is written into the SQL rather than bound, so `GROUP BY` and `ORDER BY` repeat the very same
+ * expression; [zoneName] keeps it to a region's name.
+ */
+private class BucketStart(private val column: Expression<*>, private val bucket: TimeBucket, timeZone: ZoneId) : ExpressionWithColumnType<Instant>() {
     override val columnType: InstantColumnType = InstantColumnType()
+    private val zone = zoneName(timeZone)
 
     override fun toQueryBuilder(queryBuilder: QueryBuilder) {
         when (currentDialect) {
-            // Stored values are in UTC, so H2 truncates them in UTC. ISO_WEEK starts on Monday.
+            // H2 truncates a value in its own offset, so it is moved to the zone first. ISO_WEEK starts on Monday.
             is H2Dialect -> queryBuilder {
                 append("DATE_TRUNC(" + (if (bucket == TimeBucket.WEEK) "ISO_WEEK" else bucket.name) + ", ")
                 append(column)
-                append(")")
+                append(" AT TIME ZONE '$zone')")
             }
-            // date_trunc's weeks start on Monday too; the time zone makes it truncate in UTC whatever the session's.
+            // Truncate the zone's local time, then read the result as that zone's: date_trunc's weeks start on Monday.
             is PostgreSQLDialect -> queryBuilder {
                 append("(date_trunc('" + bucket.name.lowercase() + "', ")
                 append(column)
-                append(" AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')")
+                append(" AT TIME ZONE '$zone') AT TIME ZONE '$zone')")
             }
             else -> throw InvalidQueryException("This database can't group by time buckets: use H2 or Postgres.")
         }
     }
+}
+
+/** The name of [timeZone] for SQL: `UTC`, or a region's name, which is letters, digits, `/`, `_`, `+` and `-`. */
+private fun zoneName(timeZone: ZoneId): String {
+    val name = if (timeZone == ZoneOffset.UTC) "UTC" else timeZone.id
+    if (!Regex("[A-Za-z0-9/_+-]+").matches(name)) throw InvalidQueryException("'$name' is not a time zone region.")
+    return name
 }
 
 private fun io.github.basekt.schema.Resource.fieldType(field: String?): FieldType? = field?.let { fieldType(it) }

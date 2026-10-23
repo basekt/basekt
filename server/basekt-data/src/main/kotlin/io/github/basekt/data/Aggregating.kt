@@ -8,8 +8,8 @@ import io.github.basekt.schema.Value
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.DayOfWeek
+import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 import kotlin.time.Instant
 import kotlin.time.toJavaInstant
@@ -27,8 +27,8 @@ import kotlin.time.toKotlinInstant
  * - [AggregateFunction.MIN] and [AggregateFunction.MAX] work on numbers, text and instants, and keep the field's type.
  * - Records whose group field is null form a group of their own, which sorts after the others when ascending.
  * - Groups come in [AggregateQuery.sort] order, then by every group field ascending, so the order is total.
- * - A group field with a [TimeBucket] in [AggregateQuery.buckets] groups by the bucket's start, as [startOf] gives,
- *   and its key is that instant.
+ * - A group field with a [TimeBucket] in [AggregateQuery.buckets] groups by the bucket's start in
+ *   [AggregateQuery.timeZone], as [startOf] gives, and its key is that instant.
  */
 public interface Aggregating {
     /**
@@ -52,6 +52,8 @@ public data class AggregateQuery(
     val limit: Int = 1000,
     /** The span of time that some of the instant [groupBy] fields are grouped into, by field. */
     val buckets: Map<String, TimeBucket> = emptyMap(),
+    /** The time zone whose calendar [buckets] follow: UTC, or a region such as `Asia/Manila`. */
+    val timeZone: ZoneId = ZoneOffset.UTC,
 ) {
     init {
         require(measures.isNotEmpty()) { "An aggregate needs at least one measure." }
@@ -112,6 +114,10 @@ public fun Resource.checkAggregate(query: AggregateQuery) {
     checkQuery(Query(query.filter))
     for (field in query.groupBy) fieldType(field)
     if (query.groupBy.size != query.groupBy.toSet().size) throw InvalidQueryException("A field can't be grouped by twice.")
+    // Databases read an offset like +08:00 in opposite ways, so only regions, whose names they agree on, are taken.
+    if (query.timeZone is ZoneOffset && query.timeZone != ZoneOffset.UTC) {
+        throw InvalidQueryException("Use a time zone region such as Asia/Manila, not the offset '${query.timeZone}'.")
+    }
     for ((field, bucket) in query.buckets) {
         if (field !in query.groupBy) throw InvalidQueryException("'$field' has a time bucket but isn't grouped by.")
         if (fieldType(field) != FieldType.INSTANT) {
@@ -155,16 +161,19 @@ public fun averageOf(sum: Value?, count: Long): Value? {
     return Value.Decimal.of(mean.toPlainString())
 }
 
-/** The first instant of the [bucket] that holds [instant], in UTC. Every adapter keys bucketed groups by it. */
-public fun startOf(bucket: TimeBucket, instant: Instant): Instant {
-    val day = instant.toJavaInstant().atOffset(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS)
-    val start = when (bucket) {
+/**
+ * The first instant of the [bucket] that holds [instant] on the calendar of [timeZone]: the start of its day, Monday,
+ * month or year there, which daylight saving can move off midnight. Every adapter keys bucketed groups by it.
+ */
+public fun startOf(bucket: TimeBucket, instant: Instant, timeZone: ZoneId = ZoneOffset.UTC): Instant {
+    val day = instant.toJavaInstant().atZone(timeZone).toLocalDate()
+    val first = when (bucket) {
         TimeBucket.DAY -> day
         TimeBucket.WEEK -> day.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         TimeBucket.MONTH -> day.withDayOfMonth(1)
         TimeBucket.YEAR -> day.withDayOfYear(1)
     }
-    return start.toInstant().toKotlinInstant()
+    return first.atStartOfDay(timeZone).toInstant().toKotlinInstant()
 }
 
 /** The decimal places of [averageOf]. */

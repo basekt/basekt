@@ -5,6 +5,7 @@ import io.github.basekt.schema.Auto
 import io.github.basekt.schema.Chart
 import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Operation
+import io.github.basekt.schema.ReportFilter
 import io.github.basekt.schema.ReportFunction
 import io.github.basekt.schema.ReportOrder
 import io.github.basekt.schema.Rule
@@ -73,8 +74,9 @@ public data class AdminResource(
 
 /**
  * A chart as an admin panel sees it. A panel draws it from `GET {path}/resources/{name}/aggregate` with `groupBy`
- * (`groupBy={field}:{bucket}` for a time series), `{function}={field}` (or `count`), `sort` and `limit`, and plots
- * each group's [measure]. A time series in group order shows its latest [limit] buckets.
+ * (`groupBy={field}:{bucket}` and `timeZone` for a time series), `{function}={field}` (or `count`), `sort`, `limit`
+ * and its [filters] as `{field}[{operator}]={values}`, and plots each group's [measure]. A time series in group order
+ * shows its latest [limit] buckets.
  */
 @Serializable
 public data class AdminReport(
@@ -96,6 +98,10 @@ public data class AdminReport(
     val limit: Int,
     /** The span of time the instant [groupBy] field is grouped into, or `null` to group by its values. */
     val bucket: TimeBucket? = null,
+    /** The time zone region whose calendar [bucket] follows, or `null` for UTC. */
+    val timeZone: String? = null,
+    /** The conditions a record must meet to count. */
+    val filters: List<ReportFilter> = emptyList(),
 )
 
 /** An action as an admin panel sees it: a button, and a form for its input. */
