@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 import { fakeFetch, helpDeskSchema, librarySchema, tickets } from "@/test/fixtures"
@@ -41,15 +41,21 @@ describe("the reports on the home screen", () => {
     const reports = await screen.findByRole("region", { name: "Reports" })
     const card = within(reports).getByRole("figure", { name: "Views last week" })
     expect(card).toHaveTextContent("Sum of views, last 7 days")
-    await user.click(screen.getByRole("button", { name: "Last 30 days" }))
+    await user.click(screen.getByRole("button", { name: "Report range" }))
+    const presets = await screen.findByRole("group", { name: "Presets" })
+    await user.click(within(presets).getByRole("button", { name: "Last 30 days" }))
     expect(card).toHaveTextContent("Sum of views, last 30 days")
-    expect(screen.getByRole("button", { name: "Last 30 days" })).toHaveAttribute("aria-pressed", "true")
+    expect(within(presets).getByRole("button", { name: "Last 30 days" })).toHaveAttribute("aria-pressed", "true")
     // Only the report with a range takes the window; the pie of states counts every ticket.
     await waitFor(() => expect(asked.filter((q) => "openedAt[gte]" in q).length).toBe(2))
     expect(asked.filter((q) => q.groupBy === "state").every((q) => !("openedAt[gte]" in q))).toBe(true)
-    expect(localStorage.getItem("basekt.reportRange")).toBe("30day")
+    expect(JSON.parse(localStorage.getItem("basekt.reportRange")!)).toEqual({ last: 30, unit: "day" })
+    // The picker shows the window's dates, ending today.
+    expect((screen.getByLabelText("Last day") as HTMLInputElement).value).toBe(new Date().toISOString().slice(0, 10))
 
-    await user.click(screen.getByRole("button", { name: "Default" }))
+    await user.click(within(presets).getByRole("button", { name: "Last month" }))
+    expect(card).toHaveTextContent("Sum of views, last month")
+    await user.click(within(presets).getByRole("button", { name: "Default" }))
     expect(card).toHaveTextContent("Sum of views, last 7 days")
     expect(localStorage.getItem("basekt.reportRange")).toBeNull()
   }, 15_000)
@@ -69,7 +75,10 @@ describe("the reports on the home screen", () => {
 
     const card = await screen.findByRole("figure", { name: "Week views" })
     await user.click(within(card).getByRole("button", { name: "Range of Week views" }))
-    await user.click(await screen.findByRole("menuitemradio", { name: "Previous period" }))
+    const compareTo = await screen.findByRole("switch", { name: "Compare to" })
+    await user.click(compareTo)
+    expect(await within(card).findByText(/vs same period last year \(/)).toBeInTheDocument()
+    await user.click(within(screen.getByRole("group", { name: "Compare with" })).getByRole("button", { name: "previous period" }))
     expect(await within(card).findByText(/vs previous period \(/)).toBeInTheDocument()
     expect(card).toHaveTextContent("Sum of views, last 7 days vs previous period")
     // The other card keeps the report's defaults.
@@ -79,24 +88,25 @@ describe("the reports on the home screen", () => {
     expect(windows.some(([, lt]) => windows.some(([gte]) => gte === lt))).toBe(true)
     expect(JSON.parse(localStorage.getItem("basekt.report.tickets.weekViews")!)).toEqual({ compare: "previousPeriod" })
 
-    await user.click(within(card).getByRole("button", { name: "Range of Week views" }))
-    await user.click(await screen.findByRole("menuitemradio", { name: "Custom dates…" }))
-    const dialog = await screen.findByRole("dialog", { name: "Dates of Week views" })
-    // The calendar redraws its days on each pick, so each day is looked up when it's clicked.
+    // Two clicks on the calendar choose a range; the calendar redraws its days on each, so each is looked up anew.
+    const picker = screen.getByRole("dialog")
     const day = (n: number) =>
-      within(dialog).getAllByRole("gridcell").filter((cell) => !cell.hasAttribute("data-outside")).map((cell) => within(cell).getByRole("button"))[n]
+      within(picker).getAllByRole("gridcell").filter((cell) => !cell.hasAttribute("data-outside")).map((cell) => within(cell).getByRole("button"))[n]
     await user.click(day(2))
     await user.click(day(4))
-    await user.click(within(dialog).getByRole("button", { name: "Apply" }))
     const saved = JSON.parse(localStorage.getItem("basekt.report.tickets.weekViews")!)
     expect(saved.range.from < saved.range.to).toBe(true)
     expect(card).toHaveTextContent(" – ")
+    expect((within(picker).getByLabelText("First day") as HTMLInputElement).value).toBe(saved.range.from)
 
-    await user.click(within(card).getByRole("button", { name: "Range of Week views" }))
-    await user.click(await screen.findByRole("menuitem", { name: "Reset" }))
-    expect(card).toHaveTextContent("Sum of views, last 7 days")
-    expect(localStorage.getItem("basekt.report.tickets.weekViews")).toBeNull()
-  }, 15_000) // Several menus, a dialog and a calendar: slow runners need more than the default 5s.
+    // The date fields change the range too.
+    fireEvent.change(within(picker).getByLabelText("First day"), { target: { value: "2026-01-05" } })
+    expect(JSON.parse(localStorage.getItem("basekt.report.tickets.weekViews")!).range.from).toBe("2026-01-05")
+
+    await user.click(within(within(picker).getByRole("group", { name: "Presets" })).getByRole("button", { name: "Default" }))
+    expect(card).toHaveTextContent("Sum of views, last 7 days vs previous period")
+    expect(JSON.parse(localStorage.getItem("basekt.report.tickets.weekViews")!)).toEqual({ compare: "previousPeriod" })
+  }, 15_000) // A popover, a switch and a calendar: slow runners need more than the default 5s.
 
   it("leave the home screen as it was when no resource has reports", async () => {
     const fetch = fakeFetch(({ url }) => (url.pathname === "/admin/api/schema" ? { body: librarySchema } : undefined))

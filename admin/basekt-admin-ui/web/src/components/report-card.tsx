@@ -1,12 +1,13 @@
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, XAxis, YAxis } from "recharts"
 import type { AdminReport, AdminResource, ReportCompare } from "@wire"
 import { ErrorState } from "@/components/error-state"
-import { ReportRangeMenu, useCardChoice } from "@/components/report-range-menu"
+import { useCardChoice } from "@/components/card-choice"
+import { DateRangePicker } from "@/components/date-range-picker"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { humanize } from "@/lib/fields"
-import { compareOf, describeCompare, describeReport, reportParams, reportPoints, type RollingRange, type ReportPoint, type ReportView } from "@/lib/reports"
+import { compareOf, describeCompare, describeReport, reportParams, reportPoints, type RangeChoice, type ReportPoint, type ReportView } from "@/lib/reports"
 import { useAsync } from "@/lib/use-async"
 import { usePanel } from "@/panel"
 
@@ -18,7 +19,7 @@ const colors = [1, 2, 3, 4, 5].map((n) => `var(--chart-${n})`)
  * the home screen's, replaces the report's own range, and the card's menu can replace both and add a comparison,
  * which loads the earlier window too.
  */
-export function ReportCard({ resource, report, range = null }: { resource: AdminResource; report: AdminReport; range?: RollingRange | null }) {
+export function ReportCard({ resource, report, range = null }: { resource: AdminResource; report: AdminReport; range?: RangeChoice | null }) {
   const { api } = usePanel()
   const [choice, setChoice] = useCardChoice(resource.name, report.name)
   const view: ReportView = { range: choice.range ?? range, compare: choice.compare }
@@ -42,7 +43,15 @@ export function ReportCard({ resource, report, range = null }: { resource: Admin
         <CardTitle>{title}</CardTitle>
         {report.range && (
           <CardAction>
-            <ReportRangeMenu report={report} title={title} choice={choice} onChange={setChoice} />
+            <DateRangePicker
+              compact
+              label={`Range of ${title}`}
+              zone={report.timeZone ?? "UTC"}
+              value={choice.range ?? null}
+              defaultRange={range ?? { last: report.range.last, unit: report.range.unit }}
+              onChange={(next) => setChoice({ ...choice, range: next ?? undefined })}
+              compare={report.chart === "pie" ? undefined : { value: compare, onChange: (next) => setChoice({ ...choice, compare: next }) }}
+            />
           </CardAction>
         )}
       </CardHeader>

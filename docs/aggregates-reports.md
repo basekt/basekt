@@ -72,13 +72,14 @@ Spans follow UTC's calendar unless the report names a time zone region.
 
 `range(field, last, unit)` is a rolling window: the records whose instant falls in the last spans up to now, the
 current one included, such as the last 14 days or this month. It is turned into dates each time the report is drawn,
-so it never goes stale, and a time series over it shows every span of the window, empty ones too. The home screen has
-a picker (today, 7, 30 or 90 days, 12 months) that replaces the range of every report that has one, and the browser
-remembers the choice.
+so it never goes stale, and a time series over it shows every span of the window, empty ones too.
 
-Each card with a range also has its own menu, which wins over the home screen's picker: the same windows, dates picked
-on a calendar (both days included, in the report's time zone), and a comparison with the previous period of the same
-length or the same dates a year earlier.
+The panel picks ranges with a date range picker: presets (today, yesterday, this or last week, the last 7 or 30 days,
+this or last month, this or last year), the first and last day as date fields, and a two-month calendar whose weeks
+start on Monday, like the week buckets. Picked days count on the report's time zone calendar, both included. The one
+on the home screen replaces the range of every report that has one. Each card with a range has its own, which wins
+over it and adds a "Compare to" switch: the same period last year, or the previous period of the same length. The
+browser remembers each choice.
 
 ### Comparisons
 

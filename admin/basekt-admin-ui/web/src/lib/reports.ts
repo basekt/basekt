@@ -18,10 +18,14 @@ const MAX_FILLED_POINTS = 400
 /** The most groups the aggregate route returns by default, which caps how many spans a range's series asks for. */
 const MAX_GROUPS = 1000
 
-/** A rolling window chosen in place of a report's own: the [last] spans of [unit] up to now. */
+/**
+ * A rolling window chosen in place of a report's own: the [last] spans of [unit] up to now, the current one included,
+ * or, with [skip], ending that many spans before the current one: `{ last: 1, unit: "day", skip: 1 }` is yesterday.
+ */
 export interface RollingRange {
   last: number
   unit: TimeBucket
+  skip?: number
 }
 
 /** Dates chosen in place of a report's range: [from] to [to], both included, as `YYYY-MM-DD` on the report's calendar. */
@@ -166,10 +170,26 @@ function windowOf(report: AdminReport, view: ReportView): Window | null {
     const to = addSpans(last, "day", 1)
     return { field: report.range.field, from: first, to, step: { unit: "day", count: Math.round((to - first) / DAY_MS) } }
   }
-  const { last, unit } = choice
-  const today = calendarDay((view.now ?? new Date()).toISOString(), zoneOf(report))
-  const current = startOfSpan(today, unit)
-  return { field: report.range.field, from: addSpans(current, unit, 1 - last), to: addSpans(current, unit, 1), step: { unit, count: last } }
+  const { from, to } = rollingDays(choice, zoneOf(report), view.now ?? new Date())
+  return { field: report.range.field, from, to, step: { unit: choice.unit, count: choice.last } }
+}
+
+/** The calendar days of [range] on [zone]'s calendar at [now]: [from] included, [to] excluded. */
+function rollingDays({ last, unit, skip = 0 }: RollingRange, zone: string, now: Date): { from: number; to: number } {
+  const current = startOfSpan(calendarDay(now.toISOString(), zone), unit)
+  const to = addSpans(current, unit, 1 - skip)
+  return { from: addSpans(to, unit, -last), to }
+}
+
+/**
+ * The first and last day of [choice], both included, as `YYYY-MM-DD` on [zone]'s calendar at [now]: what a date
+ * picker shows for a rolling range, or a custom range as it is.
+ */
+export function rangeDates(choice: RangeChoice, zone = "UTC", now: Date = new Date()): CustomRange {
+  if ("from" in choice) return choice.from <= choice.to ? choice : { from: choice.to, to: choice.from }
+  const { from, to } = rollingDays(choice, zone, now)
+  const ymd = (day: number) => new Date(day).toISOString().slice(0, 10)
+  return { from: ymd(from), to: ymd(addSpans(to, "day", -1)) }
 }
 
 /**
@@ -307,7 +327,9 @@ export function describeReport(report: AdminReport, view: ReportView = {}): stri
 /** A range in words: "today", "this month", "last 14 days", "last 3 months" or "1 Oct 2026 – 15 Oct 2026". */
 export function describeRange(choice: RangeChoice): string {
   if ("from" in choice) return `${formatBucket(`${choice.from}T00:00:00Z`, "day")} – ${formatBucket(`${choice.to}T00:00:00Z`, "day")}`
-  const { last, unit } = choice
+  const { last, unit, skip = 0 } = choice
+  if (skip === 1 && last === 1) return unit === "day" ? "yesterday" : `last ${unit}`
+  if (skip > 0) return `${last} ${unit}${last === 1 ? "" : "s"} ending ${skip} ${unit}${skip === 1 ? "" : "s"} ago`
   if (last === 1) return unit === "day" ? "today" : `this ${unit}`
   return `last ${last} ${unit}s`
 }

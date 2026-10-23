@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { AdminReport } from "@wire"
-import { compareOf, describeRange, describeReport, formatBucket, reportParams, reportPoints } from "@/lib/reports"
+import { compareOf, describeRange, describeReport, formatBucket, rangeDates, reportParams, reportPoints } from "@/lib/reports"
 import { books, tickets } from "@/test/fixtures"
 
 const feesByAuthor: AdminReport = {
@@ -165,6 +165,27 @@ describe("reports", () => {
     const total: AdminReport = { ...tickets.reports[1], range: { field: "openedAt", last: 7, unit: "day" }, compare: "previousPeriod" }
     const number = reportPoints(total, tickets, { groups: [{ key: {}, values: { sum_views: 12 } }], hasMore: false }, {}, { groups: [{ key: {}, values: { sum_views: 10 } }], hasMore: false })
     expect(number).toEqual([{ label: "None", value: 12, previous: 10 }])
+  })
+
+  it("count back whole spans before the current one, as yesterday, last week or last month do", () => {
+    // Thursday 22 October 2026, 10:00 in Manila.
+    const now = new Date("2026-10-22T02:00:00Z")
+    const at = (last: number, unit: "day" | "week" | "month" | "year", skip?: number) => rangeDates({ last, unit, skip }, "Asia/Manila", now)
+    expect(at(1, "day", 1)).toEqual({ from: "2026-10-21", to: "2026-10-21" })
+    expect(at(1, "week")).toEqual({ from: "2026-10-19", to: "2026-10-25" })
+    expect(at(1, "week", 1)).toEqual({ from: "2026-10-12", to: "2026-10-18" })
+    expect(at(1, "month", 1)).toEqual({ from: "2026-09-01", to: "2026-09-30" })
+    expect(at(1, "year", 1)).toEqual({ from: "2025-01-01", to: "2025-12-31" })
+    expect(at(7, "day")).toEqual({ from: "2026-10-16", to: "2026-10-22" })
+    expect(rangeDates({ from: "2026-10-09", to: "2026-10-02" })).toEqual({ from: "2026-10-02", to: "2026-10-09" })
+
+    const lastMonth: AdminReport = { ...ticketsPerMonth, bucket: "day", timeZone: "Asia/Manila", range: { field: "openedAt", last: 7, unit: "day" } }
+    const params = reportParams(lastMonth, { now, range: { last: 1, unit: "month", skip: 1 } })
+    expect([params["openedAt[gte]"], params["openedAt[lt]"]]).toEqual(["2026-08-31T16:00:00.000Z", "2026-09-30T16:00:00.000Z"])
+    // Compared with the month before it.
+    const before = reportParams(lastMonth, { now, range: { last: 1, unit: "month", skip: 1 }, compare: "previousPeriod" }, "previous")
+    expect(before["openedAt[gte]"]).toBe("2026-07-31T16:00:00.000Z")
+    expect([describeRange({ last: 1, unit: "day", skip: 1 }), describeRange({ last: 1, unit: "month", skip: 1 })]).toEqual(["yesterday", "last month"])
   })
 
   it("label buckets in UTC", () => {
