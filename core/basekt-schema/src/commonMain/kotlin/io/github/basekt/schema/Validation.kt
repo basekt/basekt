@@ -111,7 +111,9 @@ public fun Resource.decodeRecord(
             errors += FieldError(name, FieldErrorCode.UNKNOWN_FIELD, "'${this.name}' has no field '$name'.")
             continue
         }
-        if (field.auto != null) {
+        // An update may name the version it last read; the server compares it instead of writing it.
+        val expectedVersion = field.auto == Auto.Version && mode == WriteMode.UPDATE
+        if (field.auto != null && !expectedVersion) {
             if (element !is JsonNull) errors += FieldError(name, FieldErrorCode.READ_ONLY, "'$name' is set by the server.")
             continue
         }

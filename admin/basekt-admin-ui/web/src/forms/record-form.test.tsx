@@ -84,6 +84,33 @@ describe("record forms", () => {
     expect(fetch.calls.filter((c) => c.method === "PATCH").at(-1)!.body).toEqual({ fee: "2.00" })
   })
 
+  it("sends the version it opened, and shows a conflict when the record moved on", async () => {
+    const user = userEvent.setup()
+    const versioned = {
+      ...librarySchema,
+      resources: librarySchema.resources.map((r) => r.name !== "books" ? r : {
+        ...r,
+        fields: [...r.fields, { name: "version", type: "long" as const, required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: { kind: "version" as const } }],
+      }),
+    }
+    const fetch = fakeFetch(({ url, method }) => {
+      if (url.pathname === "/admin/api/schema") return { body: versioned }
+      if (url.pathname === "/admin/api/resources/books/records/b1" && method === "GET") return { body: { ...dune, version: 3 } }
+      if (url.pathname === "/admin/api/resources/books/records/b1" && method === "PATCH") {
+        return { status: 409, body: apiError("conflict", "'books/b1' changed since you read it; it is at version 4 now. Reload it and try again.") }
+      }
+    })
+    renderPanel("/admin/r/books/b1", fetch)
+
+    const title = await screen.findByLabelText("Title*")
+    await user.clear(title)
+    await user.type(title, "Dune Messiah")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText(/changed since you read it/)).toBeInTheDocument()
+    expect(fetch.calls.filter((c) => c.method === "PATCH").at(-1)!.body).toEqual({ title: "Dune Messiah", version: 3 })
+  })
+
   it("hides the actions the caller may not take", async () => {
     const fetch = fakeFetch(({ url }) => {
       if (url.pathname === "/admin/api/schema") return { body: helpDeskSchema }

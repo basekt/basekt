@@ -1,5 +1,7 @@
 package io.github.basekt.data.exposed
 
+import io.github.basekt.data.ConditionalUpdate
+import io.github.basekt.data.ConditionalWrites
 import io.github.basekt.data.Counting
 import io.github.basekt.data.CursorCodec
 import io.github.basekt.data.DataSource
@@ -8,7 +10,9 @@ import io.github.basekt.data.Filter
 import io.github.basekt.data.Page
 import io.github.basekt.data.Query
 import io.github.basekt.data.Sequencing
+import io.github.basekt.data.checkConditionalUpdate
 import io.github.basekt.data.checkQuery
+import io.github.basekt.data.fieldType
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
@@ -17,7 +21,10 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.exposed.v1.core.Column
+import org.jetbrains.exposed.v1.core.IColumnType
 import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.PlusOp
+import org.jetbrains.exposed.v1.core.QueryParameter
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -48,7 +55,9 @@ import java.util.concurrent.atomic.AtomicLong
  *
  * It also implements [Counting], and [Sequencing] with one row per counter in the table `basekt_sequences` (after
  * [TableMapping.tablePrefix]). Taking a number updates its row, which holds the row's lock until the transaction
- * ends: concurrent writers of the same counter take turns, and a rollback gives the number back.
+ * ends: concurrent writers of the same counter take turns, and a rollback gives the number back. And it implements
+ * [ConditionalWrites] as one `UPDATE … WHERE id = ? AND <condition>`: the row's lock makes concurrent updates wait,
+ * and the database checks the condition again on the row they then see.
  *
  * @param database the Exposed database to use. The application creates and owns it.
  * @param schema the resources to store.
@@ -62,7 +71,7 @@ public class ExposedDataSource(
     mapping: TableMapping = TableMapping(),
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : DataSource, Counting, Sequencing {
+) : DataSource, Counting, Sequencing, ConditionalWrites {
     private val tables: Map<String, ResourceTable>
     private val counterTable = SequenceTable(mapping.tablePrefix)
     private val savepoints = AtomicLong()
@@ -109,6 +118,14 @@ public class ExposedDataSource(
 
     override suspend fun nextValue(name: String, start: Long): Long = run { it.nextValue(name, start) }
 
+    override suspend fun updateIf(
+        resource: Resource,
+        id: String,
+        condition: Filter?,
+        changes: Record,
+        increments: Map<String, Value>,
+    ): ConditionalUpdate = run { it.updateIf(resource, id, condition, changes, increments) }
+
     private suspend fun <T> run(block: suspend (Session) -> T): T = withContext(dispatcher) {
         suspendTransaction(database) {
             // A retry would run the caller's block twice.
@@ -121,7 +138,7 @@ public class ExposedDataSource(
         tables[resource.name] ?: throw IllegalArgumentException("'${resource.name}' is not in this source's schema.")
 
     /** The calls of one open transaction [tx]. */
-    private inner class Session(private val tx: JdbcTransaction) : DataSource, Counting, Sequencing {
+    private inner class Session(private val tx: JdbcTransaction) : DataSource, Counting, Sequencing, ConditionalWrites {
         override suspend fun get(resource: Resource, id: String): Record? {
             val table = table(resource)
             return table.selectAll().where(table.id eq id).firstOrNull()?.let(table::toRecord)
@@ -194,6 +211,34 @@ public class ExposedDataSource(
         }
 
         override suspend fun <T> transaction(block: suspend (DataSource) -> T): T = savepoint { block(this) }
+
+        @Suppress("UNCHECKED_CAST")
+        override suspend fun updateIf(
+            resource: Resource,
+            id: String,
+            condition: Filter?,
+            changes: Record,
+            increments: Map<String, Value>,
+        ): ConditionalUpdate {
+            resource.checkConditionalUpdate(condition, changes, increments)
+            val table = table(resource)
+            val matching = condition?.let { (table.id eq id) and predicate(table, it) } ?: (table.id eq id)
+            val fields = resource.fields.filter { it.name in changes }
+            val written = if (fields.isEmpty() && increments.isEmpty()) {
+                table.selectAll().where(matching).count().toInt()
+            } else {
+                table.update({ matching }) { row ->
+                    for (field in fields) row[table.column(field.name)] = changes[field.name]?.toColumn(field.type)
+                    for ((name, amount) in increments) {
+                        val column = table.column(name)
+                        val type = column.columnType as IColumnType<Any>
+                        row[column] = PlusOp(column, QueryParameter(amount.toColumn(resource.fieldType(name)), type), type)
+                    }
+                }
+            }
+            if (written == 0) return if (get(resource, id) == null) ConditionalUpdate.NotFound else ConditionalUpdate.ConditionFailed
+            return ConditionalUpdate.Updated(get(resource, id)!!)
+        }
 
         override suspend fun nextValue(name: String, start: Long): Long {
             require(name.length <= SequenceTable.NAME_LENGTH) { "A sequence name has at most ${SequenceTable.NAME_LENGTH} characters." }

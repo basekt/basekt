@@ -83,5 +83,41 @@ class AutoTest {
         }
     }
 
+    @Test
+    fun `a version field takes the version an update read, and nothing on create`() {
+        val pages = schema {
+            resource("pages") {
+                string("title")
+                long("version") { version() }
+                permissions { read(everyone); write(everyone) }
+            }
+        }.resource("pages")!!
+        assertEquals(Auto.Version, pages.field("version")!!.auto)
+
+        val update = pages.decodeRecord(json("""{"title": "New", "version": 3}"""), WriteMode.UPDATE)
+        assertIs<DecodeResult.Valid>(update)
+        assertEquals(Value.Integer(3), update.record["version"])
+
+        val create = pages.decodeRecord(json("""{"title": "New", "version": 3}"""), WriteMode.CREATE)
+        assertIs<DecodeResult.Invalid>(create)
+        assertEquals(FieldErrorCode.READ_ONLY, create.errors.single().code)
+    }
+
+    @Test
+    fun `a version needs a number field, and a resource has one at most`() {
+        val error = assertFailsWith<InvalidSchemaException> {
+            schema {
+                resource("pages") {
+                    string("label") { version() }
+                    long("v1") { version() }
+                    long("v2") { version() }
+                }
+            }
+        }
+        val paths = error.problems.map { it.path }
+        assertTrue("resources.pages.fields.label" in paths, "$paths")
+        assertTrue("resources.pages.fields" in paths, "$paths")
+    }
+
     private fun json(text: String) = Json.parseToJsonElement(text).jsonObject
 }

@@ -76,7 +76,7 @@ export interface RulePattern {
   message: string | null;
 }
 
-export type Auto = AutoCreatedAt | AutoCreatedBy | AutoSequence | AutoUpdatedAt | AutoUpdatedBy;
+export type Auto = AutoCreatedAt | AutoCreatedBy | AutoSequence | AutoUpdatedAt | AutoUpdatedBy | AutoVersion;
 
 export interface AutoCreatedAt {
   kind: "createdAt";
@@ -99,6 +99,10 @@ export interface AutoUpdatedAt {
 
 export interface AutoUpdatedBy {
   kind: "updatedBy";
+}
+
+export interface AutoVersion {
+  kind: "version";
 }
 
 export interface AdminRelation {
