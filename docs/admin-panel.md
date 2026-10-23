@@ -12,8 +12,8 @@ panel change:
 - an error card that says when the server couldn't be reached, shows the [request id](schema.md#request-ids-and-server-errors),
   and copies a report or downloads the page's recent failed calls (kept in memory only) for whoever runs the panel.
 
-It hides what the caller's roles don't allow, signs in with a name and password, a bearer token, or the host's cookie session ([signing in](#signing-in)), and
-has light and dark modes.
+It hides what the caller's roles don't allow, signs in with a name and password, a bearer token, or the host's cookie
+session ([signing in](#signing-in)), and has light and dark modes.
 
 ![The sample shop's products in the admin panel](assets/staff-products.jpg)
 
