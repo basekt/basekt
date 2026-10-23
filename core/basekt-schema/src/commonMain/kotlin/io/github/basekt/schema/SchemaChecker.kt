@@ -44,6 +44,7 @@ internal object SchemaChecker {
             for (field in resource.fields) checkField(schema, field, "$at.fields.${field.name}", ::problem)
             duplicates(resource.relations.map { it.name }).forEach { problem("$at.relations.$it", "Relation '$it' is declared twice.") }
             for (relation in resource.relations) checkRelation(schema, resource, relation, "$at.relations.${relation.name}", ::problem)
+            resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
         }
         return problems
     }
@@ -111,6 +112,21 @@ internal object SchemaChecker {
                 }
             }
         }
+    }
+
+    private fun checkScope(resource: Resource, scope: Scope, at: String, problem: (String, String) -> Unit) {
+        if (scope.field != Resource.ID) {
+            val field = resource.field(scope.field)
+            when {
+                field == null -> problem(at, "The scoped field '${scope.field}' doesn't exist on '${resource.name}'.")
+                field.type != FieldType.STRING && field.type != FieldType.ENUM && field.type != FieldType.REFERENCE ->
+                    problem(at, "The scoped field '${scope.field}' must be a string, enum or reference field.")
+            }
+        }
+        val match = scope.match
+        if (match is ScopeMatch.Attribute && match.name.isBlank()) problem(at, "A scope needs an attribute name.")
+        if (scope.operations.isEmpty()) problem(at, "A scope needs at least one operation.")
+        if (scope.unless.any { it.isBlank() }) problem(at, "A scope's unless roles can't be blank.")
     }
 
     private fun duplicates(names: List<String>): Set<String> =

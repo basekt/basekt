@@ -7,11 +7,11 @@ import type { PanelConfig } from "@/config"
 export const books: AdminResource = {
   name: "books",
   fields: [
-    { name: "title", type: "string", required: true, values: null, target: null, rules: [{ kind: "length", min: 1, max: 200 }] },
-    { name: "pages", type: "int", required: false, values: null, target: null, rules: [{ kind: "min", value: "1" }] },
-    { name: "fee", type: "decimal", required: true, values: null, target: null, rules: [] },
-    { name: "lendable", type: "bool", required: false, values: null, target: null, rules: [] },
-    { name: "authorId", type: "reference", required: false, values: null, target: "authors", rules: [] },
+    { name: "title", type: "string", required: true, values: null, target: null, rules: [{ kind: "length", min: 1, max: 200 }], scopedValues: null },
+    { name: "pages", type: "int", required: false, values: null, target: null, rules: [{ kind: "min", value: "1" }], scopedValues: null },
+    { name: "fee", type: "decimal", required: true, values: null, target: null, rules: [], scopedValues: null },
+    { name: "lendable", type: "bool", required: false, values: null, target: null, rules: [], scopedValues: null },
+    { name: "authorId", type: "reference", required: false, values: null, target: "authors", rules: [], scopedValues: null },
   ],
   relations: [{ name: "author", kind: "belongsTo", target: "authors", field: "authorId" }],
   operations: ["read", "create", "update", "delete"],
@@ -21,7 +21,7 @@ export const books: AdminResource = {
 
 export const authors: AdminResource = {
   name: "authors",
-  fields: [{ name: "name", type: "string", required: true, values: null, target: null, rules: [] }],
+  fields: [{ name: "name", type: "string", required: true, values: null, target: null, rules: [], scopedValues: null }],
   relations: [{ name: "books", kind: "hasMany", target: "books", field: "authorId" }],
   operations: ["read", "create", "update", "delete"],
   searchable: ["name"],
@@ -33,10 +33,10 @@ export const librarySchema: AdminSchema = { version: 1, caller: { id: "librarian
 export const tickets: AdminResource = {
   name: "tickets",
   fields: [
-    { name: "subject", type: "string", required: true, values: null, target: null, rules: [] },
-    { name: "state", type: "enum", required: true, values: ["open", "waiting", "closed"], target: null, rules: [] },
-    { name: "openedAt", type: "instant", required: false, values: null, target: null, rules: [] },
-    { name: "views", type: "long", required: false, values: null, target: null, rules: [] },
+    { name: "subject", type: "string", required: true, values: null, target: null, rules: [], scopedValues: null },
+    { name: "state", type: "enum", required: true, values: ["open", "waiting", "closed"], target: null, rules: [], scopedValues: null },
+    { name: "openedAt", type: "instant", required: false, values: null, target: null, rules: [], scopedValues: null },
+    { name: "views", type: "long", required: false, values: null, target: null, rules: [], scopedValues: null },
   ],
   relations: [],
   operations: ["read"],

@@ -105,6 +105,30 @@ is data access for trusted server code: it doesn't check permissions or run hook
 before-hook on create, update or delete can modify the input or veto the write with a reason. An after-hook runs in
 the same transaction.
 
+**Record scopes** narrow permissions down to records. A caller's `Identity` carries attributes besides its roles,
+such as the teams or sites they belong to, and a scope says which field of a record must hold one of those values:
+
+```kotlin
+resource("appointments") {
+    reference("clinicId", "clinics") { required() }
+    permissions {
+        read("staff"); write("staff")
+        scope("clinicId", attribute = "clinic", unless = setOf("director"))   // only your clinics' records
+    }
+}
+resource("entries") {
+    string("authorId")
+    permissions { read(authenticated); write(authenticated); ownedBy("authorId", on = writes) }  // edit only your own
+}
+```
+
+Lists, counts and relation routes hold only the records in the caller's scope, and a record outside it is `404`. A
+record you may read but not change is `403`, and so is a write that would give a scoped field a value outside the
+caller's. A create that leaves the field out gets the caller's value when they have exactly one. With JWTs,
+`PrincipalRoles.jwt(attributeClaims = listOf("clinic"))` reads attributes from claims, and `JwtSettings.issue` writes
+them. Scopes are schema data like everything else. Hooks and repositories are trusted server code, so scopes don't
+apply to them.
+
 **The admin API** is JSON only, for a panel to render itself from:
 
 | Route under `/admin/api` | What it does |

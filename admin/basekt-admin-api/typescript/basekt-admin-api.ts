@@ -40,6 +40,7 @@ export interface AdminField {
   values: string[] | null;
   target: string | null;
   rules: Rule[];
+  scopedValues: string[] | null;
 }
 
 export type FieldType = "string" | "int" | "long" | "decimal" | "bool" | "instant" | "enum" | "reference";

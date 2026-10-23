@@ -21,16 +21,18 @@ public fun interface PrincipalRoles {
         public val Default: PrincipalRoles = firstOf(of<Identity> { it }, jwt(), of<UserIdPrincipal> { Identity(it.name) })
 
         /**
-         * Reads a [JWTPrincipal]: the id from [idClaim] (the subject by default) and the roles from [rolesClaim], which
-         * may be an array of strings or one string of names separated by spaces or commas.
+         * Reads a [JWTPrincipal]: the id from [idClaim] (the subject by default), the roles from [rolesClaim], and an
+         * attribute from each of [attributeClaims], named after its claim. Roles and attributes may be an array of
+         * strings or one string of names separated by spaces or commas; a missing claim is no attribute.
          */
-        public fun jwt(idClaim: String = "sub", rolesClaim: String = "roles"): PrincipalRoles = of<JWTPrincipal> { principal ->
+        public fun jwt(
+            idClaim: String = "sub",
+            rolesClaim: String = "roles",
+            attributeClaims: List<String> = emptyList(),
+        ): PrincipalRoles = of<JWTPrincipal> { principal ->
             val id = principal.payload.getClaim(idClaim).asString()?.takeIf { it.isNotBlank() } ?: return@of null
-            val claim = principal.payload.getClaim(rolesClaim)
-            val roles = claim.asList(String::class.java)
-                ?: claim.asString()?.split(' ', ',')?.filter { it.isNotBlank() }
-                ?: emptyList()
-            Identity(id, roles.toSet())
+            val attributes = attributeClaims.associateWith { principal.names(it) }.filterValues { it.isNotEmpty() }
+            Identity(id, principal.names(rolesClaim), attributes)
         }
 
         /** Maps principals of type [P] with [map], and nothing else. */
@@ -43,4 +45,11 @@ public fun interface PrincipalRoles {
             return PrincipalRoles { principal -> all.firstNotNullOfOrNull { it.identityOf(principal) } }
         }
     }
+}
+
+/** Reads [claim] as an array of strings or one string of names separated by spaces or commas. */
+private fun JWTPrincipal.names(claim: String): Set<String> {
+    val value = payload.getClaim(claim)
+    val names = value.asList(String::class.java) ?: value.asString()?.split(' ', ',') ?: emptyList()
+    return names.filter { it.isNotBlank() }.toSet()
 }

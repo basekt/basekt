@@ -167,6 +167,7 @@ public class PermissionsBuilder internal constructor(initial: Permissions) {
     private var create = initial.create
     private var update = initial.update
     private var delete = initial.delete
+    private val scopes = initial.scopes.toMutableList()
 
     /** Anyone, including anonymous callers. */
     public val everyone: Access get() = Access.Everyone
@@ -216,5 +217,24 @@ public class PermissionsBuilder internal constructor(initial: Permissions) {
     /** Callers with any of [roles] may create, update and delete records. */
     public fun write(vararg roles: String): Unit = write(Access.Roles(roles.toSet()))
 
-    internal fun build(): Permissions = Permissions(read, create, update, delete)
+    /** Every operation, the default of [scope] and [ownedBy]. */
+    public val all: Set<Operation> get() = Operation.entries.toSet()
+
+    /** Create, update and delete, for a scope that leaves reading open. */
+    public val writes: Set<Operation> get() = setOf(Operation.CREATE, Operation.UPDATE, Operation.DELETE)
+
+    /**
+     * Limits [on] to the records whose [field] holds one of the values of the caller's [attribute], except for callers
+     * with one of the [unless] roles. See [Scope].
+     */
+    public fun scope(field: String, attribute: String, on: Set<Operation> = all, unless: Set<String> = emptySet()) {
+        scopes += Scope(field, ScopeMatch.Attribute(attribute), on, unless)
+    }
+
+    /** Limits [on] to the records whose [field] holds the caller's id, except for callers with one of the [unless] roles. */
+    public fun ownedBy(field: String, on: Set<Operation> = all, unless: Set<String> = emptySet()) {
+        scopes += Scope(field, ScopeMatch.Caller, on, unless)
+    }
+
+    internal fun build(): Permissions = Permissions(read, create, update, delete, scopes.toList())
 }
