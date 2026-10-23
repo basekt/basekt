@@ -177,4 +177,4 @@ export interface FieldError {
   message: string;
 }
 
-export type FieldErrorCode = "required" | "type" | "min" | "max" | "length" | "pattern" | "enum" | "custom" | "unknown_field" | "read_only" | "missing_reference" | "rejected";
+export type FieldErrorCode = "required" | "type" | "min" | "max" | "length" | "pattern" | "enum" | "custom" | "unknown_field" | "read_only" | "missing_reference" | "rejected" | "unique";

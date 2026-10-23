@@ -48,6 +48,9 @@ public enum class FieldErrorCode {
 
     /** A hook of the application rejected the value. */
     @SerialName("rejected") REJECTED,
+
+    /** Another record already holds the value of a [Field.unique] field. */
+    @SerialName("unique") UNIQUE,
 }
 
 /** A rejected value of [field], with a typed [code] and a readable [message]. */

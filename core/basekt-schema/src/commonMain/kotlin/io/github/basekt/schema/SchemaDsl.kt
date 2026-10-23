@@ -207,10 +207,16 @@ public class FieldBuilder internal constructor() {
     private var required = false
     private val rules = mutableListOf<Rule>()
     private var auto: Auto? = null
+    private var unique = false
 
     /** Makes the field required: a record must have a non-null value. */
     public fun required() {
         required = true
+    }
+
+    /** Makes the field unique: no two records may hold the same non-null value. See [Field.unique]. */
+    public fun unique() {
+        unique = true
     }
 
     /** The value must be at least [value]. */
@@ -279,7 +285,7 @@ public class FieldBuilder internal constructor() {
         auto(Auto.Sequence(prefix, digits, start))
 
     internal fun build(name: String, type: FieldType, values: List<String>?, target: String?, bucket: String? = null): Field =
-        Field(name, type, required, values, target, rules.toList(), bucket, auto)
+        Field(name, type, required, values, target, rules.toList(), bucket, auto, unique)
 }
 
 /** Declares who may perform each [Operation]. */
@@ -358,5 +364,32 @@ public class PermissionsBuilder internal constructor(initial: Permissions) {
         scopes += Scope(field, ScopeMatch.Caller, on, unless)
     }
 
+    /**
+     * Limits [on] to the records that satisfy any one of the [clauses], except for callers with one of the [unless]
+     * roles. Each clause is a field and the caller's values it must hold one of, such as a transfer's source or
+     * destination location. See [Scope.orElse].
+     */
+    public fun scopeAnyOf(on: Set<Operation> = all, unless: Set<String> = emptySet(), clauses: ScopeClauses.() -> Unit) {
+        val built = ScopeClauses().apply(clauses).list
+        require(built.isNotEmpty()) { "A scope needs at least one clause." }
+        scopes += Scope(built.first().field, built.first().match, on, unless, built.drop(1))
+    }
+
     internal fun build(): Permissions = Permissions(read, create, update, delete, scopes.toList())
+}
+
+/** Declares the clauses of a [PermissionsBuilder.scopeAnyOf] scope. */
+@SchemaDsl
+public class ScopeClauses internal constructor() {
+    internal val list = mutableListOf<ScopeClause>()
+
+    /** A record is in the scope when [field] holds one of the values of the caller's [attribute]. */
+    public fun attribute(field: String, attribute: String) {
+        list += ScopeClause(field, ScopeMatch.Attribute(attribute))
+    }
+
+    /** A record is in the scope when [field] holds the caller's id. */
+    public fun caller(field: String) {
+        list += ScopeClause(field, ScopeMatch.Caller)
+    }
 }
