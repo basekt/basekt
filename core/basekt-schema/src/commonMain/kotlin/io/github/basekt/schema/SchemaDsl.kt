@@ -11,6 +11,10 @@ public fun schema(block: SchemaBuilder.() -> Unit): Schema = SchemaBuilder().app
 @SchemaDsl
 public class SchemaBuilder {
     private val resources = mutableListOf<Resource>()
+    private val declaredModels = mutableListOf<Model<*>>()
+
+    /** The typed resources declared so far, for repositories and typed hooks to find by class. */
+    public val models: List<Model<*>> get() = declaredModels.toList()
 
     /** Declares a resource called [name]. */
     public fun resource(name: String, block: ResourceBuilder.() -> Unit) {
@@ -21,6 +25,16 @@ public class SchemaBuilder {
     public fun resource(resource: Resource) {
         resources += resource
     }
+
+    /** Adds the typed resource [model]. */
+    public fun resource(model: Model<*>) {
+        resources += model.resource
+        declaredModels += model
+    }
+
+    /** Declares a typed resource called [name] whose fields come from [T]; see [ModelBuilder]. Returns its model. */
+    public inline fun <reified T> resource(name: String, noinline block: ModelBuilder<T>.() -> Unit = {}): Model<T> =
+        model(name, block).also { resource(it) }
 
     /** Builds the schema and checks it. Throws [InvalidSchemaException] if it is invalid. */
     public fun build(): Schema = Schema(resources.toList()).requireValid()

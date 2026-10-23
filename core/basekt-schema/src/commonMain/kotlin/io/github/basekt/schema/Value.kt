@@ -1,5 +1,6 @@
 package io.github.basekt.schema
 
+import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
 /**
@@ -33,7 +34,9 @@ public sealed interface Value : Comparable<Value> {
 
     /**
      * An exact decimal number, kept as its canonical literal so no precision is lost. Create one with [Decimal.of].
+     * It serializes as its literal, so [Model] classes can have decimal properties.
      */
+    @Serializable(with = DecimalSerializer::class)
     public class Decimal private constructor(
         /** The canonical literal: no leading or trailing zeros, and no `-0`. */
         public val literal: String,

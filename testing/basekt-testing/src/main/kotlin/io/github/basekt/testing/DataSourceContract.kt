@@ -8,15 +8,20 @@ import io.github.basekt.data.DuplicateIdException
 import io.github.basekt.data.Filter
 import io.github.basekt.data.InvalidQueryException
 import io.github.basekt.data.Query
+import io.github.basekt.data.Repository
 import io.github.basekt.data.Sort
+import io.github.basekt.schema.Model
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.Value
+import io.github.basekt.schema.model
 import io.github.basekt.schema.schema
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -312,6 +317,67 @@ public abstract class DataSourceContract {
         assertFailsWith<InvalidQueryException> { source.count(entries, Filter.IsNull("colour")) }
     }
 
+    /** A typed model of `entries` is the same resource, and its typed queries return what the dynamic ones do. */
+    @Test
+    public fun typedQueriesMatchDynamicOnes(): Unit = runTest {
+        assertEquals(entries, typedEntries.resource)
+        val source = createDataSource()
+        val repository = Repository(typedEntries, source)
+        val kinds = listOf(Kind.A, Kind.B, Kind.C, null)
+        for (n in 0 until 12) {
+            repository.create(
+                Entry(
+                    id = "t%02d".format(n),
+                    title = if (n % 3 == 0) "Typed $n" else "other $n",
+                    rank = (n % 5).takeIf { it != 4 },
+                    amount = Value.Decimal.of("${n % 4}.5"),
+                    flag = n % 2 == 0,
+                    kind = kinds[n % 4],
+                ),
+            )
+        }
+        suspend fun same(dynamic: Query, typed: io.github.basekt.data.TypedQuery<Entry>.() -> Unit) {
+            val expected = source.list(entries, dynamic).items.ids()
+            assertEquals(dynamic, repository.query(typed))
+            assertEquals(expected, repository.list(typed).items.map { it.id })
+        }
+        same(
+            Query(
+                Filter.And(listOf(Filter.Compare("rank", Comparison.GTE, int(2)), Filter.Compare("flag", Comparison.EQ, Value.Bool(true)))),
+                listOf(Sort("amount", Direction.DESC)),
+            ),
+        ) {
+            // Renaming Entry.rank breaks this line at compile time, where the dynamic "rank" would only fail at runtime.
+            // A value of the wrong type doesn't compile either: (Entry::rank eq "2") has no overload.
+            where { (Entry::rank gte 2) and (Entry::flag eq true) }
+            orderBy(Entry::amount, Direction.DESC)
+        }
+        same(Query(Filter.Or(listOf(Filter.In("kind", listOf(text("a"), text("c"))), Filter.IsNull("kind"))), limit = 5)) {
+            where { (Entry::kind isIn listOf(Kind.A, Kind.C)) or Entry::kind.isNull() }
+            limit = 5
+        }
+        same(Query(Filter.Not(Filter.Contains("title", "typed")), listOf(Sort("rank"), Sort("title", Direction.DESC)))) {
+            where { not(Entry::title contains "typed") }
+            orderBy(Entry::rank)
+            orderBy(Entry::title, Direction.DESC)
+        }
+    }
+
+    /** A repository creates, reads, updates and deletes typed values. */
+    @Test
+    public fun repositoriesRoundTripTypedValues(): Unit = runTest {
+        val repository = Repository(typedEntries, createDataSource())
+        val created = repository.create(Entry(title = "first", size = Long.MAX_VALUE, at = Instant.parse("2026-03-04T05:06:07.123Z"), kind = Kind.B))
+        val id = assertNotNull(created.id)
+        assertEquals(created, repository.get(id))
+        val updated = repository.update(id, created.copy(title = null, rank = 7))
+        assertEquals(created.copy(title = null, rank = 7), updated)
+        assertEquals(mapOf(id to updated), repository.getMany(listOf(id, "missing")))
+        assertNull(repository.update("missing", created))
+        assertTrue(repository.delete(id))
+        assertNull(repository.get(id))
+    }
+
     /** Concurrent creates all land, with distinct ids. */
     @Test
     public fun concurrentCreatesAllLand(): Unit = runTest {
@@ -321,8 +387,47 @@ public abstract class DataSourceContract {
         assertEquals(100, source.list(entries, Query(limit = 1000)).items.size)
     }
 
+    /** An entry, as a typed model of the contract's `entries` resource. */
+    @Serializable
+    public data class Entry(
+        /** The id, generated when null. */
+        val id: String? = null,
+        /** A title. */
+        val title: String? = null,
+        /** A rank. */
+        val rank: Int? = null,
+        /** A size. */
+        val size: Long? = null,
+        /** An amount. */
+        val amount: Value.Decimal? = null,
+        /** A flag. */
+        val flag: Boolean? = null,
+        /** A moment. */
+        val at: Instant? = null,
+        /** A kind. */
+        val kind: Kind? = null,
+        /** The group's id. */
+        val groupId: String? = null,
+    )
+
+    /** The kinds of an [Entry]. */
+    @Serializable
+    public enum class Kind {
+        /** Kind a. */
+        @SerialName("a") A,
+
+        /** Kind b. */
+        @SerialName("b") B,
+
+        /** Kind c. */
+        @SerialName("c") C,
+    }
+
     /** The schema the contract runs on: every field type and both relation kinds. */
     public companion object {
+        /** The `entries` resource of [contractSchema], declared as a typed model of [Entry]. */
+        public val typedEntries: Model<Entry> = model<Entry>("entries") { belongsTo(Entry::groupId, "groups") }
+
         /** Two resources that use every field type: `groups`, and `entries` that belong to a group. */
         public val contractSchema: Schema = schema {
             resource("groups") {

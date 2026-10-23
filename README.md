@@ -74,6 +74,32 @@ Errors are typed JSON: `{"error": "validation_failed", "message": ..., "fields":
 A caller without credentials gets `401 unauthorized`, one without the role `403 forbidden`. The base path and page
 sizes come from the `basekt` section of `ApplicationConfig`.
 
+**Typed models** are an optional layer on the same runtime schema. A `@Serializable` class describes a resource, and
+typed and dynamic resources mix in one schema:
+
+```kotlin
+@Serializable
+data class Product(val id: String? = null, val name: String, val price: Value.Decimal, val categoryId: String? = null)
+
+resources {
+    resource("categories") { string("name") { required() } }       // dynamic
+    resource<Product>("products") {                                  // typed: fields come from the serializer
+        field(Product::price) { min("0.01") }
+        belongsTo(Product::categoryId, "categories")
+    }
+}
+hooks { beforeUpdate { old: Product, new: Product -> if (new.price < old.price) veto("price", "No discounts.") else proceed(new) } }
+
+val cheap = application.baseKt.repository<Product>().list {
+    where { Product::price lt Value.Decimal.of("10") }               // compiles only with a value of the property's type
+    orderBy(Product::price)
+}
+```
+
+The class's fields come from its serializer, with no reflection and no code generation. A typed resource is the same
+`Resource` a dynamic one is, so validation, permissions, the REST API and the admin API don't change. A `Repository`
+is data access for trusted server code: it doesn't check permissions or run hooks.
+
 **Hooks** run in the service layer, so the REST API, the admin API and any later transport run the same ones. A
 before-hook on create, update or delete can modify the input or veto the write with a reason. An after-hook runs in
 the same transaction.
