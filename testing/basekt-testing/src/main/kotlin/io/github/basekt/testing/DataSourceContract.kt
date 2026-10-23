@@ -1,5 +1,8 @@
 package io.github.basekt.testing
 
+import io.github.basekt.data.AggregateFunction
+import io.github.basekt.data.AggregateQuery
+import io.github.basekt.data.Aggregating
 import io.github.basekt.data.Comparison
 import io.github.basekt.data.ConditionalUpdate
 import io.github.basekt.data.ConditionalWrites
@@ -9,6 +12,7 @@ import io.github.basekt.data.Direction
 import io.github.basekt.data.DuplicateIdException
 import io.github.basekt.data.Filter
 import io.github.basekt.data.InvalidQueryException
+import io.github.basekt.data.Measure
 import io.github.basekt.data.Query
 import io.github.basekt.data.Repository
 import io.github.basekt.data.Sequencing
@@ -430,6 +434,128 @@ public abstract class DataSourceContract {
             }
         }
         assertEquals(int(1), source.get(entries, "e1")!!["rank"])
+    }
+
+    private suspend fun DataSource.seedForAggregates() {
+        val rows = listOf(
+            listOf("e1", "a", 3L, 10L, "1.5", "2026-01-01T00:00:00Z", "kiwi"),
+            listOf("e2", "a", 4L, null, "2.25", "2026-03-01T00:00:00Z", "apple"),
+            listOf("e3", "b", 5L, 30L, null, "2026-02-01T00:00:00Z", "fig"),
+            listOf("e4", null, 1L, 1L, "0.1", null, null),
+            listOf("e5", "a", null, 5L, "0.1", "2026-02-15T00:00:00Z", "date"),
+        )
+        for ((id, kind, rank, size, amount, at, title) in rows.map { it + List(7 - it.size) { null } }) {
+            create(
+                entries,
+                mapOf(
+                    Resource.ID to text(id as String),
+                    "kind" to (kind as String?)?.let(::text),
+                    "rank" to (rank as Long?)?.let(::int),
+                    "size" to (size as Long?)?.let(::int),
+                    "amount" to (amount as String?)?.let { Value.Decimal.of(it) },
+                    "at" to (at as String?)?.let { Value.Timestamp(Instant.parse(it)) },
+                    "title" to (title as String?)?.let(::text),
+                ),
+            )
+        }
+    }
+
+    private operator fun <T> List<T>.component6(): T = this[5]
+    private operator fun <T> List<T>.component7(): T = this[6]
+
+    /** A source that offers [Aggregating] groups records and computes each function as the contract says. */
+    @Test
+    public fun aggregatesGroupAndCompute(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is Aggregating) return@runTest
+        source.seedForAggregates()
+        val page = source.aggregate(
+            entries,
+            AggregateQuery(
+                groupBy = listOf("kind"),
+                measures = listOf(
+                    Measure(AggregateFunction.COUNT),
+                    Measure(AggregateFunction.COUNT, "size"),
+                    Measure(AggregateFunction.SUM, "rank"),
+                    Measure(AggregateFunction.SUM, "size"),
+                    Measure(AggregateFunction.SUM, "amount"),
+                    Measure(AggregateFunction.AVG, "rank"),
+                    Measure(AggregateFunction.MIN, "at"),
+                    Measure(AggregateFunction.MAX, "title"),
+                ),
+            ),
+        )
+        assertFalse(page.hasMore)
+        // Groups come by kind, and the records without one last.
+        assertEquals(listOf(text("a"), text("b"), null), page.groups.map { it.key["kind"] })
+        val a = page.groups[0].values
+        assertEquals(int(3), a["count"])
+        assertEquals(int(2), a["count_size"])
+        assertEquals(int(7), a["sum_rank"])
+        assertEquals(int(15), a["sum_size"])
+        assertEquals(Value.Decimal.of("3.85"), a["sum_amount"])
+        assertEquals(Value.Decimal.of("3.5"), a["avg_rank"])
+        assertEquals(Value.Timestamp(Instant.parse("2026-01-01T00:00:00Z")), a["min_at"])
+        assertEquals(text("kiwi"), a["max_title"])
+        val b = page.groups[1].values
+        assertNull(b["sum_amount"])
+        assertEquals(Value.Decimal.of("5"), b["avg_rank"])
+        assertEquals(int(1), page.groups[2].values["count"])
+    }
+
+    /** No group fields make one group, even of no records; an average is exact; a filter narrows what counts. */
+    @Test
+    public fun aggregatesOverEverythingOrNothing(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is Aggregating) return@runTest
+        val measures = listOf(Measure(AggregateFunction.COUNT), Measure(AggregateFunction.SUM, "size"), Measure(AggregateFunction.AVG, "size"))
+        val empty = source.aggregate(entries, AggregateQuery(measures = measures)).groups.single().values
+        assertEquals(int(0), empty["count"])
+        assertNull(empty["sum_size"])
+        assertNull(empty["avg_size"])
+
+        source.seedForAggregates()
+        val all = source.aggregate(entries, AggregateQuery(measures = measures)).groups.single()
+        assertEquals(emptyMap(), all.key)
+        assertEquals(int(46), all.values["sum_size"])
+        assertEquals(Value.Decimal.of("11.5"), all.values["avg_size"])
+        val thirds = source.aggregate(entries, AggregateQuery(measures = listOf(Measure(AggregateFunction.AVG, "rank")), filter = Filter.Compare("rank", Comparison.GTE, int(3))))
+        assertEquals(Value.Decimal.of("4"), thirds.groups.single().values["avg_rank"])
+        val third = source.aggregate(entries, AggregateQuery(measures = listOf(Measure(AggregateFunction.AVG, "amount")), filter = Filter.Compare("kind", Comparison.EQ, text("a"))))
+        assertEquals(Value.Decimal.of("1.283333333333"), third.groups.single().values["avg_amount"])
+    }
+
+    /** Groups sort by a measure, with a limit that says whether more groups exist; bad queries are refused. */
+    @Test
+    public fun aggregatesSortLimitAndCheck(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is Aggregating) return@runTest
+        source.seedForAggregates()
+        val bySize = source.aggregate(
+            entries,
+            AggregateQuery(groupBy = listOf("kind", "rank"), measures = listOf(Measure(AggregateFunction.SUM, "size", "total")), sort = listOf(Sort("total", Direction.DESC)), limit = 2),
+        )
+        assertTrue(bySize.hasMore)
+        // Descending puts the group with no total first, then the largest.
+        assertEquals(listOf(null, int(30)), bySize.groups.map { it.values["total"] })
+        assertEquals(mapOf("kind" to text("a"), "rank" to int(4)), bySize.groups.first().key)
+        val byAverage = source.aggregate(
+            entries,
+            AggregateQuery(groupBy = listOf("kind"), measures = listOf(Measure(AggregateFunction.AVG, "rank")), sort = listOf(Sort("avg_rank", Direction.ASC)), limit = 1),
+        )
+        assertEquals(null, byAverage.groups.single().key["kind"])
+        assertTrue(byAverage.hasMore)
+
+        for (bad in listOf(
+            AggregateQuery(measures = listOf(Measure(AggregateFunction.SUM, "title"))),
+            AggregateQuery(measures = listOf(Measure(AggregateFunction.MIN, "flag"))),
+            AggregateQuery(measures = listOf(Measure(AggregateFunction.SUM))),
+            AggregateQuery(measures = listOf(Measure(AggregateFunction.COUNT, "colour"))),
+            AggregateQuery(measures = listOf(Measure(AggregateFunction.COUNT), Measure(AggregateFunction.COUNT))),
+            AggregateQuery(measures = listOf(Measure(AggregateFunction.COUNT)), sort = listOf(Sort("rank"))),
+        )) {
+            assertFailsWith<InvalidQueryException>("$bad") { source.aggregate(entries, bad) }
+        }
     }
 
     /** A typed model of `entries` is the same resource, and its typed queries return what the dynamic ones do. */

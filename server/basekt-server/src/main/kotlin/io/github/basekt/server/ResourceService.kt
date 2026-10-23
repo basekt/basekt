@@ -1,5 +1,8 @@
 package io.github.basekt.server
 
+import io.github.basekt.data.AggregatePage
+import io.github.basekt.data.AggregateQuery
+import io.github.basekt.data.Aggregating
 import io.github.basekt.data.Comparison
 import io.github.basekt.data.ConditionalUpdate
 import io.github.basekt.data.ConditionalWrites
@@ -121,6 +124,19 @@ public class ResourceService(
     public suspend fun list(resource: Resource, caller: Identity?, query: Query): Page {
         authorize(resource, Operation.READ, caller)
         return queried { dataSource.list(resource, query.narrowed(scopeFilter(resource, Operation.READ, caller))) }
+    }
+
+    /**
+     * Computes [query]'s grouped totals over the records of [resource] that [caller] may read: their read scope
+     * narrows the records first. Throws [ErrorCode.NOT_IMPLEMENTED] if the data source can't aggregate.
+     */
+    public suspend fun aggregate(resource: Resource, caller: Identity?, query: AggregateQuery): AggregatePage {
+        authorize(resource, Operation.READ, caller)
+        val source = dataSource as? Aggregating
+            ?: throw ApiException(ErrorCode.NOT_IMPLEMENTED, "This data source can't compute aggregates.")
+        val scope = scopeFilter(resource, Operation.READ, caller)
+        val narrowed = if (scope == null) query else query.copy(filter = query.filter?.let { Filter.And(listOf(it, scope)) } ?: scope)
+        return queried { source.aggregate(resource, narrowed) }
     }
 
     /** Returns the record of [resource] with [id], if [caller] may read it. */

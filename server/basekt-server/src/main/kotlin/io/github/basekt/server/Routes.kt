@@ -1,10 +1,12 @@
 package io.github.basekt.server
 
+import io.github.basekt.data.AggregatePage
 import io.github.basekt.data.Page
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Relation
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.encodeRecord
+import io.github.basekt.schema.toJson
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -36,6 +38,13 @@ internal fun Route.baseKtRoutes(runtime: BaseKtRuntime, defaultPageSize: Int, ma
 
     route(runtime.basePath) {
         get(SCHEMA_PATH) { call.respondText(schemaJson, ContentType.Application.Json) }
+        get("$AGGREGATE_PATH/{resource}") {
+            handle(runtime) { caller ->
+                val resource = service.resource(call.parameters["resource"]!!)
+                val query = parseAggregateQuery(resource, call.request.queryParameters.toMap(), runtime.maxAggregateGroups)
+                respondJson(service.aggregate(resource, caller, query).toJson())
+            }
+        }
 
         for (resource in runtime.schema.resources) {
             route(resource.name) {
@@ -138,5 +147,22 @@ private suspend fun RoutingContext.respondPage(resource: Resource, page: Page) {
         ),
     )
 }
+
+/** Encodes an aggregate's groups as `{"groups": [{"key": …, "values": …}], "hasMore": …}`. */
+public fun AggregatePage.toJson(): JsonObject = JsonObject(
+    mapOf(
+        "groups" to JsonArray(
+            groups.map { group ->
+                JsonObject(
+                    mapOf(
+                        "key" to JsonObject(group.key.mapValues { (_, value) -> value?.toJson() ?: JsonNull }),
+                        "values" to JsonObject(group.values.mapValues { (_, value) -> value?.toJson() ?: JsonNull }),
+                    ),
+                )
+            },
+        ),
+        "hasMore" to JsonPrimitive(hasMore),
+    ),
+)
 
 private fun Record.idOf(): String = this[Resource.ID].toString()
