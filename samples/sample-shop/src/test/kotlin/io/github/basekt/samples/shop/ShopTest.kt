@@ -4,13 +4,18 @@ import io.github.basekt.auth.JwtSettings
 import io.github.basekt.server.Identity
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.config.ApplicationConfig
@@ -23,6 +28,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.nio.file.Files
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -34,7 +40,12 @@ class ShopTest {
     private fun shop(test: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
         environment {
             config = ApplicationConfig("application.conf")
-                .mergeWith(MapApplicationConfig("shop.database.url" to "jdbc:h2:mem:shop-${UUID.randomUUID()};DB_CLOSE_DELAY=-1"))
+                .mergeWith(
+                    MapApplicationConfig(
+                        "shop.database.url" to "jdbc:h2:mem:shop-${UUID.randomUUID()};DB_CLOSE_DELAY=-1",
+                        "shop.files.dir" to Files.createTempDirectory("shop-files").toString(),
+                    ),
+                )
         }
         test()
     }
@@ -62,6 +73,31 @@ class ShopTest {
         assertContains(shell.bodyAsText(), "\"apiPath\":\"/admin/api\"")
         assertContains(shell.bodyAsText(), "<title>Sample shop admin</title>")
         assertContains(client.get("/admin/theme.css").bodyAsText(), "--primary: oklch(0.511 0.262 276.966);")
+    }
+
+    @Test
+    fun `products have images that staff upload and anyone sees`() = shop {
+        val lamp = client.get("/api/products/desk-lamp").json()
+        val image = lamp["image"]!!.jsonPrimitive.content
+        val download = client.get("/files/$image")
+        assertEquals(HttpStatusCode.OK, download.status)
+        assertEquals(ContentType.Image.PNG, download.contentType())
+
+        val png = client.get("/files/$image").bodyAsBytes()
+        val upload = client.submitFormWithBinaryData("/files/images", formData {
+            append("file", png, Headers.build {
+                append(HttpHeaders.ContentType, "image/png")
+                append(HttpHeaders.ContentDisposition, "filename=\"stool.png\"")
+            })
+        }) { bearerAuth("staff-token") }
+        assertEquals(HttpStatusCode.Created, upload.status)
+        val key = upload.json()["key"]!!.jsonPrimitive.content
+        val updated = client.patch("/api/products/stool") { bearerAuth("staff-token"); json("""{"image": "$key"}""") }
+        assertEquals(HttpStatusCode.OK, updated.status)
+        assertEquals(key, updated.json()["image"]!!.jsonPrimitive.content)
+
+        val anonymous = client.submitFormWithBinaryData("/files/images", formData { append("file", png, Headers.build { append(HttpHeaders.ContentType, "image/png") }) })
+        assertEquals(HttpStatusCode.Unauthorized, anonymous.status)
     }
 
     @Test
@@ -162,7 +198,7 @@ class ShopTest {
         assertEquals(2, lamps["total"]!!.jsonPrimitive.content.toInt())
         val csv = client.get("/admin/api/resources/products/export.csv?sort=id") { bearerAuth("staff-token") }.bodyAsText()
         val rows = csv.split("\r\n")
-        assertEquals("id,name,sku,price,cost,stock,published,categoryId", rows[0])
-        assertEquals("desk-lamp,Desk lamp,LMP-0001,24.9,11,12,true,lamps", rows[1])
+        assertEquals("id,name,sku,price,cost,stock,published,categoryId,image", rows[0])
+        assertEquals("desk-lamp,Desk lamp,LMP-0001,24.9,11,12,true,lamps,images/seed/desk-lamp.png", rows[1])
     }
 }
