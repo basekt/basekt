@@ -5,10 +5,11 @@ import { TokenStore, useToken } from "@/auth"
 import { Home } from "@/components/home"
 import { Layout } from "@/components/layout"
 import { ListView } from "@/components/list-view"
-import { RecordView } from "@/components/record-view"
+import { CreateView, RecordView } from "@/components/record-view"
 import { SignIn } from "@/components/sign-in"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Toaster } from "@/components/ui/sonner"
 import type { PanelConfig } from "@/config"
 import { humanize } from "@/lib/fields"
 import { useAsync } from "@/lib/use-async"
@@ -85,6 +86,7 @@ export function App({ config, tokens: givenTokens, fetchImpl }: {
           <Screen />
         </Layout>
       </Router>
+      <Toaster theme={mode} position="bottom-right" />
     </PanelProvider>
   )
 }
@@ -105,8 +107,9 @@ function Screen() {
     case "list":
       return <ListView resource={resource} search={route.search} />
     case "create":
+      return <CreateView key={resource.name} resource={resource} />
     case "detail":
-      return route.screen === "detail" ? <RecordView resource={resource} id={route.id} /> : <ListView resource={resource} search={new URLSearchParams()} />
+      return <RecordView key={`${resource.name}/${route.id}`} resource={resource} id={route.id} />
   }
 }
 
