@@ -17,6 +17,7 @@ export const books: AdminResource = {
   operations: ["read", "create", "update", "delete"],
   searchable: ["title"],
   sortable: ["id", "title", "pages", "fee", "lendable", "authorId"],
+  group: null,
   actions: [],
 }
 
@@ -27,6 +28,7 @@ export const authors: AdminResource = {
   operations: ["read", "create", "update", "delete"],
   searchable: ["name"],
   sortable: ["id", "name"],
+  group: null,
   actions: [],
 }
 
@@ -45,6 +47,7 @@ export const tickets: AdminResource = {
   operations: ["read"],
   searchable: ["subject", "state"],
   sortable: ["id", "subject", "state", "openedAt", "views", "screenshot"],
+  group: null,
   actions: [],
 }
 

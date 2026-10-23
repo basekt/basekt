@@ -52,6 +52,7 @@ internal object SchemaChecker {
             duplicates(resource.actions.map { it.name }).forEach { problem("$at.actions.$it", "Action '$it' is declared twice.") }
             for (action in resource.actions) checkAction(schema, action, "$at.actions.${action.name}", ::problem)
             checkWorkflow(schema, resource, "$at.workflow", ::problem)
+            if (resource.group != null && resource.group.isBlank()) problem("$at.group", "A menu group can't be blank.")
             resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
         }
         return problems

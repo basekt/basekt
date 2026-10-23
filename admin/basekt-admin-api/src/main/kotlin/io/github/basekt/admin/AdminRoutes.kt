@@ -164,6 +164,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
             operations = operations,
             searchable = resource.searchable(),
             sortable = listOf(Resource.ID) + resource.fields.map { it.name },
+            group = resource.group,
             actions = actions.map { action ->
                 val transition = resource.transition(action.name)
                 AdminAction(

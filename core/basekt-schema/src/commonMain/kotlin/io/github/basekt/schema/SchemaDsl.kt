@@ -97,6 +97,12 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
     private var permissions = Permissions()
     private val actions = mutableListOf<Action>()
     private var workflow: Workflow? = null
+    private var group: String? = null
+
+    /** Lists this resource under the heading [name] in an admin panel's menu. Resources without one come first. */
+    public fun group(name: String) {
+        group = name
+    }
 
     /**
      * Declares that this resource belongs to a [target] record: adds the reference field [field] (by default
@@ -142,7 +148,7 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
     }
 
     internal fun build(): Resource =
-        Resource(name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow)
+        Resource(name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow, group)
 }
 
 /** Marks the field of [workflow] as its [Auto.State]. */
