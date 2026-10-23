@@ -52,9 +52,14 @@ public data class Resource(
     val relations: List<Relation> = emptyList(),
     /** Who may read and write records. Everything is denied unless granted. */
     val permissions: Permissions = Permissions(),
+    /** The named operations beyond create, update and delete that callers may run. See [Action]. */
+    val actions: List<Action> = emptyList(),
 ) {
     /** Returns the field called [name], or `null` if there isn't one. */
     public fun field(name: String): Field? = fields.firstOrNull { it.name == name }
+
+    /** Returns the action called [name], or `null` if there isn't one. */
+    public fun action(name: String): Action? = actions.firstOrNull { it.name == name }
 
     /** Returns the relation called [name], or `null` if there isn't one. */
     public fun relation(name: String): Relation? = relations.firstOrNull { it.name == name }
@@ -64,6 +69,38 @@ public data class Resource(
         /** The name of the identifier every record has. */
         public const val ID: String = "id"
     }
+}
+
+/**
+ * A named operation on a resource, such as approving a record or moving things between two of them: one step that
+ * may check rules and write several records in one transaction. The declaration is data; the server registers the
+ * code that runs it.
+ */
+@Serializable
+public data class Action(
+    /** The action's name, used in routes. */
+    val name: String,
+    /** Whether it runs on one record or on the resource as a whole. */
+    val target: ActionTarget = ActionTarget.RECORD,
+    /** What the caller sends, checked like a record's fields. */
+    val input: List<Field> = emptyList(),
+    /** Who may run it. */
+    val access: Access = Access.Nobody,
+    /** A question a panel asks before running it, or `null` to run it straight away. */
+    val confirm: String? = null,
+) {
+    /** The input as a resource of its own, for decoding and checking it like a record. */
+    public val inputResource: Resource get() = Resource("$name.input", input)
+}
+
+/** What an [Action] runs on. */
+@Serializable
+public enum class ActionTarget {
+    /** One record, named by its id. */
+    @SerialName("record") RECORD,
+
+    /** The resource as a whole, such as an import or a batch change. */
+    @SerialName("resource") RESOURCE,
 }
 
 /** A typed field of a [Resource]. */

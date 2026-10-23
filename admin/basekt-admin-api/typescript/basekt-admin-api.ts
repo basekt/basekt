@@ -31,6 +31,7 @@ export interface AdminResource {
   operations: Operation[];
   searchable: string[];
   sortable: string[];
+  actions: AdminAction[];
 }
 
 export interface AdminField {
@@ -115,6 +116,15 @@ export interface AdminRelation {
 export type RelationKind = "belongsTo" | "hasMany";
 
 export type Operation = "read" | "create" | "update" | "delete";
+
+export interface AdminAction {
+  name: string;
+  target: ActionTarget;
+  input: AdminField[];
+  confirm: string | null;
+}
+
+export type ActionTarget = "record" | "resource";
 
 export interface AdminPage {
   items: JsonObject[];

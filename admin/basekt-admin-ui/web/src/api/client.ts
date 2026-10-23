@@ -60,6 +60,13 @@ export class AdminApi {
     await this.send("DELETE", `${this.records(resource)}/${encodeURIComponent(id)}`)
   }
 
+  /** Runs [action] on the record [id], or on the whole resource without one. Resolves to its answer, or null. */
+  async runAction(resource: string, action: string, id: string | undefined, input: JsonObject): Promise<JsonObject | null> {
+    const base = id === undefined ? `/resources/${encodeURIComponent(resource)}` : `${this.records(resource)}/${encodeURIComponent(id)}`
+    const response = await this.send("POST", `${base}/actions/${encodeURIComponent(action)}`, input)
+    return response.status === 204 ? null : ((await response.json()) as JsonObject)
+  }
+
   bulkDelete(resource: string, ids: string[]): Promise<BulkDeleteResult> {
     return this.json("POST", `/resources/${encodeURIComponent(resource)}/bulk-delete`, { ids })
   }

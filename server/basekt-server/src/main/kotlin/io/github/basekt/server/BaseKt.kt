@@ -65,6 +65,15 @@ public class BaseKtConfig internal constructor(config: ApplicationConfig) {
 
     internal fun builtHooks(): Hooks = hookBuilder.build(models.toList())
 
+    private val actionBuilder = ActionsBuilder()
+
+    /** Registers the code of the schema's actions. Every declared action needs code, and code needs an action. */
+    public fun actions(block: ActionsBuilder.() -> Unit) {
+        actionBuilder.apply(block)
+    }
+
+    internal fun builtActions(): Actions = actionBuilder.build()
+
     /**
      * The typed resources of the schema, which repositories and typed hooks find by class. [resources] fills it;
      * add models here yourself when you set [schema] directly.
@@ -138,7 +147,7 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     }
     val basePath = "/" + pluginConfig.basePath.trim('/')
 
-    val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock)
+    val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock, pluginConfig.builtActions())
     val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList())
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }

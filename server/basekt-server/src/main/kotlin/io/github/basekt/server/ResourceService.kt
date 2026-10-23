@@ -10,6 +10,7 @@ import io.github.basekt.data.InvalidQueryException
 import io.github.basekt.data.Page
 import io.github.basekt.data.Query
 import io.github.basekt.data.Sequencing
+import io.github.basekt.schema.ActionTarget
 import io.github.basekt.schema.Auto
 import io.github.basekt.schema.DecodeResult
 import io.github.basekt.schema.FieldError
@@ -25,6 +26,7 @@ import io.github.basekt.schema.Scope
 import io.github.basekt.schema.Value
 import io.github.basekt.schema.WriteMode
 import io.github.basekt.schema.decodeRecord
+import io.github.basekt.schema.encodeRecord
 import io.github.basekt.schema.validateRecord
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonNull
@@ -58,6 +60,8 @@ public class ResourceService(
     private val hooks: Hooks = Hooks.None,
     /** Where the times of [Auto.CreatedAt] and [Auto.UpdatedAt] fields come from. */
     private val clock: Clock = Clock.System,
+    /** The code of the schema's [io.github.basekt.schema.Action]s. */
+    private val actions: Actions = Actions.None,
 ) {
     private val extensions = CopyOnWriteArrayList<WriteExtension>()
 
@@ -71,6 +75,13 @@ public class ResourceService(
         val versioned = schema.resources.flatMap { r -> r.fields.filter { it.auto == Auto.Version }.map { "${r.name}.${it.name}" } }
         require(versioned.isEmpty() || dataSource is ConditionalWrites) {
             "The version fields ${versioned.joinToString()} need a data source that offers ConditionalWrites."
+        }
+        val declared = schema.resources.flatMap { r -> r.actions.map { r.name to it.name } }
+        val missing = declared.filter { (r, a) -> actions.handler(r, a) == null }
+        require(missing.isEmpty()) { "These actions have no code registered: ${missing.joinToString { "${it.first}.${it.second}" }}." }
+        val unknownActions = actions.handlers.flatMap { (r, named) -> named.keys.map { r to it } } - declared.toSet()
+        require(unknownActions.isEmpty()) {
+            "Code is registered for actions the schema doesn't declare: ${unknownActions.joinToString { "${it.first}.${it.second}" }}."
         }
     }
 
@@ -122,51 +133,16 @@ public class ResourceService(
     public suspend fun create(resource: Resource, caller: Identity?, body: JsonObject): Record {
         authorize(resource, Operation.CREATE, caller)
         val decoded = decode(resource, scoped(resource, Operation.CREATE, caller, body), WriteMode.CREATE)
-        return dataSource.transaction { tx ->
-            val context = HookContext(resource, caller, tx)
-            val stamped = stamped(tx, resource, caller, decoded, WriteMode.CREATE)
-            var record = stamped
-            for (hook in hooks.beforeCreate[resource.name].orEmpty()) record = context.hook(record).accepted()
-            if (record != stamped) revalidate(resource, record, WriteMode.CREATE)
-            checkReferences(tx, resource, record)
-            checkExtensions(tx, resource, record)
-            val created = try {
-                tx.create(resource, record)
-            } catch (e: DuplicateIdException) {
-                throw ApiException(ErrorCode.CONFLICT, e.message!!)
-            }
-            for (hook in hooks.afterCreate[resource.name].orEmpty()) context.hook(created)
-            created
-        }.also { committed(Change.Created(resource, it)) }
+        return dataSource.transaction { tx -> createIn(tx, resource, caller, decoded) }
+            .also { committed(Change.Created(resource, it)) }
     }
 
     /** Validates [body] and applies it to the record of [resource] with [id], if [caller] may. */
     public suspend fun update(resource: Resource, caller: Identity?, id: String, body: JsonObject): Record {
         authorize(resource, Operation.UPDATE, caller)
         val input = decode(resource, scoped(resource, Operation.UPDATE, caller, body), WriteMode.UPDATE)
-        // The version a client sends is the one it last read, not a value to write.
-        val version = resource.fields.firstOrNull { it.auto == Auto.Version }
-        val expected = version?.let { input[it.name] }
-        val decoded = if (version == null) input else input - version.name
         return dataSource.transaction { tx ->
-            val context = HookContext(resource, caller, tx)
-            val current = writable(tx, resource, Operation.UPDATE, caller, id)
-            if (version != null && expected != null && current[version.name] != expected) throw stale(resource, id, current[version.name])
-            val stamped = stamped(tx, resource, caller, decoded, WriteMode.UPDATE)
-            var changes = stamped
-            for (hook in hooks.beforeUpdate[resource.name].orEmpty()) {
-                changes = context.hook(Update(id, current, changes)).accepted()
-            }
-            if (changes != stamped) revalidate(resource, changes, WriteMode.UPDATE)
-            checkReferences(tx, resource, changes)
-            checkExtensions(tx, resource, changes)
-            val updated = if (version == null) {
-                tx.update(resource, id, changes) ?: throw notFound(resource, id)
-            } else {
-                versionedUpdate(tx, resource, id, version.name, expected, current, changes)
-            }
-            for (hook in hooks.afterUpdate[resource.name].orEmpty()) context.hook(Updated(current, updated))
-            current to updated
+            updateIn(tx, resource, caller, id, input) { writable(tx, resource, Operation.UPDATE, caller, id) }
         }.let { (before, after) ->
             committed(Change.Updated(resource, before, after))
             after
@@ -177,14 +153,120 @@ public class ResourceService(
     public suspend fun delete(resource: Resource, caller: Identity?, id: String) {
         authorize(resource, Operation.DELETE, caller)
         val deleted = dataSource.transaction { tx ->
-            val context = HookContext(resource, caller, tx)
-            val current = writable(tx, resource, Operation.DELETE, caller, id)
-            for (hook in hooks.beforeDelete[resource.name].orEmpty()) context.hook(Deletion(id, current)).accepted()
-            if (!tx.delete(resource, id)) throw notFound(resource, id)
-            for (hook in hooks.afterDelete[resource.name].orEmpty()) context.hook(current)
-            current
+            deleteIn(tx, resource, caller, id) { writable(tx, resource, Operation.DELETE, caller, id) }
         }
         committed(Change.Deleted(resource, deleted))
+    }
+
+    /**
+     * Runs [resource]'s action [name] for [caller], on the record [id] or, when it is `null`, on the resource as a
+     * whole, with the input [body]. Returns the JSON to answer with, or `null` for no content.
+     *
+     * The caller needs the action's access, and the record must be in their update scope. The input is checked like
+     * a record. The action's code runs in one transaction, and the extensions learn of its writes once it commits.
+     */
+    public suspend fun run(resource: Resource, name: String, caller: Identity?, id: String?, body: JsonObject): JsonObject? {
+        val action = resource.action(name)?.takeIf { (it.target == ActionTarget.RECORD) == (id != null) }
+            ?: throw ApiException(ErrorCode.NOT_FOUND, "'${resource.name}' has no ${if (id == null) "resource" else "record"} action '$name'.")
+        if (!action.access.allows(caller?.roles)) {
+            throw if (caller == null) ApiException(ErrorCode.UNAUTHORIZED, "Sign in to run '${resource.name}.$name'.")
+            else ApiException(ErrorCode.FORBIDDEN, "Your roles don't allow you to run '${resource.name}.$name'.")
+        }
+        val handler = checkNotNull(actions.handler(resource.name, name)) { "'${resource.name}.$name' has no code." }
+        val inputResource = action.inputResource
+        val input = when (val result = inputResource.decodeRecord(body, WriteMode.CREATE, validators)) {
+            is DecodeResult.Valid -> result.record
+            is DecodeResult.Invalid -> throw ApiException(ApiError(ErrorCode.VALIDATION_FAILED, "The input has invalid fields.", result.errors))
+        }
+        val changes = mutableListOf<Change>()
+        val answer = dataSource.transaction { tx ->
+            val record = id?.let { writable(tx, resource, Operation.UPDATE, caller, it) }
+            checkReferences(tx, inputResource, input)
+            ActionContext(resource, caller, record, input, tx, this, changes).handler(input)
+        }
+        changes.forEach { committed(it) }
+        if (answer != null || id == null) return answer
+        return resource.encodeRecord(dataSource.get(resource, id) ?: throw notFound(resource, id))
+    }
+
+    /** Creates [record] in [tx] for trusted code, such as an action: every write step but permissions and scopes. */
+    internal suspend fun trustedCreate(tx: DataSource, resource: Resource, caller: Identity?, record: Record): Record {
+        revalidate(resource, record, WriteMode.CREATE)
+        return createIn(tx, resource, caller, record)
+    }
+
+    /** Applies [changes] in [tx] for trusted code. Returns the record before and after. */
+    internal suspend fun trustedUpdate(tx: DataSource, resource: Resource, caller: Identity?, id: String, changes: Record): Pair<Record, Record> {
+        revalidate(resource, changes, WriteMode.UPDATE)
+        return updateIn(tx, resource, caller, id, changes) { tx.get(resource, id) ?: throw notFound(resource, id) }
+    }
+
+    /** Deletes in [tx] for trusted code. Returns the deleted record. */
+    internal suspend fun trustedDelete(tx: DataSource, resource: Resource, caller: Identity?, id: String): Record =
+        deleteIn(tx, resource, caller, id) { tx.get(resource, id) ?: throw notFound(resource, id) }
+
+    /** The steps of a create in [tx], once the caller may make it: automatic fields, hooks, checks, the write. */
+    private suspend fun createIn(tx: DataSource, resource: Resource, caller: Identity?, decoded: Record): Record {
+        val context = HookContext(resource, caller, tx)
+        val stamped = stamped(tx, resource, caller, decoded, WriteMode.CREATE)
+        var record = stamped
+        for (hook in hooks.beforeCreate[resource.name].orEmpty()) record = context.hook(record).accepted()
+        if (record != stamped) revalidate(resource, record, WriteMode.CREATE)
+        checkReferences(tx, resource, record)
+        checkExtensions(tx, resource, record)
+        val created = try {
+            tx.create(resource, record)
+        } catch (e: DuplicateIdException) {
+            throw ApiException(ErrorCode.CONFLICT, e.message!!)
+        }
+        for (hook in hooks.afterCreate[resource.name].orEmpty()) context.hook(created)
+        return created
+    }
+
+    /**
+     * The steps of an update in [tx], with the record [load] finds: the version check, automatic fields, hooks,
+     * checks, the write. Returns the record before and after.
+     */
+    private suspend fun updateIn(
+        tx: DataSource,
+        resource: Resource,
+        caller: Identity?,
+        id: String,
+        input: Record,
+        load: suspend () -> Record,
+    ): Pair<Record, Record> {
+        // The version a client sends is the one it last read, not a value to write.
+        val version = resource.fields.firstOrNull { it.auto == Auto.Version }
+        val expected = version?.let { input[it.name] }
+        val decoded = if (version == null) input else input - version.name
+        val context = HookContext(resource, caller, tx)
+        val current = load()
+        if (version != null && expected != null && current[version.name] != expected) throw stale(resource, id, current[version.name])
+        val stamped = stamped(tx, resource, caller, decoded, WriteMode.UPDATE)
+        var changes = stamped
+        for (hook in hooks.beforeUpdate[resource.name].orEmpty()) {
+            changes = context.hook(Update(id, current, changes)).accepted()
+        }
+        if (changes != stamped) revalidate(resource, changes, WriteMode.UPDATE)
+        checkReferences(tx, resource, changes)
+        checkExtensions(tx, resource, changes)
+        val updated = if (version == null) {
+            tx.update(resource, id, changes) ?: throw notFound(resource, id)
+        } else {
+            versionedUpdate(tx, resource, id, version.name, expected, current, changes)
+        }
+        for (hook in hooks.afterUpdate[resource.name].orEmpty()) context.hook(Updated(current, updated))
+        return current to updated
+    }
+
+    /** The steps of a delete in [tx], with the record [load] finds. Returns the deleted record. */
+    private suspend fun deleteIn(tx: DataSource, resource: Resource, caller: Identity?, id: String, load: suspend () -> Record): Record {
+        val context = HookContext(resource, caller, tx)
+        val current = load()
+        for (hook in hooks.beforeDelete[resource.name].orEmpty()) context.hook(Deletion(id, current)).accepted()
+        if (!tx.delete(resource, id)) throw notFound(resource, id)
+        for (hook in hooks.afterDelete[resource.name].orEmpty()) context.hook(current)
+        return current
     }
 
     /** Returns the one record that the record [id] of [resource] belongs to through [relation]. */

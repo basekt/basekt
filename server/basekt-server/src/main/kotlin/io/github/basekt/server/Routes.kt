@@ -39,6 +39,9 @@ internal fun Route.baseKtRoutes(runtime: BaseKtRuntime, defaultPageSize: Int, ma
 
         for (resource in runtime.schema.resources) {
             route(resource.name) {
+                post("actions/{action}") {
+                    handle(runtime) { caller -> respondAnswer(service.run(resource, call.parameters["action"]!!, caller, null, optionalBody())) }
+                }
                 get {
                     handle(runtime) { caller -> respondPage(resource, service.list(resource, caller, call.query(resource))) }
                 }
@@ -63,6 +66,9 @@ internal fun Route.baseKtRoutes(runtime: BaseKtRuntime, defaultPageSize: Int, ma
                             service.delete(resource, caller, id())
                             call.respond(HttpStatusCode.NoContent)
                         }
+                    }
+                    post("actions/{action}") {
+                        handle(runtime) { caller -> respondAnswer(service.run(resource, call.parameters["action"]!!, caller, id(), optionalBody())) }
                     }
                     for (relation in resource.relations) {
                         val target = runtime.schema.resource(relation.target)!!
@@ -102,6 +108,19 @@ private suspend fun RoutingContext.body(): JsonObject {
     val text = call.receiveText()
     return runCatching { Json.parseToJsonElement(text) }.getOrNull() as? JsonObject
         ?: throw ApiException(ErrorCode.BAD_REQUEST, "The request body must be a JSON object.")
+}
+
+/** Reads the body as a JSON object, or an empty one when there is no body. */
+private suspend fun RoutingContext.optionalBody(): JsonObject {
+    val text = call.receiveText()
+    if (text.isBlank()) return JsonObject(emptyMap())
+    return runCatching { Json.parseToJsonElement(text) }.getOrNull() as? JsonObject
+        ?: throw ApiException(ErrorCode.BAD_REQUEST, "The request body must be a JSON object.")
+}
+
+/** Answers with an action's [answer], or no content. */
+private suspend fun RoutingContext.respondAnswer(answer: JsonObject?) {
+    if (answer == null) call.respond(HttpStatusCode.NoContent) else respondJson(answer)
 }
 
 private suspend fun RoutingContext.respondJson(json: JsonElement, status: HttpStatusCode = HttpStatusCode.OK) {

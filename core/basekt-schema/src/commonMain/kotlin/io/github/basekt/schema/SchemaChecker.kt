@@ -49,6 +49,8 @@ internal object SchemaChecker {
             for (relation in resource.relations) checkRelation(schema, resource, relation, "$at.relations.${relation.name}", ::problem)
             val versions = resource.fields.filter { it.auto == Auto.Version }
             if (versions.size > 1) problem("$at.fields", "A resource has at most one version field, not ${versions.joinToString { it.name }}.")
+            duplicates(resource.actions.map { it.name }).forEach { problem("$at.actions.$it", "Action '$it' is declared twice.") }
+            for (action in resource.actions) checkAction(schema, action, "$at.actions.${action.name}", ::problem)
             resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
         }
         return problems
@@ -145,6 +147,16 @@ internal object SchemaChecker {
                     problem(at, "'${relation.foreignField}' must be a reference field on '${target.name}' that targets '${resource.name}'.")
                 }
             }
+        }
+    }
+
+    private fun checkAction(schema: Schema, action: Action, at: String, problem: (String, String) -> Unit) {
+        if (!namePattern.matches(action.name)) problem(at, "'${action.name}' is not a valid name: use letters, digits and '_', starting with a letter.")
+        if (action.confirm != null && action.confirm.isBlank()) problem(at, "A confirmation question can't be blank.")
+        duplicates(action.input.map { it.name }).forEach { problem("$at.input.$it", "Input field '$it' is declared twice.") }
+        for (field in action.input) {
+            checkField(schema, field, "$at.input.${field.name}", problem)
+            if (field.auto != null) problem("$at.input.${field.name}", "An action's input is the caller's, so the server can't set it.")
         }
     }
 

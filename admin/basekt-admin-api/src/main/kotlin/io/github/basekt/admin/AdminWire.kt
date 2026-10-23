@@ -1,5 +1,6 @@
 package io.github.basekt.admin
 
+import io.github.basekt.schema.ActionTarget
 import io.github.basekt.schema.Auto
 import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Operation
@@ -58,6 +59,21 @@ public data class AdminResource(
     val searchable: List<String>,
     /** The fields a list can sort by, including the id. */
     val sortable: List<String>,
+    /** The actions the caller may run. */
+    val actions: List<AdminAction> = emptyList(),
+)
+
+/** An action as an admin panel sees it: a button, and a form for its input. */
+@Serializable
+public data class AdminAction(
+    /** The action's name, used in admin routes. */
+    val name: String,
+    /** Whether it runs on one record or on the resource as a whole. */
+    val target: ActionTarget,
+    /** The fields of its input form. */
+    val input: List<AdminField>,
+    /** A question to ask before running it, or `null`. */
+    val confirm: String?,
 )
 
 /** A field as an admin panel sees it. */
