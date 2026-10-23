@@ -90,11 +90,30 @@ public class ExposedDataSource(
     }
 
     /**
-     * Creates the tables and indexes that don't exist yet. Existing tables are left as they are: changing them as
-     * the schema evolves is the application's migration tool's job.
+     * Creates the tables and indexes that don't exist yet. Existing tables are left as they are; [migrate] also
+     * brings them up to the schema.
      */
     public suspend fun createTables() {
         run { SchemaUtils.create(*tables.values.toTypedArray(), counterTable) }
+    }
+
+    /**
+     * Brings the database up to the schema without losing data, in one transaction, and reports what it did. Call it
+     * at startup in place of [createTables]:
+     * - it creates missing tables, and adds the columns of new fields: every column is nullable, so existing rows get
+     *   null until the application fills them in;
+     * - it widens text columns that became too short, such as an enum given a longer value or a raised length rule;
+     * - it creates missing indexes, so a field made `unique()` gets its unique index, which fails, and changes
+     *   nothing, while two rows still share a value;
+     * - it never drops, renames or narrows a column, nor changes its type. A column no field has any more is listed in
+     *   [MigrationReport.notes] and kept with its data. Renaming a field is a new column; copying the old one's
+     *   values over is the application's to do.
+     */
+    public suspend fun migrate(): MigrationReport = withContext(dispatcher) {
+        suspendTransaction(database) {
+            maxAttempts = 1
+            migrate(tables.values.toList() + counterTable)
+        }
     }
 
     /** Drops every table of the schema. For tests. */

@@ -27,6 +27,29 @@ Some features need an optional capability of the data source. The in-memory and 
 
 Every adapter runs the `DataSourceContract` suite from `basekt-testing`.
 
+### Upgrading an Exposed database
+
+`migrate()` brings a database up to the schema at startup, in one transaction, and reports what it did:
+
+```kotlin
+val migration = dataSource.migrate()                     // in place of createTables()
+migration.applied.forEach { log.info("Migrated: $it") }  // the SQL it ran
+migration.notes.forEach { log.warn("Left alone: $it") }  // what it found but didn't change
+```
+
+It only makes changes that keep every row:
+- it creates missing tables and adds the columns of new fields. Every column is nullable, so existing rows get null,
+  and filling them in is the application's job;
+- it widens text columns that became too short, such as an enum given a longer value or a raised length rule;
+- it creates missing indexes. A field made `unique()` gets its unique index, and while two rows still share a value
+  the index can't be built, so the migration fails.
+
+It never drops, renames or narrows a column, nor changes a column's type. A column no field has any more is kept with
+its data and named in `notes`. A renamed field is a new column, so copy the old values over yourself.
+
+On Postgres a failed migration changes nothing. H2 and MySQL commit each schema change as it runs, so a failure there
+can leave the changes made before it, and running `migrate()` again carries on from there.
+
 ## Auth
 
 `basekt-auth` holds Ktor Authentication adapters (JWT, bearer), `PrincipalRoles` mapped to permissions, and typed 401

@@ -43,6 +43,7 @@ import io.github.basekt.server.repository
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
+import io.ktor.server.application.log
 import io.ktor.server.auth.Authentication
 import io.ktor.server.cio.EngineMain
 import io.ktor.server.response.respondText
@@ -188,7 +189,10 @@ public suspend fun Application.shopModule() {
         shopSchema,
         TableMapping(indexes = listOf(IndexSpec("products", "price"), IndexSpec("orders", "status"))),
     )
-    dataSource.createTables()
+    // Creates the tables on a new database, and brings an older one up to the schema without losing its data.
+    val migration = dataSource.migrate()
+    migration.applied.forEach { log.info("Migrated: $it") }
+    migration.notes.forEach { log.warn("Left alone: $it") }
     val images = LocalBlobStore(Path.of(config.property("shop.files.dir").getString()))
     if (dataSource.count(shopSchema.resource("categories")!!) == 0L) seed(dataSource, images)
 
