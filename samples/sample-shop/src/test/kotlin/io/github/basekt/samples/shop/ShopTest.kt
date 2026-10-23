@@ -25,6 +25,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.hours
 
@@ -52,6 +53,15 @@ class ShopTest {
         assertEquals(listOf("Floor lamp", "Desk lamp"), lamps.map { it.jsonObject["name"]!!.jsonPrimitive.content })
         val inStock = client.get("/api/categories/chairs/products?stock[gt]=0").json()["items"]!!.jsonArray
         assertEquals(0, inStock.size)
+    }
+
+    @Test
+    fun `the admin panel is served with the shop's theme`() = shop {
+        val shell = client.get("/admin/r/products/desk-lamp")
+        assertEquals(HttpStatusCode.OK, shell.status)
+        assertContains(shell.bodyAsText(), "\"apiPath\":\"/admin/api\"")
+        assertContains(shell.bodyAsText(), "<title>Sample shop admin</title>")
+        assertContains(client.get("/admin/theme.css").bodyAsText(), "--primary: oklch(0.511 0.262 276.966);")
     }
 
     @Test

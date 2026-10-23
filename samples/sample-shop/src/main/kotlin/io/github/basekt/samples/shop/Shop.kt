@@ -1,6 +1,12 @@
 package io.github.basekt.samples.shop
 
 import io.github.basekt.admin.BaseKtAdmin
+import io.github.basekt.admin.ui.BaseKtAdminUi
+import io.github.basekt.admin.ui.Oklch
+import io.github.basekt.admin.ui.Radius
+import io.github.basekt.admin.ui.Theme
+import io.github.basekt.admin.ui.Token
+import io.github.basekt.admin.ui.theme
 import io.github.basekt.auth.AuthIdentities
 import io.github.basekt.auth.JwtSettings
 import io.github.basekt.auth.baseKtJwt
@@ -142,7 +148,7 @@ public val shopSchema: Schema = schema {
  *   a small catalogue when it is empty;
  * - callers authenticated by JWTs signed with `shop.jwt`, or by the demo bearer tokens under `shop.tokens`;
  * - a hook that keeps every product's price at or above its cost;
- * - the JSON admin API under `basekt.admin.path`;
+ * - the JSON admin API under `basekt.admin.path`, and the admin panel under `basekt.adminUi.path`, themed with [shopTheme];
  * - `GET /low-stock`, a typed query in app code.
  */
 public suspend fun Application.shopModule() {
@@ -173,6 +179,10 @@ public suspend fun Application.shopModule() {
         hooks { priceStaysAboveCost() }
     }
     install(BaseKtAdmin)
+    install(BaseKtAdminUi) {
+        brand { name = "Sample shop" }
+        theme { use(shopTheme) }
+    }
     routing {
         get("/health") { call.respondText("ok") }
         // App code reads typed records with a repository and a typed query. The catalogue is public, so skipping
@@ -184,6 +194,21 @@ public suspend fun Application.shopModule() {
             }
             call.respondText(low.items.joinToString("\n") { "${it.sku} ${it.stock}" })
         }
+    }
+}
+
+/** The admin panel's look: shadcn's neutral theme with an indigo accent and slightly tighter corners. */
+public val shopTheme: Theme = theme {
+    radius = Radius.rem(0.5)
+    light {
+        for (token in listOf(Token.Primary, Token.Ring, Token.SidebarPrimary)) this[token] = Oklch(0.511, 0.262, 276.966)
+        this[Token.PrimaryForeground] = Oklch(0.962, 0.018, 272.314)
+        this[Token.SidebarPrimaryForeground] = Oklch(0.962, 0.018, 272.314)
+    }
+    dark {
+        for (token in listOf(Token.Primary, Token.Ring, Token.SidebarPrimary)) this[token] = Oklch(0.673, 0.182, 276.935)
+        this[Token.PrimaryForeground] = Oklch(0.257, 0.09, 281.288)
+        this[Token.SidebarPrimaryForeground] = Oklch(0.257, 0.09, 281.288)
     }
 }
 
