@@ -261,11 +261,12 @@ resource("orders") {
     report("orderCount", Chart.NUMBER)                                  // a count of every order
     report("revenueByStatus") { groupBy("status"); sum("total") }        // a bar per status, largest first
     report("ordersByStatus", Chart.PIE) { groupBy("status"); limit(5) }
-    report("revenuePerDay", Chart.LINE) {                               // a time series: the last 30 days
+    report("revenuePerDay", Chart.LINE) {                               // a time series
         groupBy("placedAt", TimeBucket.DAY, timeZone = "Asia/Manila")   // days of Manila's calendar
         sum("total")
         where("status", ReportOperator.NE, "cancelled")
-        limit(30)
+        range("placedAt", 30, TimeBucket.DAY)                           // today and the 29 days before
+        compare(ReportCompare.PREVIOUS_PERIOD)                          // beside the 30 days before them
     }
 }
 ```
@@ -275,7 +276,17 @@ number field, for each value of its group field. Bars and pies show the largest 
 order. `order(...)` changes that, and `limit(...)` caps the groups. A line grouped by a time span is a time series: it
 shows the latest spans and leaves out records without a time. Spans follow UTC's calendar unless the report names a
 time zone region. `where(...)` counts only the records that match, with the operators of the list filters (`eq`, `ne`,
-`gt`, `gte`, `lt`, `lte`, `in`, `contains` and `null`). A report gives no new access: the caller needs read
+`gt`, `gte`, `lt`, `lte`, `in`, `contains` and `null`). `range(field, last, unit)` is a rolling window: the records
+whose instant falls in the last spans up to now, the current one included, such as the last 14 days or this month. It
+is turned into dates each time the report is drawn, so it never goes stale, and a time series over it shows every span
+of the window, empty ones too. The home screen has a picker (today, 7, 30 or 90 days, 12 months) that replaces the
+range of every report that has one, and the browser remembers the choice.
+
+Each card with a range also has its own menu, which wins over the home screen's picker: the same windows, dates picked
+on a calendar (both days included, in the report's time zone), and a comparison with the previous period of the same
+length or the same dates a year earlier. `compare(...)` makes a comparison the report's default. A comparison runs the
+aggregate a second time for the earlier window: a line draws it dashed, span by span; bars pair up by group; and a
+number shows how it moved, such as "↑ 12% vs previous period (1,204)". A pie can't be compared. A report gives no new access: the caller needs read
 access to the resource, its scope applies to the numbers, and the panel fetches them from the aggregate route. The
 panel draws them with shadcn/ui's charts, in the theme's `chart-1` to `chart-5` colours.
 

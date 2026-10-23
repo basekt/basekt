@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest"
 import type { AdminReport } from "@wire"
-import { describeReport, formatBucket, reportParams, reportPoints } from "@/lib/reports"
+import { compareOf, describeRange, describeReport, formatBucket, reportParams, reportPoints } from "@/lib/reports"
 import { books, tickets } from "@/test/fixtures"
 
 const feesByAuthor: AdminReport = {
-  name: "feesByAuthor", chart: "bar", groupBy: "authorId", function: "sum", field: "fee", measure: "sum_fee", order: "valueAsc", limit: 5, bucket: null, timeZone: null, filters: [],
+  name: "feesByAuthor", chart: "bar", groupBy: "authorId", function: "sum", field: "fee", measure: "sum_fee", order: "valueAsc", limit: 5, bucket: null, timeZone: null, filters: [], range: null, compare: null,
 }
 const ticketsPerMonth: AdminReport = {
-  name: "ticketsPerMonth", chart: "line", groupBy: "openedAt", function: "count", field: null, measure: "count", order: "group", limit: 6, bucket: "month", timeZone: null, filters: [],
+  name: "ticketsPerMonth", chart: "line", groupBy: "openedAt", function: "count", field: null, measure: "count", order: "group", limit: 6, bucket: "month", timeZone: null, filters: [], range: null, compare: null,
 }
 const pagesOverTime: AdminReport = { ...feesByAuthor, name: "pages", chart: "line", groupBy: "pages", function: "max", field: "pages", measure: "max_pages", order: "group" }
 
@@ -81,6 +81,90 @@ describe("reports", () => {
     expect(points.map((p) => p.value)).toEqual([1, 0, 3])
     expect(points[0].label).toMatch(/16.*Feb.*2026|Feb.*16.*2026/)
     expect(points[2].label).toMatch(/18.*Feb.*2026|Feb.*18.*2026/)
+  })
+
+  it("turn a range into dates in the report's zone, and show every span of it", () => {
+    // 10:00 on Thursday 22 October in Manila.
+    const now = new Date("2026-10-22T02:00:00Z")
+    const lastWeek: AdminReport = { ...ticketsPerMonth, bucket: "day", limit: 3, timeZone: "Asia/Manila", range: { field: "openedAt", last: 7, unit: "day" } }
+    const params = reportParams(lastWeek, { now })
+    expect(params["openedAt[gte]"]).toBe("2026-10-15T16:00:00.000Z")
+    expect(params["openedAt[lt]"]).toBe("2026-10-22T16:00:00.000Z")
+    // Seven days need seven groups, whatever the report's own limit.
+    expect(params.limit).toBe("7")
+    const points = reportPoints(lastWeek, tickets, { groups: [{ key: { openedAt: "2026-10-19T16:00:00Z" }, values: { count: 5 } }], hasMore: false }, { now })
+    expect(points.map((p) => p.value)).toEqual([0, 0, 0, 0, 5, 0, 0])
+    expect(points[4].label).toBe(formatBucket("2026-10-20T00:00:00Z", "day"))
+    expect(describeReport(lastWeek, { now })).toBe("Count by day, last 7 days")
+
+    // The viewer's choice replaces the report's own range: this month, in weeks from Monday.
+    const chosen = { now, range: { last: 1, unit: "month" as const } }
+    const weekly = { ...lastWeek, bucket: "week" as const }
+    expect(reportParams(weekly, chosen)["openedAt[gte]"]).toBe("2026-09-30T16:00:00.000Z")
+    expect(reportPoints(weekly, tickets, { groups: [], hasMore: false }, chosen).length).toBe(5)
+    expect(describeReport(weekly, chosen)).toBe("Count by week, this month")
+  })
+
+  it("count a range across a daylight saving change by the zone's own midnights", () => {
+    // New York moves to UTC-4 on 8 March 2026, so the window starts at UTC-5 and ends at UTC-4.
+    const now = new Date("2026-03-10T15:00:00Z")
+    const nearChange: AdminReport = { ...ticketsPerMonth, chart: "number", groupBy: null, bucket: null, timeZone: "America/New_York", range: { field: "openedAt", last: 3, unit: "day" } }
+    const params = reportParams(nearChange, { now })
+    expect(params["openedAt[gte]"]).toBe("2026-03-08T05:00:00.000Z")
+    expect(params["openedAt[lt]"]).toBe("2026-03-11T04:00:00.000Z")
+    expect([describeRange({ last: 1, unit: "day" }), describeRange({ last: 12, unit: "month" })]).toEqual(["today", "last 12 months"])
+  })
+
+  it("count custom dates, both days included, on the report's calendar", () => {
+    const manilaDays: AdminReport = { ...ticketsPerMonth, bucket: "day", timeZone: "Asia/Manila", range: { field: "openedAt", last: 7, unit: "day" } }
+    const view = { range: { from: "2026-10-01", to: "2026-10-03" } }
+    const params = reportParams(manilaDays, view)
+    expect(params["openedAt[gte]"]).toBe("2026-09-30T16:00:00.000Z")
+    expect(params["openedAt[lt]"]).toBe("2026-10-03T16:00:00.000Z")
+    expect(reportPoints(manilaDays, tickets, { groups: [], hasMore: false }, view).length).toBe(3)
+    // Dates picked the wrong way round still make a window.
+    expect(reportParams(manilaDays, { range: { from: "2026-10-03", to: "2026-10-01" } })["openedAt[gte]"]).toBe("2026-09-30T16:00:00.000Z")
+    expect(describeRange(view.range)).toBe(`${formatBucket("2026-10-01T00:00:00Z", "day")} – ${formatBucket("2026-10-03T00:00:00Z", "day")}`)
+  })
+
+  it("compare with the period just before or a year earlier, span by span", () => {
+    const now = new Date("2026-10-22T02:00:00Z")
+    const weekly: AdminReport = {
+      ...ticketsPerMonth, bucket: "day", timeZone: "UTC", range: { field: "openedAt", last: 3, unit: "day" }, compare: "previousPeriod",
+    }
+    expect(compareOf(weekly)).toBe("previousPeriod")
+    expect(compareOf(weekly, { compare: null })).toBeNull()
+    expect(compareOf({ ...weekly, range: null })).toBeNull()
+    const before = reportParams(weekly, { now }, "previous")
+    expect([before["openedAt[gte]"], before["openedAt[lt]"]]).toEqual(["2026-10-17T00:00:00.000Z", "2026-10-20T00:00:00.000Z"])
+    const lastYear = reportParams(weekly, { now, compare: "previousYear" }, "previous")
+    expect([lastYear["openedAt[gte]"], lastYear["openedAt[lt]"]]).toEqual(["2025-10-20T00:00:00.000Z", "2025-10-23T00:00:00.000Z"])
+    // This month against last month, in whole months.
+    const month = reportParams({ ...weekly, range: { field: "openedAt", last: 1, unit: "month" } }, { now }, "previous")
+    expect([month["openedAt[gte]"], month["openedAt[lt]"]]).toEqual(["2026-09-01T00:00:00.000Z", "2026-10-01T00:00:00.000Z"])
+
+    const points = reportPoints(
+      weekly, tickets,
+      { groups: [{ key: { openedAt: "2026-10-22T00:00:00Z" }, values: { count: 4 } }], hasMore: false },
+      { now },
+      { groups: [{ key: { openedAt: "2026-10-17T00:00:00Z" }, values: { count: 2 } }, { key: { openedAt: "2026-10-19T00:00:00Z" }, values: { count: 1 } }], hasMore: false },
+    )
+    expect(points.map((p) => [p.value, p.previous])).toEqual([[0, 2], [0, 0], [4, 1]])
+    expect(describeReport(weekly, { now })).toBe("Count by day, last 3 days vs previous period")
+  })
+
+  it("compare groups by their labels, and a number with its earlier value", () => {
+    const perState: AdminReport = { ...tickets.reports[0], chart: "bar", range: { field: "openedAt", last: 7, unit: "day" }, compare: "previousYear" }
+    const points = reportPoints(
+      perState, tickets,
+      { groups: [{ key: { state: "open" }, values: { count: 5 } }, { key: { state: "closed" }, values: { count: 2 } }], hasMore: false },
+      {},
+      { groups: [{ key: { state: "closed" }, values: { count: 9 } }], hasMore: false },
+    )
+    expect(points).toEqual([{ label: "open", value: 5, previous: 0 }, { label: "closed", value: 2, previous: 9 }])
+    const total: AdminReport = { ...tickets.reports[1], range: { field: "openedAt", last: 7, unit: "day" }, compare: "previousPeriod" }
+    const number = reportPoints(total, tickets, { groups: [{ key: {}, values: { sum_views: 12 } }], hasMore: false }, {}, { groups: [{ key: {}, values: { sum_views: 10 } }], hasMore: false })
+    expect(number).toEqual([{ label: "None", value: 12, previous: 10 }])
   })
 
   it("label buckets in UTC", () => {
