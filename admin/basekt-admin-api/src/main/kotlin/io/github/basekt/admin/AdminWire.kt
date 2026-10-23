@@ -74,6 +74,8 @@ public data class AdminField(
     val target: String?,
     /** The checks on the field's value, for the panel to check forms with too. */
     val rules: List<Rule>,
+    /** The bucket a file field's files are uploaded to, or `null`. */
+    val bucket: String? = null,
 )
 
 /** A relation as an admin panel sees it. */

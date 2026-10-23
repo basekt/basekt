@@ -173,7 +173,7 @@ public fun Field.decode(json: JsonElement): Value? {
     val primitive = json as? JsonPrimitive ?: return null
     if (primitive is JsonNull) return null
     return when (type) {
-        FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE -> if (primitive.isString) Value.Text(primitive.content) else null
+        FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE, FieldType.FILE -> if (primitive.isString) Value.Text(primitive.content) else null
         FieldType.INT -> primitive.takeUnless { it.isString }?.longOrNull
             ?.takeIf { it in Int.MIN_VALUE..Int.MAX_VALUE }?.let(Value::Integer)
         FieldType.LONG -> primitive.takeUnless { it.isString }?.longOrNull?.let(Value::Integer)
@@ -188,7 +188,7 @@ public fun Field.decode(json: JsonElement): Value? {
  * [decode], numbers and booleans come as text here.
  */
 public fun Field.parse(text: String): Value? = when (type) {
-    FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE -> Value.Text(text)
+    FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE, FieldType.FILE -> Value.Text(text)
     FieldType.INT -> text.toIntOrNull()?.let { Value.Integer(it.toLong()) }
     FieldType.LONG -> text.toLongOrNull()?.let(Value::Integer)
     FieldType.DECIMAL -> Value.Decimal.parseOrNull(text)
@@ -205,6 +205,9 @@ private fun Field.check(value: Value, validators: Map<String, FieldValidator>): 
     fun error(code: FieldErrorCode, message: String) = FieldError(name, code, message)
     if (type == FieldType.ENUM && (value as? Value.Text)?.value !in values.orEmpty()) {
         return error(FieldErrorCode.ENUM, "Expected one of ${values.orEmpty().joinToString()}.")
+    }
+    if (type == FieldType.FILE && !isFileKey((value as? Value.Text)?.value)) {
+        return error(FieldErrorCode.TYPE, "Expected ${typeDescription()}.")
     }
     for (rule in rules) {
         when (rule) {
@@ -253,4 +256,14 @@ private fun Field.typeDescription(): String = when (type) {
     FieldType.INSTANT -> "an ISO-8601 instant such as 2026-01-31T12:00:00Z"
     FieldType.ENUM -> "one of ${values.orEmpty().joinToString()}"
     FieldType.REFERENCE -> "the id of a '$target' record"
+    FieldType.FILE -> "the key of a file in the '$bucket' bucket, such as $bucket/…/name.jpg"
+}
+
+private val fileKeySegment = Regex("[A-Za-z0-9][A-Za-z0-9._-]*")
+
+/** Whether [key] is a file key in this field's bucket: its bucket, then at least one more safe segment. */
+private fun Field.isFileKey(key: String?): Boolean {
+    if (key == null || key.length > 1024) return false
+    val segments = key.split('/')
+    return segments.size >= 2 && segments[0] == bucket && segments.all(fileKeySegment::matches)
 }

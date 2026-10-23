@@ -8,6 +8,7 @@ import io.github.basekt.storage.BlobStore
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationPlugin
 import io.ktor.server.application.ApplicationStarted
+import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.createApplicationPlugin
 import io.ktor.server.application.hooks.MonitoringEvent
 import io.ktor.server.application.log
@@ -15,7 +16,14 @@ import io.ktor.server.application.pluginOrNull
 import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
 
 /**
  * The configuration of [BaseKtFiles]. Settings can come from the `basekt.files` section of the application's
@@ -30,6 +38,13 @@ public class BaseKtFilesConfig internal constructor(config: ApplicationConfig) {
 
     /** Where the bytes live. Required. */
     public var store: BlobStore? = null
+
+    /**
+     * How often to delete uploads that no file field points to, per each bucket's
+     * [BucketBuilder.deleteUnattachedAfter]. `basekt.files.sweepEvery` (an ISO-8601 duration such as `PT1H`), an
+     * hour by default; `null` never sweeps. Sweeping needs a store that is a [io.github.basekt.storage.BlobListing].
+     */
+    public var sweepEvery: Duration? = config.propertyOrNull("sweepEvery")?.getString()?.let(Duration::parseIsoString) ?: 1.hours
 
     internal val buckets = mutableListOf<BucketBuilder>()
 
@@ -77,6 +92,8 @@ public data class FileRef(
 
 private val FilesKey = AttributeKey<FilesRuntime>("BaseKtFiles")
 
+internal val FileFieldsKey = AttributeKey<FileFields>("BaseKtFiles.fileFields")
+
 /** The running [BaseKtFiles]: its store and buckets. */
 public val Application.baseKtFiles: FilesRuntime get() = attributes[FilesKey]
 
@@ -111,10 +128,34 @@ public val BaseKtFiles: ApplicationPlugin<BaseKtFilesConfig> = createApplication
     val runtime = FilesRuntime(store, buckets, path)
     application.attributes.put(FilesKey, runtime)
 
-    val identities = application.baseKt.identities
+    val baseKt = application.baseKt
+    val log = application.log
+    val fileFields = FileFields(baseKt.schema, baseKt.dataSource, store, buckets) { message, error -> log.warn(message, error) }
+    baseKt.service.extend(fileFields)
+    application.attributes.put(FileFieldsKey, fileFields)
+
+    val identities = baseKt.identities
     application.routing { withIdentities(identities) { fileRoutes(runtime, identities) } }
 
+    val sweepEvery = pluginConfig.sweepEvery
+    var sweeper: Job? = null
     on(MonitoringEvent(ApplicationStarted)) { app ->
         app.log.info("BaseKt files serves ${buckets.keys.joinToString()} under $path")
+        if (sweepEvery != null) {
+            sweeper = app.launch {
+                while (isActive) {
+                    delay(sweepEvery)
+                    try {
+                        val swept = fileFields.sweep()
+                        if (swept > 0) app.log.info("BaseKt files deleted $swept unattached uploads")
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        app.log.warn("BaseKt files couldn't sweep unattached uploads", e)
+                    }
+                }
+            }
+        }
     }
+    on(MonitoringEvent(ApplicationStopping)) { sweeper?.cancel() }
 }
