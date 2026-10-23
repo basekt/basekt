@@ -133,7 +133,8 @@ public class ResourceService(
     public suspend fun create(resource: Resource, caller: Identity?, body: JsonObject): Record {
         authorize(resource, Operation.CREATE, caller)
         val decoded = decode(resource, scoped(resource, Operation.CREATE, caller, body), WriteMode.CREATE)
-        return dataSource.transaction { tx -> createIn(tx, resource, caller, decoded) }
+        val origin = Origin.of(caller)
+        return dataSource.transaction { tx -> createIn(tx, resource, origin, decoded) }
             .also { committed(Change.Created(resource, it)) }
     }
 
@@ -141,8 +142,9 @@ public class ResourceService(
     public suspend fun update(resource: Resource, caller: Identity?, id: String, body: JsonObject): Record {
         authorize(resource, Operation.UPDATE, caller)
         val input = decode(resource, scoped(resource, Operation.UPDATE, caller, body), WriteMode.UPDATE)
+        val origin = Origin.of(caller)
         return dataSource.transaction { tx ->
-            updateIn(tx, resource, caller, id, input) { writable(tx, resource, Operation.UPDATE, caller, id) }
+            updateIn(tx, resource, origin, id, input) { writable(tx, resource, Operation.UPDATE, caller, id) }
         }.let { (before, after) ->
             committed(Change.Updated(resource, before, after))
             after
@@ -152,8 +154,9 @@ public class ResourceService(
     /** Deletes the record of [resource] with [id], if [caller] may. */
     public suspend fun delete(resource: Resource, caller: Identity?, id: String) {
         authorize(resource, Operation.DELETE, caller)
+        val origin = Origin.of(caller)
         val deleted = dataSource.transaction { tx ->
-            deleteIn(tx, resource, caller, id) { writable(tx, resource, Operation.DELETE, caller, id) }
+            deleteIn(tx, resource, origin, id) { writable(tx, resource, Operation.DELETE, caller, id) }
         }
         committed(Change.Deleted(resource, deleted))
     }
@@ -179,10 +182,14 @@ public class ResourceService(
             is DecodeResult.Invalid -> throw ApiException(ApiError(ErrorCode.VALIDATION_FAILED, "The input has invalid fields.", result.errors))
         }
         val changes = mutableListOf<Change>()
+        val run = ActionRun(resource, name, id, input)
+        val origin = Origin.of(caller, run)
         val answer = dataSource.transaction { tx ->
             val record = id?.let { writable(tx, resource, Operation.UPDATE, caller, it) }
             checkReferences(tx, inputResource, input)
-            ActionContext(resource, caller, record, input, tx, this, changes).handler(input)
+            val answer = ActionContext(resource, caller, record, input, tx, this, changes, origin).handler(input)
+            for (extension in extensions) extension.ran(run, origin.context(tx))
+            answer
         }
         changes.forEach { committed(it) }
         if (answer != null || id == null) return answer
@@ -190,23 +197,24 @@ public class ResourceService(
     }
 
     /** Creates [record] in [tx] for trusted code, such as an action: every write step but permissions and scopes. */
-    internal suspend fun trustedCreate(tx: DataSource, resource: Resource, caller: Identity?, record: Record): Record {
+    internal suspend fun trustedCreate(tx: DataSource, resource: Resource, origin: Origin, record: Record): Record {
         revalidate(resource, record, WriteMode.CREATE)
-        return createIn(tx, resource, caller, record)
+        return createIn(tx, resource, origin, record)
     }
 
     /** Applies [changes] in [tx] for trusted code. Returns the record before and after. */
-    internal suspend fun trustedUpdate(tx: DataSource, resource: Resource, caller: Identity?, id: String, changes: Record): Pair<Record, Record> {
+    internal suspend fun trustedUpdate(tx: DataSource, resource: Resource, origin: Origin, id: String, changes: Record): Pair<Record, Record> {
         revalidate(resource, changes, WriteMode.UPDATE)
-        return updateIn(tx, resource, caller, id, changes) { tx.get(resource, id) ?: throw notFound(resource, id) }
+        return updateIn(tx, resource, origin, id, changes) { tx.get(resource, id) ?: throw notFound(resource, id) }
     }
 
     /** Deletes in [tx] for trusted code. Returns the deleted record. */
-    internal suspend fun trustedDelete(tx: DataSource, resource: Resource, caller: Identity?, id: String): Record =
-        deleteIn(tx, resource, caller, id) { tx.get(resource, id) ?: throw notFound(resource, id) }
+    internal suspend fun trustedDelete(tx: DataSource, resource: Resource, origin: Origin, id: String): Record =
+        deleteIn(tx, resource, origin, id) { tx.get(resource, id) ?: throw notFound(resource, id) }
 
     /** The steps of a create in [tx], once the caller may make it: automatic fields, hooks, checks, the write. */
-    private suspend fun createIn(tx: DataSource, resource: Resource, caller: Identity?, decoded: Record): Record {
+    private suspend fun createIn(tx: DataSource, resource: Resource, origin: Origin, decoded: Record): Record {
+        val caller = origin.caller
         val context = HookContext(resource, caller, tx)
         val stamped = stamped(tx, resource, caller, decoded, WriteMode.CREATE)
         var record = stamped
@@ -220,6 +228,7 @@ public class ResourceService(
             throw ApiException(ErrorCode.CONFLICT, e.message!!)
         }
         for (hook in hooks.afterCreate[resource.name].orEmpty()) context.hook(created)
+        written(Change.Created(resource, created), origin, tx)
         return created
     }
 
@@ -230,11 +239,12 @@ public class ResourceService(
     private suspend fun updateIn(
         tx: DataSource,
         resource: Resource,
-        caller: Identity?,
+        origin: Origin,
         id: String,
         input: Record,
         load: suspend () -> Record,
     ): Pair<Record, Record> {
+        val caller = origin.caller
         // The version a client sends is the one it last read, not a value to write.
         val version = resource.fields.firstOrNull { it.auto == Auto.Version }
         val expected = version?.let { input[it.name] }
@@ -256,16 +266,18 @@ public class ResourceService(
             versionedUpdate(tx, resource, id, version.name, expected, current, changes)
         }
         for (hook in hooks.afterUpdate[resource.name].orEmpty()) context.hook(Updated(current, updated))
+        written(Change.Updated(resource, current, updated), origin, tx)
         return current to updated
     }
 
     /** The steps of a delete in [tx], with the record [load] finds. Returns the deleted record. */
-    private suspend fun deleteIn(tx: DataSource, resource: Resource, caller: Identity?, id: String, load: suspend () -> Record): Record {
-        val context = HookContext(resource, caller, tx)
+    private suspend fun deleteIn(tx: DataSource, resource: Resource, origin: Origin, id: String, load: suspend () -> Record): Record {
+        val context = HookContext(resource, origin.caller, tx)
         val current = load()
         for (hook in hooks.beforeDelete[resource.name].orEmpty()) context.hook(Deletion(id, current)).accepted()
         if (!tx.delete(resource, id)) throw notFound(resource, id)
         for (hook in hooks.afterDelete[resource.name].orEmpty()) context.hook(current)
+        written(Change.Deleted(resource, current), origin, tx)
         return current
     }
 
@@ -464,6 +476,13 @@ public class ResourceService(
     }
 
     /** Tells every extension of a committed write. An extension's failure doesn't undo or fail the write. */
+    /** Tells every extension of [change], inside its transaction [tx]. */
+    private suspend fun written(change: Change, origin: Origin, tx: DataSource) {
+        if (extensions.isEmpty()) return
+        val context = origin.context(tx)
+        for (extension in extensions) extension.written(change, context)
+    }
+
     private suspend fun committed(change: Change) {
         for (extension in extensions) {
             try {
