@@ -14,6 +14,8 @@ public data class ApiError(
     val message: String,
     /** The rejected fields, for [ErrorCode.VALIDATION_FAILED]. */
     val fields: List<FieldError> = emptyList(),
+    /** The id of the call that failed, which the server's logs name too. See [requestId]. */
+    val requestId: String? = null,
 )
 
 private val ErrorJson = Json { encodeDefaults = true }
@@ -59,6 +61,9 @@ public enum class ErrorCode(
 
     /** The data source can't do what the request needs, such as computing aggregates. */
     @SerialName("not_implemented") NOT_IMPLEMENTED(501),
+
+    /** Something failed on the server. The server logged it with [ApiError.requestId]. */
+    @SerialName("internal_error") INTERNAL_ERROR(500),
 }
 
 /** Thrown by [ResourceService] to answer a request with [error]. */

@@ -66,7 +66,7 @@ export function page(items: JsonObject[], total: number | null = items.length, n
 }
 
 export function apiError(error: ApiError["error"], message: string, fields: ApiError["fields"] = []): ApiError {
-  return { error, message, fields }
+  return { error, message, fields, requestId: null }
 }
 
 /** A recorded request. */

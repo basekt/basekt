@@ -8,7 +8,9 @@ panel change:
   read, as charts, with a [range picker](aggregates-reports.md#rolling-ranges) and a range menu on each card;
 - lists with search, filters, sort, cursor paging, bulk delete and CSV export;
 - forms with a widget per field type, including a searchable picker for references, and validation errors and hook
-  vetoes shown on their fields.
+  vetoes shown on their fields;
+- an error card that says when the server couldn't be reached, shows the [request id](schema.md#request-ids-and-server-errors),
+  and copies a report or downloads the page's recent failed calls (kept in memory only) for whoever runs the panel.
 
 It hides what the caller's roles don't allow, signs in with a bearer token or rides the host's cookie session, and
 has light and dark modes.

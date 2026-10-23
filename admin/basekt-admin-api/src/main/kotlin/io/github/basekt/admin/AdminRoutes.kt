@@ -18,6 +18,7 @@ import io.github.basekt.server.ApiException
 import io.github.basekt.server.BaseKtRuntime
 import io.github.basekt.server.ErrorCode
 import io.github.basekt.server.Identity
+import io.github.basekt.server.answeringErrors
 import io.github.basekt.server.parseAggregateQuery
 import io.github.basekt.server.parseQuery
 import io.github.basekt.server.toJson
@@ -255,11 +256,7 @@ private fun Page.toAdmin(resource: Resource, total: Long?): AdminPage =
 
 /** Resolves the caller, runs [block], and answers any [ApiException] with its [ApiError]. */
 private suspend fun RoutingContext.handle(runtime: BaseKtRuntime, block: suspend RoutingContext.(Identity?) -> Unit) {
-    try {
-        block(runtime.identities.resolve(call))
-    } catch (e: ApiException) {
-        call.respondText(e.error.toJson(), ContentType.Application.Json, HttpStatusCode.fromValue(e.error.error.status))
-    }
+    call.answeringErrors { block(runtime.identities.resolve(call)) }
 }
 
 private fun RoutingContext.resource(runtime: BaseKtRuntime): Resource = runtime.service.resource(call.parameters["resource"]!!)

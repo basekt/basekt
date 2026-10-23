@@ -1,14 +1,38 @@
 import type { AdminAggregatePage, AdminPage, AdminSchema, ApiError, BulkDeleteResult, JsonObject } from "@wire"
 
-/** A failed call: the HTTP status and, when the server sent one, its typed error body. */
+/** The call a failure came from: its method and path (with the query, never a token), and its request id, if any. */
+export interface FailedCall {
+  method: string
+  path: string
+  requestId?: string | null
+}
+
+/**
+ * A failed call: the HTTP status and, when the server sent one, its typed error body. A status of 0 means no answer
+ * came at all, as when the server is down or the network drops, so the server has nothing logged for it either.
+ */
 export class ApiFailure extends Error {
   readonly status: number
   readonly error: ApiError | null
+  /** The method and path of the call, when known. */
+  readonly call: FailedCall | null
+  /** The id the server gave the call, which its logs name: from the error body, or the `X-Request-Id` header. */
+  readonly requestId: string | null
+  /** When it failed, as an ISO-8601 instant. */
+  readonly at: string
 
-  constructor(status: number, error: ApiError | null) {
-    super(error?.message ?? `The admin API answered ${status}.`)
+  constructor(status: number, error: ApiError | null, call: FailedCall | null = null) {
+    super(error?.message ?? (status === 0 ? "Couldn't reach the server." : `The admin API answered ${status}.`))
     this.status = status
     this.error = error
+    this.call = call
+    this.requestId = error?.requestId ?? call?.requestId ?? null
+    this.at = new Date().toISOString()
+  }
+
+  /** No answer came: the server is down or unreachable, or the network failed. */
+  get network(): boolean {
+    return this.status === 0
   }
 
   /** The caller has no credentials, or they were refused. */
@@ -19,6 +43,51 @@ export class ApiFailure extends Error {
   /** The caller's roles don't allow this. */
   get forbidden(): boolean {
     return this.status === 403
+  }
+}
+
+/** One failed call, as the panel keeps it for a report: what was asked, what came back, and when. */
+export interface FailureRecord {
+  at: string
+  method: string | null
+  path: string | null
+  status: number
+  error: string | null
+  message: string
+  requestId: string | null
+}
+
+/**
+ * The last failed calls of this page, newest first, for the viewer to copy or download when they report a problem.
+ * They live in memory only, so nothing is left behind in the browser.
+ */
+export class FailureLog {
+  private readonly records: FailureRecord[] = []
+
+  constructor(private readonly size = 20) {}
+
+  /** Keeps [failure], dropping the oldest beyond the log's size. */
+  record(failure: ApiFailure): void {
+    this.records.unshift(recordOf(failure))
+    this.records.length = Math.min(this.records.length, this.size)
+  }
+
+  /** The kept failures, newest first. */
+  entries(): FailureRecord[] {
+    return [...this.records]
+  }
+}
+
+/** [failure] as a record of the log. */
+export function recordOf(failure: ApiFailure): FailureRecord {
+  return {
+    at: failure.at,
+    method: failure.call?.method ?? null,
+    path: failure.call?.path ?? null,
+    status: failure.status,
+    error: failure.error?.error ?? null,
+    message: failure.message,
+    requestId: failure.requestId,
   }
 }
 
@@ -34,6 +103,8 @@ export class AdminApi {
     readonly apiPath: string,
     private readonly token: () => string | null,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
+    /** Where failed calls are kept for a report. */
+    readonly failures: FailureLog = new FailureLog(),
   ) {}
 
   schema(): Promise<AdminSchema> {
@@ -96,14 +167,27 @@ export class AdminApi {
     const token = this.token()
     if (token) headers.Authorization = `Bearer ${token}`
     if (body !== undefined) headers["Content-Type"] = "application/json"
-    const response = await this.fetchImpl(this.apiPath + path, {
-      method,
-      headers,
-      credentials: "same-origin",
-      body: body === undefined ? undefined : JSON.stringify(body),
-    })
-    if (!response.ok) throw new ApiFailure(response.status, await errorBody(response))
+    const call = { method, path: this.apiPath + path }
+    let response: Response
+    try {
+      response = await this.fetchImpl(call.path, {
+        method,
+        headers,
+        credentials: "same-origin",
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+    } catch {
+      throw this.failed(new ApiFailure(0, null, call))
+    }
+    if (!response.ok) {
+      throw this.failed(new ApiFailure(response.status, await errorBody(response), { ...call, requestId: response.headers.get("X-Request-Id") }))
+    }
     return response
+  }
+
+  private failed(failure: ApiFailure): ApiFailure {
+    this.failures.record(failure)
+    return failure
   }
 }
 
@@ -111,7 +195,7 @@ async function errorBody(response: Response): Promise<ApiError | null> {
   try {
     const body = (await response.json()) as Partial<ApiError>
     return typeof body.error === "string" && typeof body.message === "string"
-      ? { error: body.error, message: body.message, fields: body.fields ?? [] }
+      ? { error: body.error, message: body.message, fields: body.fields ?? [], requestId: body.requestId ?? null }
       : null
   } catch {
     return null
