@@ -235,7 +235,8 @@ GET /api/aggregate/movements?groupBy=itemId,siteId&sum=quantity&count&max=at&qua
 ```
 
 The parameters are:
-- `groupBy`, with one or more fields;
+- `groupBy`, with one or more fields. An instant field can be grouped by `day`, `week` (from Monday), `month` or
+  `year` in UTC, as in `groupBy=at:month`, and its key is the start of each span;
 - `count` (records, or `count=*`), `count=field` (records with the field set), and `sum=`, `avg=`, `min=` and `max=`,
   each with one or more fields;
 - `sort`, by group fields or measure names, and `limit`, up to `basekt.aggregate.maxLimit` (1000 by default);
@@ -243,8 +244,33 @@ The parameters are:
 
 Sums keep integers as integers. An average is exact to 12 places on every database. The caller's read scope applies,
 so staff see only their own sites' totals. It needs a data source that offers `Aggregating`, as the in-memory and
-Exposed adapters do (Exposed runs one `SELECT … GROUP BY`). Otherwise it's `501 not_implemented`. The admin API serves
-the same at `GET /admin/api/resources/{name}/aggregate`, with `search` too.
+Exposed adapters do (Exposed runs one `SELECT … GROUP BY`). Otherwise it's `501 not_implemented`. The Exposed adapter
+groups by time spans on H2 and Postgres; on other databases a `groupBy` with one is refused as `invalid_query`. The
+admin API serves the same at `GET /admin/api/resources/{name}/aggregate`, with `search` too.
+
+**Reports** are charts of those aggregates, declared on a resource as schema data. The admin panel draws them on its
+home screen:
+
+```kotlin
+resource("orders") {
+    enum("status", listOf("placed", "paid", "shipped"))
+    decimal("total")
+    instant("placedAt")
+    report("orderCount", Chart.NUMBER)                                  // a count of every order
+    report("revenueByStatus") { groupBy("status"); sum("total") }        // a bar per status, largest first
+    report("ordersByStatus", Chart.PIE) { groupBy("status"); limit(5) }
+    report("revenuePerMonth", Chart.LINE) {                             // a time series: the last 12 months
+        groupBy("placedAt", TimeBucket.MONTH); sum("total")
+    }
+}
+```
+
+A report is a `number`, `bar`, `line` or `pie`. It counts records, or takes the `sum`, `avg`, `min` or `max` of a
+number field, for each value of its group field. Bars and pies show the largest groups first, and lines go in group
+order. `order(...)` changes that, and `limit(...)` caps the groups. A line grouped by a time span is a time series: it
+shows the latest spans and leaves out records without a time. A report gives no new access: the caller needs read
+access to the resource, its scope applies to the numbers, and the panel fetches them from the aggregate route. The
+panel draws them with shadcn/ui's charts, in the theme's `chart-1` to `chart-5` colours.
 
 **Workflows** make an enum field a state machine, for approvals and anything else that moves through statuses. The
 server sets the state: records start in the initial one, clients can't write it, and only named transitions change it:
@@ -290,7 +316,7 @@ checked in CI. The schema contract is additive only within a version.
 **The admin panel** (`basekt-admin-ui`) is a React, shadcn/ui and Tailwind app prebuilt into the jar, so the host
 needs no Node. It renders every screen from the admin API's `/schema`, so adding a resource needs no panel change:
 
-- a sidebar of what the caller may see;
+- a sidebar of what the caller may see, and a home screen with the reports they may read, as charts;
 - lists with search, filters, sort, cursor paging, bulk delete and CSV export;
 - forms with a widget per field type, including a searchable picker for references, and validation errors and hook
   vetoes shown on their fields.

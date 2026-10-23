@@ -2,9 +2,13 @@ package io.github.basekt.admin
 
 import io.github.basekt.schema.ActionTarget
 import io.github.basekt.schema.Auto
+import io.github.basekt.schema.Chart
 import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Operation
+import io.github.basekt.schema.ReportFunction
+import io.github.basekt.schema.ReportOrder
 import io.github.basekt.schema.Rule
+import io.github.basekt.schema.TimeBucket
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -63,6 +67,35 @@ public data class AdminResource(
     val actions: List<AdminAction> = emptyList(),
     /** The menu heading to list the resource under, or `null` for the top of the menu. */
     val group: String? = null,
+    /** The charts of its records, when the caller may read them. Their numbers come from the aggregate route. */
+    val reports: List<AdminReport> = emptyList(),
+)
+
+/**
+ * A chart as an admin panel sees it. A panel draws it from `GET {path}/resources/{name}/aggregate` with `groupBy`
+ * (`groupBy={field}:{bucket}` for a time series), `{function}={field}` (or `count`), `sort` and `limit`, and plots
+ * each group's [measure]. A time series in group order shows its latest [limit] buckets.
+ */
+@Serializable
+public data class AdminReport(
+    /** The report's name, unique on its resource. */
+    val name: String,
+    /** How to draw it. */
+    val chart: Chart,
+    /** The field whose values make the groups, or `null` for one number. */
+    val groupBy: String?,
+    /** What to compute for each group. */
+    val function: ReportFunction,
+    /** The field to compute it over, or `null` to count records. */
+    val field: String?,
+    /** The name of the computed value in each group of the aggregate, such as `count` or `sum_total`. */
+    val measure: String,
+    /** The order of the groups. */
+    val order: ReportOrder,
+    /** The most groups to show. */
+    val limit: Int,
+    /** The span of time the instant [groupBy] field is grouped into, or `null` to group by its values. */
+    val bucket: TimeBucket? = null,
 )
 
 /** An action as an admin panel sees it: a button, and a form for its input. */

@@ -21,11 +21,13 @@ import io.github.basekt.data.Sequencing
 import io.github.basekt.data.Sort
 import io.github.basekt.data.averageOf
 import io.github.basekt.data.checkAggregate
+import io.github.basekt.data.startOf
 import io.github.basekt.data.checkConditionalUpdate
 import io.github.basekt.data.checkQuery
 import io.github.basekt.data.plus
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
+import io.github.basekt.schema.TimeBucket
 import io.github.basekt.schema.Value
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -74,7 +76,7 @@ public class InMemoryDataSource(
     override suspend fun aggregate(resource: Resource, query: AggregateQuery): AggregatePage = read { session ->
         resource.checkAggregate(query)
         val matching = session.records(resource).filter { record -> query.filter?.let { record.matches(it) } ?: true }
-        val grouped = matching.groupBy { record -> query.groupBy.map { record[it] } }
+        val grouped = matching.groupBy { record -> query.groupBy.map { field -> record[field].bucketed(query.buckets[field]) } }
         // Without group fields there is always one group, as in SQL, even of no records.
         val groups = if (query.groupBy.isEmpty() && grouped.isEmpty()) mapOf(emptyList<Value?>() to emptyList()) else grouped
         val all = groups.map { (key, records) ->
@@ -258,3 +260,7 @@ private fun Record.matches(filter: Filter): Boolean = when (filter) {
     is Filter.Or -> filter.filters.any { matches(it) }
     is Filter.Not -> !matches(filter.filter)
 }
+
+/** This value in its [bucket]'s start, or as it is without one. */
+private fun Value?.bucketed(bucket: TimeBucket?): Value? =
+    if (bucket == null || this !is Value.Timestamp) this else Value.Timestamp(startOf(bucket, value))

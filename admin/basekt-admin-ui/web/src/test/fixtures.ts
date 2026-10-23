@@ -19,6 +19,7 @@ export const books: AdminResource = {
   sortable: ["id", "title", "pages", "fee", "lendable", "authorId"],
   group: null,
   actions: [],
+  reports: [],
 }
 
 export const authors: AdminResource = {
@@ -30,6 +31,7 @@ export const authors: AdminResource = {
   sortable: ["id", "name"],
   group: null,
   actions: [],
+  reports: [],
 }
 
 export const librarySchema: AdminSchema = { version: 1, caller: { id: "librarian", roles: ["staff"] }, resources: [books, authors] }
@@ -49,6 +51,10 @@ export const tickets: AdminResource = {
   sortable: ["id", "subject", "state", "openedAt", "views", "screenshot"],
   group: null,
   actions: [],
+  reports: [
+    { name: "ticketsByState", chart: "pie", groupBy: "state", function: "count", field: null, measure: "count", order: "valueDesc", limit: 12, bucket: null },
+    { name: "totalViews", chart: "number", groupBy: null, function: "sum", field: "views", measure: "sum_views", order: "valueDesc", limit: 12, bucket: null },
+  ],
 }
 
 export const helpDeskSchema: AdminSchema = { version: 1, caller: { id: "viewer", roles: ["observer"] }, resources: [tickets] }

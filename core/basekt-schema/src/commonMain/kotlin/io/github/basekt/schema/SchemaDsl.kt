@@ -98,6 +98,7 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
     private val actions = mutableListOf<Action>()
     private var workflow: Workflow? = null
     private var group: String? = null
+    private val reports = mutableListOf<Report>()
 
     /** Lists this resource under the heading [name] in an admin panel's menu. Resources without one come first. */
     public fun group(name: String) {
@@ -147,8 +148,14 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
         workflow = WorkflowBuilder(field, initial).apply(block).build()
     }
 
-    internal fun build(): Resource =
-        Resource(name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow, group)
+    /** Declares the report [name], drawn as [chart]; [block] sets what it groups by and computes. See [Report]. */
+    public fun report(name: String, chart: Chart = Chart.BAR, block: ReportBuilder.() -> Unit = {}) {
+        reports += ReportBuilder(name, chart).apply(block).build()
+    }
+
+    internal fun build(): Resource = Resource(
+        name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow, group, reports.toList(),
+    )
 }
 
 /** Marks the field of [workflow] as its [Auto.State]. */

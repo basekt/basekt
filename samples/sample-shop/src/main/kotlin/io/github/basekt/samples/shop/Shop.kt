@@ -21,9 +21,11 @@ import io.github.basekt.data.Repository
 import io.github.basekt.data.exposed.ExposedDataSource
 import io.github.basekt.data.exposed.IndexSpec
 import io.github.basekt.data.exposed.TableMapping
+import io.github.basekt.schema.Chart
 import io.github.basekt.schema.Model
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
+import io.github.basekt.schema.TimeBucket
 import io.github.basekt.schema.Value
 import io.github.basekt.schema.model
 import io.github.basekt.schema.schema
@@ -126,6 +128,7 @@ public val Products: Model<Product> = model("products") {
     field(Product::stock) { min(0) }
     belongsTo(Product::categoryId, "categories")
     file(Product::image, "images")
+    report("stockByCategory") { groupBy("categoryId"); sum("stock") }
     permissions { read(everyone); write("staff") }
 }
 
@@ -134,6 +137,9 @@ public val Orders: Model<Order> = model("orders") {
     belongsTo(Order::customerId, "customers")
     belongsTo(Order::productId, "products")
     field(Order::quantity) { min(1); max(99) }
+    report("orderCount", Chart.NUMBER)
+    report("ordersByStatus", Chart.PIE) { groupBy("status") }
+    report("ordersPerDay", Chart.LINE) { groupBy("placedAt", TimeBucket.DAY); limit(30) }
     permissions { read("staff", "customer"); create("customer", "staff"); update("staff"); delete("staff") }
 }
 

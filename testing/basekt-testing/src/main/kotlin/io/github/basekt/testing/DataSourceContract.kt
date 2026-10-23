@@ -21,6 +21,7 @@ import io.github.basekt.schema.Model
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
+import io.github.basekt.schema.TimeBucket
 import io.github.basekt.schema.Value
 import io.github.basekt.schema.model
 import io.github.basekt.schema.schema
@@ -501,6 +502,42 @@ public abstract class DataSourceContract {
         assertNull(b["sum_amount"])
         assertEquals(Value.Decimal.of("5"), b["avg_rank"])
         assertEquals(int(1), page.groups[2].values["count"])
+    }
+
+    /** An instant grouped by a time bucket counts in the bucket that holds it, in UTC, and sorts by the bucket. */
+    @Test
+    public fun aggregatesGroupByTimeBuckets(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is Aggregating) return@runTest
+        val times = listOf("2026-02-15T23:30:00Z", "2026-02-16T00:15:00Z", "2026-02-16T22:00:00Z", "2026-12-31T23:59:59Z", "2027-01-01T00:00:00Z", null)
+        times.forEachIndexed { i, at ->
+            source.create(entries, mapOf(Resource.ID to text("t$i"), "size" to int(i.toLong()), "at" to at?.let { Value.Timestamp(Instant.parse(it)) }))
+        }
+        fun stamp(at: String) = Value.Timestamp(Instant.parse(at))
+        suspend fun buckets(bucket: TimeBucket, sort: List<Sort> = emptyList(), limit: Int = 1000): List<Pair<Value?, Value?>> =
+            source.aggregate(entries, AggregateQuery(listOf("at"), listOf(Measure(AggregateFunction.COUNT)), sort = sort, limit = limit, buckets = mapOf("at" to bucket)))
+                .groups.map { it.key["at"] to it.values["count"] }
+
+        assertEquals(
+            listOf(stamp("2026-02-15T00:00:00Z") to int(1), stamp("2026-02-16T00:00:00Z") to int(2), stamp("2026-12-31T00:00:00Z") to int(1), stamp("2027-01-01T00:00:00Z") to int(1), null to int(1)),
+            buckets(TimeBucket.DAY),
+        )
+        // 2026-02-15 is a Sunday, and 2027-01-01 a Friday in the week from Monday 2026-12-28.
+        assertEquals(
+            listOf(stamp("2026-02-09T00:00:00Z") to int(1), stamp("2026-02-16T00:00:00Z") to int(2), stamp("2026-12-28T00:00:00Z") to int(2), null to int(1)),
+            buckets(TimeBucket.WEEK),
+        )
+        assertEquals(listOf(stamp("2026-02-01T00:00:00Z") to int(3), stamp("2026-12-01T00:00:00Z") to int(1), stamp("2027-01-01T00:00:00Z") to int(1), null to int(1)), buckets(TimeBucket.MONTH))
+        assertEquals(listOf(stamp("2026-01-01T00:00:00Z") to int(4), stamp("2027-01-01T00:00:00Z") to int(1), null to int(1)), buckets(TimeBucket.YEAR))
+        // The latest months first, as a time series' last points.
+        val latest = source.aggregate(entries, AggregateQuery(listOf("at"), listOf(Measure(AggregateFunction.SUM, "size")), Filter.IsNull("at", false), listOf(Sort("at", Direction.DESC)), 2, mapOf("at" to TimeBucket.MONTH)))
+        assertEquals(listOf(stamp("2027-01-01T00:00:00Z") to int(4), stamp("2026-12-01T00:00:00Z") to int(3)), latest.groups.map { it.key["at"] to it.values["sum_size"] })
+        assertTrue(latest.hasMore)
+
+        for (bad in listOf(mapOf("kind" to TimeBucket.DAY), mapOf("rank" to TimeBucket.DAY))) {
+            val query = AggregateQuery(listOf("at", "rank"), listOf(Measure(AggregateFunction.COUNT)), buckets = bad)
+            assertFailsWith<InvalidQueryException>("$bad") { source.aggregate(entries, query) }
+        }
     }
 
     /** No group fields make one group, even of no records; an average is exact; a filter narrows what counts. */

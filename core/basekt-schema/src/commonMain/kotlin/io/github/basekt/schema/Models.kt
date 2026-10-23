@@ -99,6 +99,7 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
     private var permissions = Permissions()
     private val actions = mutableListOf<Action>()
     private var workflow: Workflow? = null
+    private val reports = mutableListOf<Report>()
 
     init {
         val id = (0 until descriptor.elementsCount).firstOrNull { descriptor.getElementName(it) == Resource.ID }
@@ -167,6 +168,11 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
         workflow = WorkflowBuilder(property.name, initial).apply(block).build()
     }
 
+    /** Declares the report [name], drawn as [chart]; fields are named by property. See [ResourceBuilder.report]. */
+    public fun report(name: String, chart: Chart = Chart.BAR, block: ReportBuilder.() -> Unit = {}) {
+        reports += ReportBuilder(name, chart).apply(block).build()
+    }
+
     /** Builds the model. */
     @PublishedApi
     internal fun build(): Model<T> {
@@ -183,7 +189,8 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
                 builder.build(property, types.getValue(property), values[property], null)
             }
         }
-        return Model(Resource(name, withState(built, workflow), relations.toList(), permissions, actions.toList(), workflow), serializer)
+        val resource = Resource(name, withState(built, workflow), relations.toList(), permissions, actions.toList(), workflow, reports = reports.toList())
+        return Model(resource, serializer)
     }
 
     private fun builder(property: String): FieldBuilder = fields[property]

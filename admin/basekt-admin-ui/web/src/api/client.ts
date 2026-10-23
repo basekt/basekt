@@ -1,4 +1,4 @@
-import type { AdminPage, AdminSchema, ApiError, BulkDeleteResult, JsonObject } from "@wire"
+import type { AdminAggregatePage, AdminPage, AdminSchema, ApiError, BulkDeleteResult, JsonObject } from "@wire"
 
 /** A failed call: the HTTP status and, when the server sent one, its typed error body. */
 export class ApiFailure extends Error {
@@ -65,6 +65,11 @@ export class AdminApi {
     const base = id === undefined ? `/resources/${encodeURIComponent(resource)}` : `${this.records(resource)}/${encodeURIComponent(id)}`
     const response = await this.send("POST", `${base}/actions/${encodeURIComponent(action)}`, input)
     return response.status === 204 ? null : ((await response.json()) as JsonObject)
+  }
+
+  /** Grouped totals of [resource]'s records: `groupBy`, a measure such as `sum=total`, `sort` and `limit`, plus filters. */
+  aggregate(resource: string, params: ListParams): Promise<AdminAggregatePage> {
+    return this.json("GET", `/resources/${encodeURIComponent(resource)}/aggregate${query(params)}`)
   }
 
   bulkDelete(resource: string, ids: string[]): Promise<BulkDeleteResult> {

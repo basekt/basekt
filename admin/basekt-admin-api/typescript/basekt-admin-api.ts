@@ -33,6 +33,7 @@ export interface AdminResource {
   sortable: string[];
   actions: AdminAction[];
   group: string | null;
+  reports: AdminReport[];
 }
 
 export interface AdminField {
@@ -139,6 +140,26 @@ export interface AdminAction {
 }
 
 export type ActionTarget = "record" | "resource";
+
+export interface AdminReport {
+  name: string;
+  chart: Chart;
+  groupBy: string | null;
+  function: ReportFunction;
+  field: string | null;
+  measure: string;
+  order: ReportOrder;
+  limit: number;
+  bucket: TimeBucket | null;
+}
+
+export type Chart = "number" | "bar" | "line" | "pie";
+
+export type ReportFunction = "count" | "sum" | "avg" | "min" | "max";
+
+export type ReportOrder = "valueDesc" | "valueAsc" | "group";
+
+export type TimeBucket = "day" | "week" | "month" | "year";
 
 export interface AdminPage {
   items: JsonObject[];

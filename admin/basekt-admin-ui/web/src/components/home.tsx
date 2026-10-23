@@ -1,10 +1,11 @@
 import { Table2 } from "lucide-react"
+import { ReportCard } from "@/components/report-card"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { humanize } from "@/lib/fields"
 import { usePanel } from "@/panel"
 import { Link } from "@/router"
 
-/** The start screen: a card for each resource the caller may see. */
+/** The start screen: the charts of the reports the caller may see, then a card for each resource. */
 export function Home() {
   const { schema, config, requestSignIn } = usePanel()
   if (schema.resources.length === 0) {
@@ -22,9 +23,17 @@ export function Home() {
       </div>
     )
   }
+  const reports = schema.resources.flatMap((resource) => resource.reports.map((report) => ({ resource, report })))
   return (
     <div className="grid gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">{config.brand.name}</h1>
+      {reports.length > 0 && (
+        <section aria-label="Reports" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {reports.map(({ resource, report }) => (
+            <ReportCard key={`${resource.name}.${report.name}`} resource={resource} report={report} />
+          ))}
+        </section>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {schema.resources.map((resource) => (
           <Link key={resource.name} to={{ screen: "list", resource: resource.name, search: new URLSearchParams() }} className="group">
