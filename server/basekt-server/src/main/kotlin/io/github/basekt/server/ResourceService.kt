@@ -17,12 +17,15 @@ import io.github.basekt.schema.Record
 import io.github.basekt.schema.Relation
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
+import io.github.basekt.schema.Scope
 import io.github.basekt.schema.Value
 import io.github.basekt.schema.WriteMode
 import io.github.basekt.schema.decodeRecord
 import io.github.basekt.schema.validateRecord
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -32,6 +35,11 @@ import java.util.concurrent.CopyOnWriteArrayList
  *
  * A write runs in one transaction: permission, validation, before-hooks, validation of what they changed, reference
  * checks, the write, then after-hooks. Every function throws [ApiException] when the request can't be served.
+ *
+ * The resource's [io.github.basekt.schema.Scope]s narrow what a caller reaches: lists only hold records in the
+ * caller's read scope, a record outside it is not found, a record the caller may read but not write is forbidden, and
+ * a write can't give a scoped field a value outside the caller's. A create that omits a scoped field gets the caller's
+ * value when they have exactly one. Scopes check the caller's input; hooks and their [HookContext.data] are trusted.
  */
 public class ResourceService(
     /** The schema whose resources are served. */
@@ -59,22 +67,45 @@ public class ResourceService(
     public fun resource(name: String): Resource =
         schema.resource(name) ?: throw ApiException(ErrorCode.NOT_FOUND, "There is no resource '$name'.")
 
+    /**
+     * Returns the condition that keeps [resource]'s records within [caller]'s scopes for [operation], or `null` if no
+     * scope limits them. A transport that queries the [dataSource] itself, such as for a count, ANDs it in.
+     */
+    public fun scopeFilter(resource: Resource, operation: Operation, caller: Identity?): Filter? {
+        val filters = scopeValues(resource, operation, caller).map { (scope, values) ->
+            if (values.isEmpty()) Filter.Or(emptyList()) else Filter.In(scope.field, values.map { Value.Text(it) })
+        }
+        return when (filters.size) {
+            0 -> null
+            1 -> filters.single()
+            else -> Filter.And(filters)
+        }
+    }
+
+    /**
+     * Returns the values [caller] may give each of [resource]'s fields that a scope limits for [operation]. A field
+     * the caller may set to anything is absent.
+     */
+    public fun scopedValues(resource: Resource, operation: Operation, caller: Identity?): Map<String, Set<String>> =
+        scopeValues(resource, operation, caller).groupBy({ it.first.field }, { it.second })
+            .mapValues { (_, sets) -> sets.reduce { all, values -> all intersect values } }
+
     /** Lists records of [resource] that match [query], if [caller] may read them. */
     public suspend fun list(resource: Resource, caller: Identity?, query: Query): Page {
         authorize(resource, Operation.READ, caller)
-        return queried { dataSource.list(resource, query) }
+        return queried { dataSource.list(resource, query.narrowed(scopeFilter(resource, Operation.READ, caller))) }
     }
 
     /** Returns the record of [resource] with [id], if [caller] may read it. */
     public suspend fun get(resource: Resource, caller: Identity?, id: String): Record {
         authorize(resource, Operation.READ, caller)
-        return dataSource.get(resource, id) ?: throw notFound(resource, id)
+        return readable(dataSource, resource, caller, id)
     }
 
     /** Validates [body] and creates a record of [resource] from it, if [caller] may. */
     public suspend fun create(resource: Resource, caller: Identity?, body: JsonObject): Record {
         authorize(resource, Operation.CREATE, caller)
-        val decoded = decode(resource, body, WriteMode.CREATE)
+        val decoded = decode(resource, scoped(resource, Operation.CREATE, caller, body), WriteMode.CREATE)
         return dataSource.transaction { tx ->
             val context = HookContext(resource, caller, tx)
             var record = decoded
@@ -95,10 +126,10 @@ public class ResourceService(
     /** Validates [body] and applies it to the record of [resource] with [id], if [caller] may. */
     public suspend fun update(resource: Resource, caller: Identity?, id: String, body: JsonObject): Record {
         authorize(resource, Operation.UPDATE, caller)
-        val decoded = decode(resource, body, WriteMode.UPDATE)
+        val decoded = decode(resource, scoped(resource, Operation.UPDATE, caller, body), WriteMode.UPDATE)
         return dataSource.transaction { tx ->
             val context = HookContext(resource, caller, tx)
-            val current = tx.get(resource, id) ?: throw notFound(resource, id)
+            val current = writable(tx, resource, Operation.UPDATE, caller, id)
             var changes = decoded
             for (hook in hooks.beforeUpdate[resource.name].orEmpty()) {
                 changes = context.hook(Update(id, current, changes)).accepted()
@@ -120,7 +151,7 @@ public class ResourceService(
         authorize(resource, Operation.DELETE, caller)
         val deleted = dataSource.transaction { tx ->
             val context = HookContext(resource, caller, tx)
-            val current = tx.get(resource, id) ?: throw notFound(resource, id)
+            val current = writable(tx, resource, Operation.DELETE, caller, id)
             for (hook in hooks.beforeDelete[resource.name].orEmpty()) context.hook(Deletion(id, current)).accepted()
             if (!tx.delete(resource, id)) throw notFound(resource, id)
             for (hook in hooks.afterDelete[resource.name].orEmpty()) context.hook(current)
@@ -136,7 +167,7 @@ public class ResourceService(
         val record = get(resource, caller, id)
         val parentId = (record[relation.field] as Value.Text?)?.value
             ?: throw ApiException(ErrorCode.NOT_FOUND, "'${resource.name}/$id' has no '${relation.name}'.")
-        return dataSource.get(target, parentId) ?: throw notFound(target, parentId)
+        return readable(dataSource, target, caller, parentId)
     }
 
     /** Lists the records of [relation]'s target that point to the record [id] of [resource], matching [query]. */
@@ -151,9 +182,67 @@ public class ResourceService(
         authorize(target, Operation.READ, caller)
         get(resource, caller, id)
         val link = Filter.Compare(relation.foreignField, Comparison.EQ, Value.Text(id))
-        val filter = query.filter?.let { Filter.And(listOf(link, it)) } ?: link
-        return queried { dataSource.list(target, query.copy(filter = filter)) }
+        val narrowed = query.narrowed(link).narrowed(scopeFilter(target, Operation.READ, caller))
+        return queried { dataSource.list(target, narrowed) }
     }
+
+    private fun scopeValues(resource: Resource, operation: Operation, caller: Identity?): List<Pair<Scope, Set<String>>> =
+        resource.permissions.scopes.mapNotNull { scope ->
+            scope.valuesFor(operation, caller?.id, caller?.roles.orEmpty(), caller?.attributes.orEmpty())?.let { scope to it }
+        }
+
+    private fun inScope(resource: Resource, operation: Operation, caller: Identity?, record: Record): Boolean =
+        scopeValues(resource, operation, caller).all { (scope, values) -> (record[scope.field] as? Value.Text)?.value in values }
+
+    /** Returns the record of [resource] with [id] if it is in [caller]'s read scope, and throws not found otherwise. */
+    private suspend fun readable(source: DataSource, resource: Resource, caller: Identity?, id: String): Record {
+        val record = source.get(resource, id)
+        if (record == null || !inScope(resource, Operation.READ, caller, record)) throw notFound(resource, id)
+        return record
+    }
+
+    /** Returns the record [readable] finds, and throws forbidden if it is outside [caller]'s scope for [operation]. */
+    private suspend fun writable(source: DataSource, resource: Resource, operation: Operation, caller: Identity?, id: String): Record {
+        val record = readable(source, resource, caller, id)
+        if (!inScope(resource, operation, caller, record)) {
+            throw ApiException(ErrorCode.FORBIDDEN, "'${resource.name}/$id' is outside the records you may ${operation.name.lowercase()}.")
+        }
+        return record
+    }
+
+    /**
+     * Checks the scoped fields of a create or update [body] against [caller]'s values, and fills in a create's missing
+     * scoped field when the caller has exactly one value. A value of the wrong type is left for decoding to report.
+     */
+    private fun scoped(resource: Resource, operation: Operation, caller: Identity?, body: JsonObject): JsonObject {
+        val scoped = scopedValues(resource, operation, caller)
+        if (scoped.isEmpty()) return body
+        val filled = body.toMutableMap()
+        for ((field, values) in scoped) {
+            val given = body[field]
+            if (given == null && operation == Operation.UPDATE) continue
+            if (given == null || given == JsonNull) {
+                when {
+                    values.isEmpty() -> throw ApiException(
+                        ErrorCode.FORBIDDEN,
+                        "You have no value for '$field', so you can't ${operation.name.lowercase()} '${resource.name}' records.",
+                    )
+                    operation != Operation.CREATE -> throw outsideScope(resource, field)
+                    values.size == 1 -> filled[field] = JsonPrimitive(values.single())
+                    else -> throw invalid(
+                        listOf(FieldError(field, FieldErrorCode.REQUIRED, "Choose one of your values: ${values.sorted().joinToString()}.")),
+                    )
+                }
+                continue
+            }
+            val text = (given as? JsonPrimitive)?.takeIf { it.isString }?.content ?: continue
+            if (text !in values) throw outsideScope(resource, field)
+        }
+        return JsonObject(filled)
+    }
+
+    private fun outsideScope(resource: Resource, field: String) =
+        ApiException(ErrorCode.FORBIDDEN, "You can't give '${resource.name}.$field' a value outside your own.")
 
     private fun authorize(resource: Resource, operation: Operation, caller: Identity?) {
         if (resource.permissions.of(operation).allows(caller?.roles)) return
@@ -232,6 +321,10 @@ public class ResourceService(
     private fun notFound(resource: Resource, id: String) =
         ApiException(ErrorCode.NOT_FOUND, "There is no '${resource.name}' with id '$id'.")
 }
+
+/** Returns this query with [filter] ANDed into its own. */
+private fun Query.narrowed(filter: Filter?): Query =
+    if (filter == null) this else copy(filter = this.filter?.let { Filter.And(listOf(it, filter)) } ?: filter)
 
 private fun Value.fits(type: FieldType): Boolean = when (type) {
     FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE, FieldType.FILE -> this is Value.Text

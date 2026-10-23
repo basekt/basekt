@@ -1,5 +1,6 @@
 package io.github.basekt.auth
 
+import com.auth0.jwt.JWT
 import io.github.basekt.data.memory.InMemoryDataSource
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.schema
@@ -23,6 +24,7 @@ import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.UserIdPrincipal
 import io.ktor.server.auth.authenticate
+import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
@@ -34,6 +36,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
@@ -192,5 +195,15 @@ class AuthRoutesTest {
         assertEquals(HttpStatusCode.Created, client.createPage("Grouped") { bearerAuth(token) }.status)
         assertEquals(setOf("editor"), roles.identityOf(UserIdPrincipal("u"))!!.roles)
         assertEquals(null, PrincipalRoles.Default.identityOf("not a principal"))
+    }
+
+    @Test
+    fun `attributes travel as claims and come back through the mapping`() {
+        val identity = Identity("ed", setOf("editor"), mapOf("site" to setOf("north", "south")))
+        val payload = JWT.decode(jwt.issue(identity, 1.hours))
+        assertEquals(identity, PrincipalRoles.jwt(attributeClaims = listOf("site", "team")).identityOf(JWTPrincipal(payload)))
+        assertEquals(emptyMap(), PrincipalRoles.jwt().identityOf(JWTPrincipal(payload))!!.attributes)
+        assertFailsWith<IllegalArgumentException> { jwt.issue(Identity("ed", attributes = mapOf("sub" to setOf("x"))), 1.hours) }
+        assertFailsWith<IllegalArgumentException> { jwt.issue(Identity("ed", attributes = mapOf("roles" to setOf("admin"))), 1.hours) }
     }
 }

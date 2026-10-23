@@ -160,6 +160,11 @@ public data class Permissions(
     val update: Access = Access.Nobody,
     /** Who may delete records. */
     val delete: Access = Access.Nobody,
+    /**
+     * Which records each caller may reach, once [read], [create], [update] or [delete] let them in. Every scope that
+     * applies narrows the records further. Empty means every record.
+     */
+    val scopes: List<Scope> = emptyList(),
 ) {
     /** Returns the access rule for [operation]. */
     public fun of(operation: Operation): Access = when (operation) {
@@ -225,6 +230,59 @@ public sealed interface Access {
     public data object Nobody : Access {
         override fun allows(roles: Set<String>?): Boolean = false
     }
+}
+
+/**
+ * Limits an operation to the records whose [field] holds one of the caller's own values, such as the records of the
+ * caller's team or the ones they wrote. A caller who has no such value reaches no records.
+ *
+ * A scope applies to callers for [operations], except callers with one of the [unless] roles, who reach every record.
+ */
+@Serializable
+public data class Scope(
+    /** The field to compare: a string, enum or reference field, or [Resource.ID]. */
+    val field: String,
+    /** The caller's values the field must hold one of. */
+    val match: ScopeMatch,
+    /** The operations it narrows. */
+    val operations: Set<Operation> = Operation.entries.toSet(),
+    /** The roles it doesn't apply to. */
+    val unless: Set<String> = emptySet(),
+) {
+    /**
+     * Returns the values [field] may hold for a caller with [id], [roles] and [attributes] performing [operation], or
+     * `null` if this scope doesn't apply to them. `null` [id] means an anonymous caller, who has no values.
+     */
+    public fun valuesFor(
+        operation: Operation,
+        id: String?,
+        roles: Set<String>,
+        attributes: Map<String, Set<String>>,
+    ): Set<String>? {
+        if (operation !in operations || roles.any { it in unless }) return null
+        if (id == null) return emptySet()
+        return when (match) {
+            ScopeMatch.Caller -> setOf(id)
+            is ScopeMatch.Attribute -> attributes[match.name].orEmpty()
+        }
+    }
+}
+
+/** The caller's values that a [Scope]'s field must hold one of. */
+@Serializable
+public sealed interface ScopeMatch {
+    /** The caller's own id, for records a caller owns. */
+    @Serializable
+    @SerialName("caller")
+    public data object Caller : ScopeMatch
+
+    /** The values of the caller's attribute called [name], such as the teams or sites they belong to. */
+    @Serializable
+    @SerialName("attribute")
+    public data class Attribute(
+        /** The attribute's name. */
+        val name: String,
+    ) : ScopeMatch
 }
 
 /** An extra check on a field's value, beyond its type and [Field.required]. */

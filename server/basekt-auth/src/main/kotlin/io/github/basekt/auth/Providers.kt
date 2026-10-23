@@ -39,18 +39,23 @@ public class JwtSettings(
     internal val algorithm: Algorithm = Algorithm.HMAC256(secret)
 
     /**
-     * Issues a token for [identity], valid for [validFor] from [now]. For login routes and tests; BaseKt itself
-     * never issues tokens.
+     * Issues a token for [identity], valid for [validFor] from [now]. Each of its attributes becomes an array claim of
+     * the same name, which `PrincipalRoles.jwt(attributeClaims = ...)` reads back. For login routes and tests; BaseKt
+     * itself never issues tokens.
      */
-    public fun issue(identity: Identity, validFor: Duration, now: Instant = Clock.System.now()): String =
-        JWT.create()
+    public fun issue(identity: Identity, validFor: Duration, now: Instant = Clock.System.now()): String {
+        val reserved = identity.attributes.keys.filter { it in RESERVED_CLAIMS || it == rolesClaim }
+        require(reserved.isEmpty()) { "Attributes can't use the reserved claim names ${reserved.joinToString()}." }
+        val builder = JWT.create()
             .withIssuer(issuer)
             .withAudience(audience)
             .withSubject(identity.id)
             .withClaim(rolesClaim, identity.roles.toList())
             .withIssuedAt(now.toJavaInstant())
             .withExpiresAt((now + validFor).toJavaInstant())
-            .sign(algorithm)
+        for ((name, values) in identity.attributes) builder.withClaim(name, values.toList())
+        return builder.sign(algorithm)
+    }
 
     override fun toString(): String = "JwtSettings(issuer=$issuer, audience=$audience, realm=$realm, rolesClaim=$rolesClaim)"
 
@@ -69,6 +74,9 @@ public class JwtSettings(
         )
     }
 }
+
+/** The registered JWT claims that an [Identity]'s attributes can't replace. */
+private val RESERVED_CLAIMS = setOf("iss", "sub", "aud", "exp", "nbf", "iat", "jti")
 
 /**
  * Registers a Ktor JWT provider called [name] for tokens signed with [settings]: it checks the signature, issuer,

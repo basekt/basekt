@@ -41,6 +41,7 @@ export interface AdminField {
   target: string | null;
   rules: Rule[];
   bucket: string | null;
+  scopedValues: string[] | null;
 }
 
 export type FieldType = "string" | "int" | "long" | "decimal" | "bool" | "instant" | "enum" | "reference" | "file";

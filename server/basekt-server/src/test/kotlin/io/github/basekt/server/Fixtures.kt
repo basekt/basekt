@@ -1,6 +1,7 @@
 package io.github.basekt.server
 
 import io.github.basekt.schema.FieldValidator
+import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.Value
 import io.github.basekt.schema.schema
@@ -53,15 +54,56 @@ val trackerSchema: Schema = schema {
     }
 }
 
+/**
+ * A made-up group of clinics: staff see and book only their own clinics' appointments, and directors see every
+ * clinic. The `clinic` attribute lists a caller's clinics.
+ */
+val clinicSchema: Schema = schema {
+    resource("clinics") {
+        string("name") { required() }
+        hasMany("appointments", "appointments", foreignField = "clinicId")
+        permissions { read(authenticated); write("director"); scope(Resource.ID, attribute = "clinic", unless = setOf("director")) }
+    }
+    resource("appointments") {
+        belongsTo("clinic", "clinics") { required() }
+        string("patient") { required() }
+        instant("at")
+        permissions { read("staff", "director"); write("staff", "director"); scope("clinicId", attribute = "clinic", unless = setOf("director")) }
+    }
+}
+
+/** A made-up shared journal: every member reads every entry, and only an entry's author may change it. */
+val journalSchema: Schema = schema {
+    resource("entries") {
+        string("authorId")
+        string("body") { required() }
+        permissions { read(authenticated); write(authenticated); ownedBy("authorId", on = writes) }
+    }
+}
+
 val isbnValidator: FieldValidator = FieldValidator { value ->
     if ((value as Value.Text).value.replace("-", "").length in setOf(10, 13)) null else "An ISBN has 10 or 13 digits."
 }
 
-/** Test-only identities: `X-User` names the caller and `X-Roles` lists roles. No header means anonymous. */
+/**
+ * Test-only identities: `X-User` names the caller, `X-Roles` lists roles, and each `X-Attr-<name>` header lists the
+ * values of an attribute. No header means anonymous.
+ */
 val headerIdentities: IdentityResolver = IdentityResolver { call ->
     call.request.headers["X-User"]?.let { user ->
-        Identity(user, call.request.headers["X-Roles"].orEmpty().split(',').filter { it.isNotBlank() }.toSet())
+        val attributes = call.request.headers.names().filter { it.startsWith("X-Attr-", ignoreCase = true) }
+            .associate { it.substring("X-Attr-".length).lowercase() to call.request.headers[it]!!.names() }
+        Identity(user, call.request.headers["X-Roles"].orEmpty().names(), attributes)
     }
+}
+
+private fun String.names(): Set<String> = split(',').filter { it.isNotBlank() }.toSet()
+
+/** A caller [user] with [roles] and [attributes], through [headerIdentities]. */
+fun HttpRequestBuilder.caller(user: String, roles: List<String> = emptyList(), attributes: Map<String, List<String>> = emptyMap()) {
+    header("X-User", user)
+    header("X-Roles", roles.joinToString(","))
+    for ((name, values) in attributes) header("X-Attr-$name", values.joinToString(","))
 }
 
 fun HttpRequestBuilder.asUser(vararg roles: String) {

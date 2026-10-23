@@ -52,7 +52,9 @@ internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) 
                         val resource = resource(runtime)
                         val query = query(resource, settings.defaultPageSize, settings.maxPageSize)
                         val page = service.list(resource, caller, query)
-                        respondJson(AdminPage.serializer(), page.toAdmin(resource, count(runtime, resource, query.filter)))
+                        val scope = service.scopeFilter(resource, Operation.READ, caller)
+                        val counted = listOfNotNull(query.filter, scope).let { if (it.size > 1) Filter.And(it) else it.firstOrNull() }
+                        respondJson(AdminPage.serializer(), page.toAdmin(resource, count(runtime, resource, counted)))
                     }
                 }
                 post {
@@ -118,9 +120,12 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
     val resources = runtime.schema.resources.mapNotNull { resource ->
         val operations = Operation.entries.filter { resource.permissions.of(it).allows(roles) }
         if (operations.isEmpty()) return@mapNotNull null
+        val scoped = runtime.service.scopedValues(resource, Operation.CREATE, caller)
         AdminResource(
             name = resource.name,
-            fields = resource.fields.map { AdminField(it.name, it.type, it.required, it.values, it.target, it.rules, it.bucket) },
+            fields = resource.fields.map {
+                AdminField(it.name, it.type, it.required, it.values, it.target, it.rules, it.bucket, scoped[it.name]?.sorted())
+            },
             relations = resource.relations.filter { it.target in readable }.map { relation ->
                 when (relation) {
                     is Relation.BelongsTo -> AdminRelation(relation.name, RelationKind.BELONGS_TO, relation.target, relation.field)

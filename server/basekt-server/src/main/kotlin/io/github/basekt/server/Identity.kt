@@ -3,12 +3,17 @@ package io.github.basekt.server
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.routing.Route
 
-/** An authenticated caller, as BaseKt sees it: an id and the roles that [io.github.basekt.schema.Access] checks. */
+/**
+ * An authenticated caller, as BaseKt sees it: an id and the roles that [io.github.basekt.schema.Access] checks, plus
+ * the attributes that [io.github.basekt.schema.Scope]s compare records with.
+ */
 public data class Identity(
     /** A stable id for the caller. */
     val id: String,
     /** The caller's roles. */
     val roles: Set<String> = emptySet(),
+    /** The caller's attributes, each with one or more values, such as the teams or sites they belong to. */
+    val attributes: Map<String, Set<String>> = emptyMap(),
 )
 
 /**
