@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react"
 import { BulkActions, BulkFailures, ExportButton } from "@/components/bulk-actions"
+import { FilePreview } from "@/forms/file-widget"
 import type { AdminField, AdminResource, BulkFailure, JsonObject } from "@wire"
 import { ErrorState } from "@/components/error-state"
 import { FilterBar } from "@/components/filter-bar"
@@ -207,6 +208,7 @@ function Cell({ field, record }: { field: AdminField; record: JsonObject }) {
   const value = record[field.name]
   if (value === null || value === undefined) return <span className="text-muted-foreground">—</span>
   if (field.type === "enum") return <Badge variant="outline">{String(value)}</Badge>
+  if (field.type === "file" && typeof value === "string") return <FilePreview fileKey={value} />
   if (field.type === "reference" && field.target) {
     return (
       <Link to={{ screen: "detail", resource: field.target, id: String(value) }} className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground">

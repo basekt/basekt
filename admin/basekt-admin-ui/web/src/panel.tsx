@@ -1,12 +1,15 @@
 import { createContext, useContext, type ReactNode } from "react"
 import type { AdminResource, AdminSchema, Operation } from "@wire"
 import type { AdminApi } from "@/api/client"
+import type { FilesApi } from "@/api/files"
 import type { PanelConfig, ThemeMode } from "@/config"
 
 /** What every screen reads: the API, the caller's schema, and the viewer's session and mode. */
 export interface Panel {
   config: PanelConfig
   api: AdminApi
+  /** Uploads and previews for file fields, through BaseKtFiles. */
+  files: FilesApi
   schema: AdminSchema
   /** Whether the viewer entered a bearer token. Cookie sessions don't count: the panel can't see them. */
   signedIn: boolean

@@ -52,6 +52,7 @@ internal class ResourceTable(val resource: Resource, mapping: TableMapping) : Ta
             FieldType.STRING -> field.maxLength()?.let { varchar(name, it).nullable() } ?: text(name).nullable()
             FieldType.ENUM -> varchar(name, field.values.orEmpty().maxOfOrNull { it.length }?.coerceAtLeast(1) ?: 1).nullable()
             FieldType.REFERENCE -> varchar(name, mapping.idLength).nullable()
+            FieldType.FILE -> varchar(name, FILE_KEY_LENGTH).nullable()
             FieldType.INT -> integer(name).nullable()
             FieldType.LONG -> long(name).nullable()
             FieldType.DECIMAL -> decimal(name, mapping.decimalPrecision, mapping.decimalScale).nullable()
@@ -61,6 +62,9 @@ internal class ResourceTable(val resource: Resource, mapping: TableMapping) : Ta
         return column as Column<Any?>
     }
 }
+
+/** The longest file key, as `basekt-storage`'s BlobKey allows. */
+private const val FILE_KEY_LENGTH = 1024
 
 private fun Field.maxLength(): Int? = rules.filterIsInstance<Rule.Length>().mapNotNull { it.max }.minOrNull()
 
@@ -74,7 +78,7 @@ internal fun Value.toColumn(type: FieldType): Any = when (this) {
 }
 
 private fun fromColumn(type: FieldType, stored: Any): Value = when (type) {
-    FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE -> Value.Text(stored as String)
+    FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE, FieldType.FILE -> Value.Text(stored as String)
     FieldType.INT, FieldType.LONG -> Value.Integer((stored as Number).toLong())
     FieldType.DECIMAL -> Value.Decimal.of((stored as BigDecimal).stripTrailingZeros().toPlainString())
     FieldType.BOOL -> Value.Bool(stored as Boolean)

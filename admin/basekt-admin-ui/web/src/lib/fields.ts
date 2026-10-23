@@ -62,6 +62,7 @@ export function opsFor(type: FieldType): FilterOp[] {
     case "bool":
     case "enum":
     case "reference":
+    case "file":
       return ["eq", "ne", "null"]
     default:
       return ["eq", "ne", "null"]

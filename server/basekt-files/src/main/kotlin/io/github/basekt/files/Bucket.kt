@@ -1,6 +1,8 @@
 package io.github.basekt.files
 
 import io.github.basekt.schema.Access
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
 
 /**
  * A named group of files with its own limits and permissions. Its files are stored under keys that start with
@@ -13,6 +15,8 @@ import io.github.basekt.schema.Access
  * @property read who may download its files.
  * @property upload who may upload to it.
  * @property delete who may delete its files.
+ * @property deleteUnattachedAfter how old an upload no file field points to may get before it is deleted, or `null`
+ *   to keep such uploads. It applies only to buckets that file fields use.
  */
 public data class Bucket(
     val name: String,
@@ -21,6 +25,7 @@ public data class Bucket(
     val read: Access,
     val upload: Access,
     val delete: Access,
+    val deleteUnattachedAfter: Duration? = 24.hours,
 ) {
     /** Whether [contentType] is one the bucket takes. */
     public fun accepts(contentType: String): Boolean = accept.isEmpty() || accept.any { pattern ->
@@ -37,6 +42,12 @@ public class BucketBuilder internal constructor(internal val name: String, defau
 
     /** The largest file the bucket takes, in bytes. The plugin's [BaseKtFilesConfig.maxBytes] by default. */
     public var maxBytes: Long = defaultMaxBytes
+
+    /**
+     * How old an upload no file field points to may get before it is deleted: uploads abandoned in a form that was
+     * never saved. 24 hours by default; `null` keeps them. It applies only to buckets that file fields use.
+     */
+    public var deleteUnattachedAfter: Duration? = 24.hours
 
     /** Anyone, including anonymous callers. */
     public val everyone: Access get() = Access.Everyone
@@ -87,7 +98,8 @@ public class BucketBuilder internal constructor(internal val name: String, defau
 
     internal fun build(): Bucket {
         require(maxBytes >= 1) { "Bucket '$name' needs a maxBytes of at least 1, not $maxBytes." }
-        return Bucket(name, maxBytes, accept.toSet(), read, upload, delete)
+        require(deleteUnattachedAfter?.isPositive() != false) { "Bucket '$name' needs a positive deleteUnattachedAfter, or null." }
+        return Bucket(name, maxBytes, accept.toSet(), read, upload, delete, deleteUnattachedAfter)
     }
 
     private companion object {
