@@ -1,5 +1,5 @@
 import { Table2 } from "lucide-react"
-import { RangePicker, useRangeChoice } from "@/components/range-picker"
+import { DateRangePicker, useRangeChoice } from "@/components/date-range-picker"
 import { ReportCard } from "@/components/report-card"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { humanize } from "@/lib/fields"
@@ -32,7 +32,12 @@ export function Home() {
   return (
     <div className="grid gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">{config.brand.name}</h1>
-      {reports.some(({ report }) => report.range) && <RangePicker value={range} onChange={setRange} />}
+      {reports.some(({ report }) => report.range) && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>All reports:</span>
+          <DateRangePicker label="Report range" value={range} onChange={setRange} />
+        </div>
+      )}
       {reports.length > 0 && (
         <section aria-label="Reports" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {reports.map(({ resource, report }) => (
