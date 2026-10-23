@@ -10,9 +10,9 @@
 It's built for a shop, a SaaS, a game's back office or anything else that needs a backend and an admin, without
 handing your app to a platform.
 
-> **Status: pre-release (0.1.0-SNAPSHOT).** These work now: the schema, the data SPI with its in-memory and Exposed
-> adapters and contract tests, the `install(BaseKt)` REST plugin, and the sample shop. Auth and the admin API come next.
-> Nothing is published yet.
+> **Status: pre-release (0.1.0-SNAPSHOT).** Every v0.1.0 module works: the schema, the data SPI with its in-memory
+> and Exposed adapters and contract tests, the `install(BaseKt)` REST plugin with hooks, Ktor auth adapters, the JSON
+> admin API, and the sample shop. Nothing is published yet.
 
 ## Why another one
 
@@ -31,9 +31,12 @@ annotation processing and tied to particular ORMs. BaseKt is a set of small libr
 
 ```kotlin
 fun Application.module() {
+    install(Authentication) {
+        baseKtJwt("jwt", JwtSettings.from(environment.config.config("auth.jwt")))   // basekt-auth
+    }
     install(BaseKt) {
-        dataSource = InMemoryDataSource()             // or any other DataSource adapter
-        identities = IdentityResolver { call -> /* map the call's principal to Identity(id, roles) */ null }
+        dataSource = ExposedDataSource(database, schema)  // or InMemoryDataSource(), or any other adapter
+        identities = AuthIdentities("jwt")                 // roles from the JWT, checked by the permissions
         resources {
             resource("products") {
                 string("name") { required(); length(max = 120) }
@@ -47,7 +50,13 @@ fun Application.module() {
                 permissions { read(everyone); write("staff") }
             }
         }
+        hooks {
+            beforeUpdate("products") { update ->
+                if (update.changes["price"] == null) proceed(update.changes) else veto("price", "Prices are frozen.")
+            }
+        }
     }
+    install(BaseKtAdmin) { path = "/admin/api" }           // basekt-admin-api
 }
 ```
 
@@ -62,24 +71,45 @@ That serves:
 | `GET /api/{resource}/{id}/{relation}` | the record a `belongsTo` points to, or a page of a `hasMany` |
 
 Errors are typed JSON: `{"error": "validation_failed", "message": ..., "fields": [{"field", "code", "message"}]}`.
-The base path and page sizes come from the `basekt` section of `ApplicationConfig`. The runnable example is
-[`samples/sample-shop`](samples/sample-shop): run `./gradlew :samples:sample-shop:run`, then try
-`curl localhost:8080/api/products`.
+A caller without credentials gets `401 unauthorized`, one without the role `403 forbidden`. The base path and page
+sizes come from the `basekt` section of `ApplicationConfig`.
+
+**Hooks** run in the service layer, so the REST API, the admin API and any later transport run the same ones. A
+before-hook on create, update or delete can modify the input or veto the write with a reason. An after-hook runs in
+the same transaction.
+
+**The admin API** is JSON only, for a panel to render itself from:
+
+| Route under `/admin/api` | What it does |
+|---|---|
+| `GET /schema` | what the caller may see and do: `"version": 1`, the resources, fields, relations and allowed operations |
+| `GET /resources/{name}/records` | a page with a `total`: the same filters, sort and cursor, plus `search` |
+| `POST`, `GET`, `PATCH`, `DELETE /resources/{name}/records[/{id}]` | create, read, update and delete |
+| `POST /resources/{name}/bulk-delete` | deletes several records and reports each one |
+| `GET /resources/{name}/export.csv` | the list as CSV |
+
+Its wire format has TypeScript types in
+[`admin/basekt-admin-api/typescript`](admin/basekt-admin-api/typescript), generated from the Kotlin classes and
+checked in CI. The schema contract is additive only within a version.
+
+The runnable example is [`samples/sample-shop`](samples/sample-shop): Exposed on H2, JWT and demo bearer tokens, a
+"price can't drop below cost" hook and the admin API. Run `./gradlew :samples:sample-shop:run`, then try
+`curl localhost:8080/api/products` or `curl -H "Authorization: Bearer staff-token" localhost:8080/admin/api/schema`.
 
 ## Modules
 
 | Module | v0.1.0 | What it is |
 |---|---|---|
 | `core:basekt-schema` | ✓ works | resources, fields, relations, validation and permissions as data (multiplatform, no Ktor) |
-| `server:basekt-server` | ✓ works | `install(BaseKt)`: the schema-driven REST API, permissions and lifecycle |
-| `server:basekt-data` | ✓ works | the `DataSource` SPI: queries, writes, transactions |
+| `server:basekt-server` | ✓ works | `install(BaseKt)`: the schema-driven REST API, permissions, hooks and lifecycle |
+| `server:basekt-data` | ✓ works | the `DataSource` SPI: queries, writes, transactions, and optional capabilities such as `Counting` |
 | `server:basekt-data-memory` | ✓ works | in-memory adapter, for tests, samples and prototypes |
 | `server:basekt-data-exposed` | ✓ works | Exposed/JDBC adapter: Postgres, MySQL, H2. Keyset cursors, one-query `getMany`, savepoints |
-| `server:basekt-auth` | next | Ktor Authentication adapters (JWT, bearer) and roles mapped to permissions |
-| `admin:basekt-admin-api` | next | `install(BaseKtAdmin)`: admin endpoints from the schema (CRUD, actions, export) |
+| `server:basekt-auth` | ✓ works | Ktor Authentication adapters (JWT, bearer), `PrincipalRoles` mapped to permissions, typed 401 and 403 |
+| `admin:basekt-admin-api` | ✓ works | `install(BaseKtAdmin)`: a JSON admin API from the schema (per-caller schema, list and search, CRUD, bulk delete, CSV export) and its TypeScript types |
 | `testing:basekt-testing` | ✓ works | the `DataSourceContract` suite every adapter runs, plus test fixtures |
-| `samples:sample-shop` | ✓ works | a small shop backend (the admin comes with `basekt-admin-api`) |
-| `admin:basekt-admin-ui` | later | a schema-driven admin panel (Compose Multiplatform for the web), served by the plugin |
+| `samples:sample-shop` | ✓ works | a small shop backend: Exposed on H2, JWT and bearer auth, a pricing hook and the admin API |
+| `admin:basekt-admin-ui` | later | a schema-driven admin panel (React, shadcn and Tailwind, prebuilt into the jar and themed with CSS variables), served by the plugin from the admin API |
 | `server:basekt-graphql` | later | a GraphQL API generated at runtime from the same schema, on the same `DataSource` and service layer |
 | `server:basekt-realtime` | later | change feeds over WebSockets |
 | `server:basekt-storage` (+ `-local`, `-s3`, `-gcs`) | later | file uploads behind one interface |
@@ -101,6 +131,12 @@ tables in:
 
 ```bash
 ./gradlew :server:basekt-data-exposed:test -Pbasekt.postgres.url=jdbc:postgresql://localhost/basekt -Pbasekt.postgres.user=basekt -Pbasekt.postgres.password=basekt
+```
+
+After changing the admin API's wire classes, regenerate the TypeScript types and commit them:
+
+```bash
+./gradlew :admin:basekt-admin-api:generateTypeScript
 ```
 
 Maven coordinates, once published: `io.github.basekt:<module>:<version>`.
