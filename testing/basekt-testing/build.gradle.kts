@@ -1,6 +1,11 @@
 // testApplication fixtures and in-memory everything, for BaseKt's own tests and its users'.
 // It also holds the DataSource contract suite that every data adapter runs.
-plugins { id("basekt.jvm-library") }
+plugins {
+    id("basekt.jvm-library")
+    id("basekt.publish")
+}
+
+description = "BaseKt testing: the DataSource contract suite every adapter runs, and testApplication fixtures."
 
 dependencies {
     api(project(":server:basekt-data-memory"))

@@ -1,6 +1,11 @@
 // install(BaseKtAdmin): a JSON admin API generated from the schema (list, search, detail, create, update, delete,
 // bulk delete, CSV export), and the TypeScript types of its wire format for admin panels.
-plugins { id("basekt.jvm-library") }
+plugins {
+    id("basekt.jvm-library")
+    id("basekt.publish")
+}
+
+description = "BaseKt admin API: install(BaseKtAdmin), a JSON admin API generated from the schema, with TypeScript types for admin panels."
 
 dependencies {
     api(project(":server:basekt-server"))
