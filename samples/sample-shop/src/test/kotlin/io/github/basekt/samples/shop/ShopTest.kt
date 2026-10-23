@@ -55,6 +55,11 @@ class ShopTest {
     }
 
     @Test
+    fun `app code runs typed queries`() = shop {
+        assertEquals(listOf("CHR-0001 0", "LMP-0002 3"), client.get("/low-stock").bodyAsText().lines())
+    }
+
+    @Test
     fun `staff manage products and customers can't`() = shop {
         val body = """{"name": "Arm chair", "sku": "CHR-0002", "price": "149.00", "cost": "80", "stock": 2, "categoryId": "chairs"}"""
         assertEquals(HttpStatusCode.Unauthorized, client.post("/api/products") { json(body) }.status)

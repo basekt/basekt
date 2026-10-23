@@ -6,19 +6,25 @@ import io.github.basekt.auth.JwtSettings
 import io.github.basekt.auth.baseKtJwt
 import io.github.basekt.auth.bearerIdentities
 import io.github.basekt.data.DataSource
+import io.github.basekt.data.Repository
 import io.github.basekt.data.exposed.ExposedDataSource
 import io.github.basekt.data.exposed.IndexSpec
 import io.github.basekt.data.exposed.TableMapping
-import io.github.basekt.schema.Record
+import io.github.basekt.schema.Model
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.Value
+import io.github.basekt.schema.model
 import io.github.basekt.schema.schema
 import io.github.basekt.server.BaseKt
 import io.github.basekt.server.HookContext
 import io.github.basekt.server.HooksBuilder
 import io.github.basekt.server.Identity
 import io.github.basekt.server.Verdict
+import io.github.basekt.server.beforeCreate
+import io.github.basekt.server.baseKt
+import io.github.basekt.server.beforeUpdate
+import io.github.basekt.server.repository
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
@@ -27,13 +33,92 @@ import io.ktor.server.cio.EngineMain
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
+import kotlin.time.Instant
 
 /** Starts the sample on CIO, with the settings in `application.conf`. */
 public fun main(args: Array<String>): Unit = EngineMain.main(args)
 
-/** The shop's data model: a public catalogue, and orders that signed-in customers place and staff fulfil. */
+/** A product of the catalogue. Typed: its fields come from this class. */
+@Serializable
+public data class Product(
+    /** The id, generated when null. */
+    val id: String? = null,
+    /** The name shown to customers. */
+    val name: String,
+    /** The stock-keeping unit, such as `LMP-0001`. */
+    val sku: String,
+    /** The selling price. */
+    val price: Value.Decimal,
+    /** What the product costs the shop; the price never drops below it. */
+    val cost: Value.Decimal,
+    /** How many are in stock. */
+    val stock: Int,
+    /** Whether customers see it. */
+    val published: Boolean? = null,
+    /** The category's id. */
+    val categoryId: String? = null,
+)
+
+/** A customer's order of one product. Typed: its fields come from this class. */
+@Serializable
+public data class Order(
+    /** The id, generated when null. */
+    val id: String? = null,
+    /** The customer's id. */
+    val customerId: String,
+    /** The product's id. */
+    val productId: String,
+    /** How many. */
+    val quantity: Int,
+    /** Where the order is. */
+    val status: OrderStatus,
+    /** When it was placed. */
+    val placedAt: Instant? = null,
+)
+
+/** Where an [Order] is. */
+@Serializable
+public enum class OrderStatus {
+    /** Placed by the customer. */
+    @SerialName("placed") PLACED,
+
+    /** Paid. */
+    @SerialName("paid") PAID,
+
+    /** Sent to the customer. */
+    @SerialName("shipped") SHIPPED,
+
+    /** Cancelled. */
+    @SerialName("cancelled") CANCELLED,
+}
+
+/** The typed `products` resource. */
+public val Products: Model<Product> = model("products") {
+    field(Product::name) { length(min = 1, max = 120) }
+    field(Product::sku) { pattern("[A-Z]{3}-[0-9]{4}") }
+    field(Product::price) { min("0.01") }
+    field(Product::cost) { min("0") }
+    field(Product::stock) { min(0) }
+    belongsTo(Product::categoryId, "categories")
+    permissions { read(everyone); write("staff") }
+}
+
+/** The typed `orders` resource. */
+public val Orders: Model<Order> = model("orders") {
+    belongsTo(Order::customerId, "customers")
+    belongsTo(Order::productId, "products")
+    field(Order::quantity) { min(1); max(99) }
+    permissions { read("staff", "customer"); create("customer", "staff"); update("staff"); delete("staff") }
+}
+
+/**
+ * The shop's data model: a public catalogue, and orders that signed-in customers place and staff fulfil. Products and
+ * orders are typed; categories and customers stay dynamic, to show both side by side.
+ */
 public val shopSchema: Schema = schema {
     resource("categories") {
         string("name") { required(); length(min = 1, max = 60) }
@@ -41,30 +126,14 @@ public val shopSchema: Schema = schema {
         hasMany("products", "products", foreignField = "categoryId")
         permissions { read(everyone); write("staff") }
     }
-    resource("products") {
-        string("name") { required(); length(min = 1, max = 120) }
-        string("sku") { required(); pattern("[A-Z]{3}-[0-9]{4}") }
-        decimal("price") { required(); min("0.01") }
-        decimal("cost") { required(); min("0") }
-        int("stock") { required(); min(0) }
-        bool("published")
-        belongsTo("category", "categories")
-        permissions { read(everyone); write("staff") }
-    }
+    resource(Products)
     resource("customers") {
         string("email") { required(); pattern("[^@\\s]+@[^@\\s]+", "Must be an email address.") }
         string("name")
         hasMany("orders", "orders", foreignField = "customerId")
         permissions { read("staff"); write("staff") }
     }
-    resource("orders") {
-        belongsTo("customer", "customers") { required() }
-        belongsTo("product", "products") { required() }
-        int("quantity") { required(); min(1); max(99) }
-        enum("status", listOf("placed", "paid", "shipped", "cancelled")) { required() }
-        instant("placedAt")
-        permissions { read("staff", "customer"); create("customer", "staff"); update("staff"); delete("staff") }
-    }
+    resource(Orders)
 }
 
 /**
@@ -73,7 +142,8 @@ public val shopSchema: Schema = schema {
  *   a small catalogue when it is empty;
  * - callers authenticated by JWTs signed with `shop.jwt`, or by the demo bearer tokens under `shop.tokens`;
  * - a hook that keeps every product's price at or above its cost;
- * - the JSON admin API under `basekt.admin.path`.
+ * - the JSON admin API under `basekt.admin.path`;
+ * - `GET /low-stock`, a typed query in app code.
  */
 public suspend fun Application.shopModule() {
     val config = environment.config
@@ -99,23 +169,32 @@ public suspend fun Application.shopModule() {
         this.dataSource = dataSource
         schema = shopSchema
         identities = AuthIdentities("jwt", "demo-tokens")
+        models += listOf(Products, Orders)
         hooks { priceStaysAboveCost() }
     }
     install(BaseKtAdmin)
-    routing { get("/health") { call.respondText("ok") } }
+    routing {
+        get("/health") { call.respondText("ok") }
+        // App code reads typed records with a repository and a typed query. The catalogue is public, so skipping
+        // the permission checks a repository skips is fine here.
+        get("/low-stock") {
+            val low = baseKt.repository<Product>().list {
+                where { (Product::stock lt 5) and (Product::published eq true) }
+                orderBy(Product::stock)
+            }
+            call.respondText(low.items.joinToString("\n") { "${it.sku} ${it.stock}" })
+        }
+    }
 }
 
 /** Refuses a product whose price is below its cost, whether it is created that way or updated to it. */
 private fun HooksBuilder.priceStaysAboveCost() {
-    beforeCreate("products") { product -> belowCost(product) ?: proceed(product) }
-    beforeUpdate("products") { update -> belowCost(update.merged) ?: proceed(update.changes) }
+    beforeCreate { new: Product -> belowCost(new) ?: proceed(new) }
+    beforeUpdate { _: Product, new: Product -> belowCost(new) ?: proceed(new) }
 }
 
-private fun HookContext.belowCost(product: Record): Verdict<Nothing>? {
-    val price = product["price"] as Value.Decimal? ?: return null
-    val cost = product["cost"] as Value.Decimal? ?: return null
-    return if (price < cost) veto("price", "The price can't drop below the cost of $cost.") else null
-}
+private fun HookContext.belowCost(product: Product): Verdict<Nothing>? =
+    if (product.price < product.cost) veto("price", "The price can't drop below the cost of ${product.cost}.") else null
 
 private suspend fun seed(dataSource: DataSource) {
     fun resource(name: String) = shopSchema.resource(name)!!
@@ -123,23 +202,11 @@ private suspend fun seed(dataSource: DataSource) {
     dataSource.transaction { tx ->
         tx.create(resource("categories"), mapOf(Resource.ID to text("lamps"), "name" to text("Lamps"), "slug" to text("lamps")))
         tx.create(resource("categories"), mapOf(Resource.ID to text("chairs"), "name" to text("Chairs"), "slug" to text("chairs")))
-        suspend fun product(id: String, name: String, sku: String, price: String, cost: String, stock: Long, category: String) =
-            tx.create(
-                resource("products"),
-                mapOf(
-                    Resource.ID to text(id),
-                    "name" to text(name),
-                    "sku" to text(sku),
-                    "price" to Value.Decimal.of(price),
-                    "cost" to Value.Decimal.of(cost),
-                    "stock" to Value.Integer(stock),
-                    "published" to Value.Bool(true),
-                    "categoryId" to text(category),
-                ),
-            )
-        product("desk-lamp", "Desk lamp", "LMP-0001", "24.90", "11.00", 12, "lamps")
-        product("floor-lamp", "Floor lamp", "LMP-0002", "89.00", "42.50", 3, "lamps")
-        product("stool", "Stool", "CHR-0001", "35.50", "20.00", 0, "chairs")
+        val products = Repository(Products, tx)
+        fun price(literal: String) = Value.Decimal.of(literal)
+        products.create(Product("desk-lamp", "Desk lamp", "LMP-0001", price("24.90"), price("11.00"), 12, true, "lamps"))
+        products.create(Product("floor-lamp", "Floor lamp", "LMP-0002", price("89.00"), price("42.50"), 3, true, "lamps"))
+        products.create(Product("stool", "Stool", "CHR-0001", price("35.50"), price("20.00"), 0, true, "chairs"))
         tx.create(resource("customers"), mapOf(Resource.ID to text("cus-1"), "email" to text("ada@example.com"), "name" to text("Ada")))
     }
 }

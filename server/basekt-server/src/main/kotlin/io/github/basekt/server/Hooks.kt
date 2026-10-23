@@ -3,6 +3,7 @@ package io.github.basekt.server
 import io.github.basekt.data.DataSource
 import io.github.basekt.schema.FieldError
 import io.github.basekt.schema.FieldErrorCode
+import io.github.basekt.schema.Model
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 
@@ -114,6 +115,16 @@ public class HooksBuilder {
     private val afterUpdate = mutableMapOf<String, MutableList<suspend HookContext.(Updated) -> Unit>>()
     private val beforeDelete = mutableMapOf<String, MutableList<suspend HookContext.(Deletion) -> Verdict<Unit>>>()
     private val afterDelete = mutableMapOf<String, MutableList<suspend HookContext.(Record) -> Unit>>()
+    private val pending = mutableListOf<(List<Model<*>>) -> Unit>()
+
+    /**
+     * Registers a typed hook for the class [serializer] serializes once the schema's models are known, which may be
+     * after this call: [register] receives its model.
+     */
+    @PublishedApi
+    internal fun <T> typed(serializer: kotlinx.serialization.KSerializer<T>, register: HooksBuilder.(Model<T>) -> Unit) {
+        pending += { models -> register(modelOf(serializer, models)) }
+    }
 
     /** Runs [hook] on each record about to be created in [resource]; it returns the record to create, or a veto. */
     public fun beforeCreate(resource: String, hook: suspend HookContext.(record: Record) -> Verdict<Record>) {
@@ -145,8 +156,18 @@ public class HooksBuilder {
         afterDelete.getOrPut(resource) { mutableListOf() } += hook
     }
 
-    /** Returns the hooks declared so far. */
-    public fun build(): Hooks = Hooks(
+    /** Returns the hooks declared so far. Typed hooks that name a class need [build] with the schema's models. */
+    public fun build(): Hooks = build(emptyList())
+
+    /** Returns the hooks declared so far, resolving typed hooks declared by class against [models]. */
+    public fun build(models: List<Model<*>>): Hooks {
+        val resolving = pending.toList()
+        pending.clear()
+        resolving.forEach { it(models) }
+        return snapshot()
+    }
+
+    private fun snapshot(): Hooks = Hooks(
         beforeCreate.mapValues { it.value.toList() },
         afterCreate.mapValues { it.value.toList() },
         beforeUpdate.mapValues { it.value.toList() },

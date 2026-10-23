@@ -2,6 +2,7 @@ package io.github.basekt.server
 
 import io.github.basekt.data.DataSource
 import io.github.basekt.schema.FieldValidator
+import io.github.basekt.schema.Model
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.SchemaBuilder
 import io.github.basekt.schema.missingValidators
@@ -15,7 +16,6 @@ import io.ktor.server.application.hooks.MonitoringEvent
 import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
-import io.github.basekt.schema.schema as buildSchema
 
 /**
  * The configuration of [BaseKt]. Settings can come from the `basekt` section of the application's configuration:
@@ -59,11 +59,19 @@ public class BaseKtConfig internal constructor(config: ApplicationConfig) {
         hookBuilder.apply(block)
     }
 
-    internal fun builtHooks(): Hooks = hookBuilder.build()
+    internal fun builtHooks(): Hooks = hookBuilder.build(models.toList())
 
-    /** Declares the schema with the schema DSL. */
+    /**
+     * The typed resources of the schema, which repositories and typed hooks find by class. [resources] fills it;
+     * add models here yourself when you set [schema] directly.
+     */
+    public val models: MutableList<Model<*>> = mutableListOf()
+
+    /** Declares the schema with the schema DSL, typed resources included. */
     public fun resources(block: SchemaBuilder.() -> Unit) {
-        schema = buildSchema(block)
+        val builder = SchemaBuilder().apply(block)
+        schema = builder.build()
+        models += builder.models
     }
 
     /** Registers [validator] for custom rules named [name]. */
@@ -84,6 +92,8 @@ public class BaseKtRuntime internal constructor(
     public val identities: IdentityResolver,
     /** The path the routes are mounted under. */
     public val basePath: String,
+    /** The typed resources, which [repository] finds by class. */
+    public val models: List<Model<*>>,
 )
 
 private val RuntimeKey = AttributeKey<BaseKtRuntime>("BaseKtRuntime")
@@ -124,7 +134,8 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     }
     val basePath = "/" + pluginConfig.basePath.trim('/')
 
-    val runtime = BaseKtRuntime(schema, dataSource, ResourceService(schema, dataSource, validators, pluginConfig.builtHooks()), pluginConfig.identities, basePath)
+    val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks())
+    val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList())
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }
 
