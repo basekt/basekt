@@ -15,7 +15,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "basekt"
 
-// v0.1.0. Later modules (realtime, storage, client, admin-ui, audit, more data adapters) are in README.md's roadmap.
+// Later modules (realtime, storage, client, audit, more data adapters) are in README.md's roadmap.
 include(
     ":core:basekt-schema",
     ":server:basekt-server",
@@ -24,6 +24,7 @@ include(
     ":server:basekt-data-exposed",
     ":server:basekt-auth",
     ":admin:basekt-admin-api",
+    ":admin:basekt-admin-ui",
     ":testing:basekt-testing",
     ":samples:sample-shop",
 )

@@ -164,7 +164,8 @@ The latest `main` is published as `0.2.0-SNAPSHOT` to Maven Central's snapshots 
 
 ## Building
 
-JDK 17 or later.
+JDK 17 or later, and Node 22 or later for the admin panel's web build. Node is only needed to build BaseKt: the
+panel ships prebuilt in `basekt-admin-ui`'s jar.
 
 ```bash
 ./gradlew build

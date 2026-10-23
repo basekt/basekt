@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- For `npm run dev` only. In the jar, the Ktor plugin renders the shell page itself. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BaseKt admin (dev)</title>
+    <link rel="stylesheet" href="/admin/theme.css" />
+    <script id="basekt-admin-config" type="application/json">
+      {"path": "/admin", "apiPath": "/admin/api", "brand": {"name": "BaseKt", "logo": null}, "defaultMode": "system"}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
