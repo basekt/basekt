@@ -1,6 +1,7 @@
 package io.github.basekt.data.memory
 
 import io.github.basekt.data.Comparison
+import io.github.basekt.data.Counting
 import io.github.basekt.data.CursorCodec
 import io.github.basekt.data.CursorKey
 import io.github.basekt.data.DataSource
@@ -22,13 +23,13 @@ import java.util.UUID
  * A [DataSource] that keeps records in memory, for tests, samples and prototypes. Nothing survives the instance.
  *
  * Operations run one at a time, and a transaction holds the source until it ends. Writes in a transaction go to a
- * private copy of each table they touch, so a rollback is just dropping it.
+ * private copy of each table they touch, so a rollback is just dropping it. It also implements [Counting].
  *
  * @param newId generates ids for records created without one. Random UUIDs by default.
  */
 public class InMemoryDataSource(
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : DataSource {
+) : DataSource, Counting {
     private val mutex = Mutex()
     private var tables: Map<String, Map<String, Record>> = emptyMap()
 
@@ -38,6 +39,11 @@ public class InMemoryDataSource(
         read { it.getMany(resource, ids) }
 
     override suspend fun list(resource: Resource, query: Query): Page = read { it.list(resource, query) }
+
+    override suspend fun count(resource: Resource, filter: Filter?): Long = read { session ->
+        resource.checkQuery(Query(filter))
+        session.records(resource).count { record -> filter?.let { record.matches(it) } ?: true }.toLong()
+    }
 
     override suspend fun create(resource: Resource, record: Record): Record = write { it.create(resource, record) }
 
@@ -65,6 +71,8 @@ public class InMemoryDataSource(
 
         private fun table(resource: Resource): Map<String, Record> =
             written[resource.name] ?: base[resource.name].orEmpty()
+
+        fun records(resource: Resource): Collection<Record> = table(resource).values
 
         private fun writable(resource: Resource): LinkedHashMap<String, Record> =
             written.getOrPut(resource.name) { LinkedHashMap(base[resource.name].orEmpty()) }

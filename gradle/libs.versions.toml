@@ -5,6 +5,7 @@ kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.11.0"
 exposed = "1.5.1"
 h2 = "2.3.232"
+postgresql = "42.7.14"
 logback = "1.5.18"
 
 [libraries]
@@ -29,4 +30,5 @@ ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx
 exposed-core = { module = "org.jetbrains.exposed:exposed-core", version.ref = "exposed" }
 exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "exposed" }
 h2 = { module = "com.h2database:h2", version.ref = "h2" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
