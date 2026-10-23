@@ -45,6 +45,12 @@ public enum class ErrorCode(
     /** The record's id is already taken. */
     @SerialName("conflict") CONFLICT(409),
 
+    /** An upload is bigger than its limit. */
+    @SerialName("payload_too_large") PAYLOAD_TOO_LARGE(413),
+
+    /** An upload's content isn't a type its destination accepts. */
+    @SerialName("unsupported_type") UNSUPPORTED_TYPE(415),
+
     /** At least one field was rejected; see [ApiError.fields]. */
     @SerialName("validation_failed") VALIDATION_FAILED(422),
 
