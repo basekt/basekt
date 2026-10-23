@@ -9,6 +9,7 @@ import io.github.basekt.schema.Field
 import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Operation
 import io.github.basekt.schema.Relation
+import io.github.basekt.schema.Report
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.encodeRecord
 import io.github.basekt.schema.toJson
@@ -165,6 +166,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
             searchable = resource.searchable(),
             sortable = listOf(Resource.ID) + resource.visibleFields().map { it.name },
             group = resource.group,
+            reports = if (Operation.READ in operations) resource.reports.map { it.toAdmin() } else emptyList(),
             actions = actions.map { action ->
                 val transition = resource.transition(action.name)
                 AdminAction(
@@ -176,6 +178,14 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
     }
     return AdminSchema(caller = caller?.let { AdminCaller(it.id, it.roles.sorted()) }, resources = resources)
 }
+
+private fun Report.toAdmin(): AdminReport = AdminReport(
+    name, chart, groupBy, function, field,
+    measure = function.name.lowercase() + (field?.let { "_$it" } ?: ""),
+    order = orderOrDefault,
+    limit = limit,
+    bucket = bucket,
+)
 
 private fun Field.toAdmin(scopedValues: Set<String>?): AdminField =
     AdminField(name, type, required, values, target, rules, bucket, scopedValues?.sorted(), auto, list)

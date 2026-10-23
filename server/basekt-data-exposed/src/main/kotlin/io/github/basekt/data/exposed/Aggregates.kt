@@ -5,22 +5,30 @@ import io.github.basekt.data.AggregateGroup
 import io.github.basekt.data.AggregatePage
 import io.github.basekt.data.AggregateQuery
 import io.github.basekt.data.Direction
+import io.github.basekt.data.InvalidQueryException
 import io.github.basekt.data.Measure
 import io.github.basekt.data.averageOf
 import io.github.basekt.data.fieldType
 import io.github.basekt.schema.FieldType
+import io.github.basekt.schema.TimeBucket
 import io.github.basekt.schema.Value
 import org.jetbrains.exposed.v1.core.Count
 import org.jetbrains.exposed.v1.core.DecimalColumnType
 import org.jetbrains.exposed.v1.core.Expression
+import org.jetbrains.exposed.v1.core.ExpressionWithColumnType
 import org.jetbrains.exposed.v1.core.IColumnType
 import org.jetbrains.exposed.v1.core.Max
 import org.jetbrains.exposed.v1.core.Min
+import org.jetbrains.exposed.v1.core.QueryBuilder
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.Sum
+import org.jetbrains.exposed.v1.core.vendors.H2Dialect
+import org.jetbrains.exposed.v1.core.vendors.PostgreSQLDialect
+import org.jetbrains.exposed.v1.core.vendors.currentDialect
 import org.jetbrains.exposed.v1.jdbc.select
 import java.math.BigDecimal
+import kotlin.time.Instant
 
 /** A sum wide enough for any int, long or decimal column, read back as a [BigDecimal]. */
 private val WideSum = DecimalColumnType(65, 30)
@@ -28,11 +36,14 @@ private val WideSum = DecimalColumnType(65, 30)
 /**
  * Runs [query] on [table] as one `SELECT … GROUP BY`. An average is selected as its sum and count and divided here, so
  * every database gives the same exact value. Sorting by an average happens here too, after fetching every group.
+ * Time buckets are computed by the database, on H2 and Postgres.
  */
 @Suppress("UNCHECKED_CAST")
 internal fun aggregate(table: ResourceTable, query: AggregateQuery): AggregatePage {
     val resource = table.resource
-    val groupColumns = query.groupBy.map { table.column(it) }
+    val groupColumns: List<Expression<*>> = query.groupBy.map { field ->
+        query.buckets[field]?.let { BucketStart(table.column(field), it) } ?: table.column(field)
+    }
     val parts = query.measures.associateWith { measure ->
         val column = measure.field?.let { table.column(it) }
         when (measure.function) {
@@ -48,7 +59,7 @@ internal fun aggregate(table: ResourceTable, query: AggregateQuery): AggregatePa
         if (!sortsByAverage) {
             for (key in query.sort) {
                 val expression = query.measures.firstOrNull { it.name == key.field }?.let { parts.getValue(it).first() }
-                    ?: table.column(key.field)
+                    ?: groupColumns[query.groupBy.indexOf(key.field)]
                 add(expression to key.direction.order())
             }
         }
@@ -62,13 +73,36 @@ internal fun aggregate(table: ResourceTable, query: AggregateQuery): AggregatePa
     var groups = select.map { row ->
         AggregateGroup(
             key = query.groupBy.zip(groupColumns).associate { (field, column) ->
-                field to row[column]?.let { fromColumn(resource.fieldType(field), it) }
+                field to row[column as Expression<Any?>]?.let { fromColumn(resource.fieldType(field), it) }
             },
             values = query.measures.associate { measure -> measure.name to value(row, measure, parts.getValue(measure), resource.fieldType(measure.field)) },
         )
     }
     if (sortsByAverage) groups = groups.sortedWith(averageOrder(query))
     return AggregatePage(groups.take(query.limit), groups.size > query.limit)
+}
+
+/** The start of the [bucket] that holds [column]'s instant, in UTC, as [io.github.basekt.data.startOf] defines it. */
+private class BucketStart(private val column: Expression<*>, private val bucket: TimeBucket) : ExpressionWithColumnType<Instant>() {
+    override val columnType: InstantColumnType = InstantColumnType()
+
+    override fun toQueryBuilder(queryBuilder: QueryBuilder) {
+        when (currentDialect) {
+            // Stored values are in UTC, so H2 truncates them in UTC. ISO_WEEK starts on Monday.
+            is H2Dialect -> queryBuilder {
+                append("DATE_TRUNC(" + (if (bucket == TimeBucket.WEEK) "ISO_WEEK" else bucket.name) + ", ")
+                append(column)
+                append(")")
+            }
+            // date_trunc's weeks start on Monday too; the time zone makes it truncate in UTC whatever the session's.
+            is PostgreSQLDialect -> queryBuilder {
+                append("(date_trunc('" + bucket.name.lowercase() + "', ")
+                append(column)
+                append(" AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')")
+            }
+            else -> throw InvalidQueryException("This database can't group by time buckets: use H2 or Postgres.")
+        }
+    }
 }
 
 private fun io.github.basekt.schema.Resource.fieldType(field: String?): FieldType? = field?.let { fieldType(it) }

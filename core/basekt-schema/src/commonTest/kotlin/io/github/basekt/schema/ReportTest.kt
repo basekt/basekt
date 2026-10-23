@@ -1,0 +1,81 @@
+package io.github.basekt.schema
+
+import kotlinx.serialization.Serializable
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+
+@Serializable
+private data class Hive(val id: String? = null, val apiary: String, val kilos: Long)
+
+class ReportTest {
+    private val greenhouse = schema {
+        resource("plants") {
+            enum("bed", listOf("north", "south"))
+            int("height")
+            report("plantsPerBed") { groupBy("bed") }
+            report("plants", Chart.NUMBER)
+            report("tallestPerBed", Chart.PIE) { groupBy("bed"); max("height"); limit(5) }
+        }
+    }
+
+    private val observatory = schema {
+        resource("sightings") {
+            long("night")
+            decimal("magnitude")
+            string("observer") { hidden() }
+            instant("seenAt")
+            report("brightnessByNight", Chart.LINE) { groupBy("night"); avg("magnitude") }
+            report("sightingsPerWeek", Chart.LINE) { groupBy("seenAt", TimeBucket.WEEK); limit(52) }
+        }
+    }
+
+    @Test
+    fun `reports are schema data with a usual order per chart`() {
+        val plants = greenhouse.resource("plants")!!.reports
+        assertEquals(listOf("plantsPerBed", "plants", "tallestPerBed"), plants.map { it.name })
+        assertEquals(Report("tallestPerBed", Chart.PIE, "bed", ReportFunction.MAX, "height", limit = 5), plants[2])
+        assertEquals(ReportOrder.VALUE_DESC, plants[0].orderOrDefault)
+        val (byNight, perWeek) = observatory.resource("sightings")!!.reports
+        assertEquals(ReportOrder.GROUP, byNight.orderOrDefault)
+        assertEquals(null, byNight.bucket)
+        assertEquals(Report("sightingsPerWeek", Chart.LINE, "seenAt", limit = 52, bucket = TimeBucket.WEEK), perWeek)
+        assertEquals(greenhouse, Schema.fromJson(greenhouse.toJson()))
+        assertEquals(observatory, Schema.fromJson(observatory.toJson()))
+    }
+
+    @Test
+    fun `a report must fit its resource`() {
+        fun problems(block: ReportBuilder.() -> Unit, chart: Chart = Chart.BAR): List<String> =
+            assertFailsWith<InvalidSchemaException> {
+                schema {
+                    resource("sightings") {
+                        long("night")
+                        string("observer") { hidden() }
+                        report("chart", chart, block)
+                    }
+                }
+            }.problems.map { it.message }
+
+        assertTrue(problems({}).single().contains("needs a field to group by"))
+        assertTrue(problems({ groupBy("night") }, Chart.NUMBER).single().contains("has no groups"))
+        assertTrue(problems({ groupBy("observer") }).single().contains("doesn't exist"))
+        assertTrue(problems({ groupBy("night"); sum("observer") }).single().contains("doesn't exist"))
+        assertTrue(problems({ groupBy("night"); max("night"); limit(0) }).single().contains("from 1 to"))
+        assertTrue(problems({ groupBy("night", TimeBucket.MONTH) }).single().contains("Only an instant field"))
+        assertFailsWith<InvalidSchemaException> {
+            schema { resource("sightings") { string("observer"); report("byObserver") { groupBy("observer"); sum("observer") } } }
+        }
+        assertFailsWith<InvalidSchemaException> {
+            schema { resource("sightings") { long("night"); report("n", Chart.NUMBER); report("n", Chart.NUMBER) } }
+        }
+    }
+
+    @Test
+    fun `a typed model declares reports too`() {
+        val hives = model<Hive>("hives") { report("honeyPerApiary") { groupBy("apiary"); sum("kilos") } }
+        assertEquals(Report("honeyPerApiary", Chart.BAR, "apiary", ReportFunction.SUM, "kilos"), hives.resource.reports.single())
+        assertFailsWith<InvalidSchemaException> { schema { resource<Hive>("hives") { report("honey") { groupBy("apiary"); sum("apiary") } } } }
+    }
+}

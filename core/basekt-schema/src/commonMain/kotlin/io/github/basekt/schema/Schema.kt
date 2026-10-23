@@ -58,6 +58,8 @@ public data class Resource(
     val workflow: Workflow? = null,
     /** The heading an admin panel lists this resource under, or `null` for the top of the menu. */
     val group: String? = null,
+    /** The charts an admin panel shows of its records. See [Report]. */
+    val reports: List<Report> = emptyList(),
 ) {
     /** Returns the field called [name], or `null` if there isn't one. */
     public fun field(name: String): Field? = fields.firstOrNull { it.name == name }

@@ -53,6 +53,8 @@ internal object SchemaChecker {
             for (action in resource.actions) checkAction(schema, action, "$at.actions.${action.name}", ::problem)
             checkWorkflow(schema, resource, "$at.workflow", ::problem)
             if (resource.group != null && resource.group.isBlank()) problem("$at.group", "A menu group can't be blank.")
+            duplicates(resource.reports.map { it.name }).forEach { problem("$at.reports.$it", "Report '$it' is declared twice.") }
+            for (report in resource.reports) checkReport(resource, report, "$at.reports.${report.name}", ::problem)
             for (field in resource.fields) (field.auto as? Auto.Inherited)?.let { checkInherited(schema, resource, field, it, "$at.fields.${field.name}", ::problem) }
             resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
         }
@@ -211,6 +213,31 @@ internal object SchemaChecker {
             if (field.auto != null) problem("$at.input.${field.name}", "An action's input is the caller's, so the server can't set it.")
             if (field.hidden) problem("$at.input.${field.name}", "An action's input comes from the caller, so it can't be hidden.")
         }
+    }
+
+    private fun checkReport(resource: Resource, report: Report, at: String, problem: (String, String) -> Unit) {
+        if (!namePattern.matches(report.name)) problem(at, "'${report.name}' is not a valid name: use letters, digits and '_', starting with a letter.")
+        // A report shows what the API serves, so it can't total a hidden field.
+        fun visible(name: String): Field? = resource.field(name)?.takeUnless { it.hidden }
+        when {
+            report.chart == Chart.NUMBER && report.groupBy != null -> problem(at, "A number has no groups, so it can't group by '${report.groupBy}'.")
+            report.chart != Chart.NUMBER && report.groupBy == null -> problem(at, "A ${report.chart.name.lowercase()} chart needs a field to group by.")
+            report.groupBy != null && visible(report.groupBy) == null -> problem(at, "The group field '${report.groupBy}' doesn't exist on '${resource.name}'.")
+            report.bucket != null && visible(report.groupBy.orEmpty())?.type != FieldType.INSTANT ->
+                problem(at, "Only an instant field can be grouped by ${report.bucket.name.lowercase()}, not '${report.groupBy}'.")
+        }
+        val field = report.field
+        if (field == null) {
+            if (report.function != ReportFunction.COUNT) problem(at, "${report.function.name.lowercase()} needs a field.")
+        } else {
+            val type = visible(field)?.type
+            when {
+                type == null -> problem(at, "The field '$field' doesn't exist on '${resource.name}'.")
+                report.function != ReportFunction.COUNT && type != FieldType.INT && type != FieldType.LONG && type != FieldType.DECIMAL ->
+                    problem(at, "A chart needs numbers, so ${report.function.name.lowercase()} needs an int, long or decimal field, not '$field'.")
+            }
+        }
+        if (report.limit !in 1..MAX_REPORT_GROUPS) problem(at, "A report shows from 1 to $MAX_REPORT_GROUPS groups, not ${report.limit}.")
     }
 
     private fun checkScope(resource: Resource, scope: Scope, at: String, problem: (String, String) -> Unit) {

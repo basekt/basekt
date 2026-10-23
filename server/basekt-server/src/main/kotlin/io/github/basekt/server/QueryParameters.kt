@@ -11,6 +11,7 @@ import io.github.basekt.data.Sort
 import io.github.basekt.data.fieldType
 import io.github.basekt.schema.Field
 import io.github.basekt.schema.Resource
+import io.github.basekt.schema.TimeBucket
 import io.github.basekt.schema.Value
 import io.github.basekt.schema.parse
 
@@ -55,7 +56,8 @@ public fun parseQuery(
 
 /**
  * Turns URL query parameters into an [AggregateQuery] for [resource]:
- * - `groupBy=kind,siteId` groups by those fields;
+ * - `groupBy=kind,siteId` groups by those fields, and `groupBy=placedAt:month` an instant field by `day`, `week`,
+ *   `month` or `year`, in UTC;
  * - `count` or `count=*` counts records, and `count=field` the records with the field set: `count=*,field` asks
  *   for both;
  * - `sum=`, `avg=`, `min=` and `max=` take one or more fields, comma-separated, each a measure named
@@ -70,6 +72,7 @@ public fun parseAggregateQuery(resource: Resource, parameters: Map<String, List<
     val filters = mutableListOf<Filter>()
     val measures = mutableListOf<Measure>()
     var groupBy = emptyList<String>()
+    val buckets = mutableMapOf<String, TimeBucket>()
     var sort = emptyList<Sort>()
     var limit = maxLimit
     for ((name, values) in parameters) {
@@ -77,7 +80,15 @@ public fun parseAggregateQuery(resource: Resource, parameters: Map<String, List<
         val value = values.lastOrNull() ?: ""
         val function = AggregateFunction.entries.firstOrNull { it.name.lowercase() == name }
         when {
-            name == "groupBy" -> groupBy = value.split(',').filter { it.isNotBlank() }
+            name == "groupBy" -> groupBy = value.split(',').filter { it.isNotBlank() }.map { key ->
+                val field = key.substringBefore(':')
+                if (':' in key) {
+                    val bucket = key.substringAfter(':')
+                    buckets[field] = TimeBucket.entries.firstOrNull { it.name.lowercase() == bucket }
+                        ?: invalidQuery("'$bucket' is not a time bucket: use day, week, month or year.")
+                }
+                field
+            }
             name == "sort" -> sort = value.split(',').filter { it.isNotBlank() }.map { key ->
                 Sort(key.removePrefix("-"), if (key.startsWith('-')) Direction.DESC else Direction.ASC)
             }
@@ -102,7 +113,7 @@ public fun parseAggregateQuery(resource: Resource, parameters: Map<String, List<
         1 -> filters.single()
         else -> Filter.And(filters)
     }
-    return AggregateQuery(groupBy, measures, filter, sort, limit)
+    return AggregateQuery(groupBy, measures, filter, sort, limit, buckets)
 }
 
 /** The `count` of every record, as opposed to of a field. */

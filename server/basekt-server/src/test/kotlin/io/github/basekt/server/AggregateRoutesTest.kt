@@ -102,6 +102,18 @@ class AggregateRoutesTest {
     }
 
     @Test
+    fun `movements per week and per day make a time series`() = app(ledgerSchema) {
+        seedLedger()
+        // 2026-10-01 is a Thursday, so the 5th starts a new week.
+        val weeks = groups("/api/aggregate/movements?groupBy=at:week&sum=quantity", admin)
+        assertEquals(listOf("2026-09-28T00:00:00Z" to "21", "2026-10-05T00:00:00Z" to "-3"), weeks.map { it.key("at") to it.value("sum_quantity").jsonPrimitive.content })
+        val latestDays = groups("/api/aggregate/movements?groupBy=at:day&count&sort=-at&limit=2", staff("north"))
+        assertEquals(listOf("2026-10-05T00:00:00Z", "2026-10-03T00:00:00Z"), latestDays.map { it.key("at") })
+        val perSiteMonth = groups("/api/aggregate/movements?groupBy=siteId,at:month&count", admin)
+        assertEquals(listOf("north/2026-10-01T00:00:00Z", "south/2026-10-01T00:00:00Z"), perSiteMonth.map { "${it.key("siteId")}/${it.key("at")}" })
+    }
+
+    @Test
     fun `staff see the totals of their own sites only`() = app(ledgerSchema) {
         seedLedger()
         val south = groups("/api/aggregate/movements?groupBy=siteId&sum=quantity", staff("south"))
@@ -141,7 +153,7 @@ class AggregateRoutesTest {
     fun `bad queries, missing access and sources that can't aggregate get typed errors`() {
         app(fitnessSchema) {
             val member: HttpRequestBuilder.() -> Unit = { caller("m", listOf("member")) }
-            for (query in listOf("sum=member", "count=colour", "count&sort=minutes", "", "count&limit=51", "count&minutes=many", "sum=")) {
+            for (query in listOf("sum=member", "count=colour", "count&sort=minutes", "", "count&limit=51", "count&minutes=many", "sum=", "groupBy=kind:month&count", "groupBy=minutes:fortnight&count")) {
                 val response = client.get("/api/aggregate/workouts?$query") { member() }
                 assertEquals(HttpStatusCode.BadRequest, response.status, query)
                 assertEquals("invalid_query", response.json()["error"]!!.jsonPrimitive.content, query)

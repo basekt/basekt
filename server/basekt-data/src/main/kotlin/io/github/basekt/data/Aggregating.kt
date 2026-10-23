@@ -3,9 +3,17 @@ package io.github.basekt.data
 import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
+import io.github.basekt.schema.TimeBucket
 import io.github.basekt.schema.Value
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.DayOfWeek
+import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
+import kotlin.time.Instant
+import kotlin.time.toJavaInstant
+import kotlin.time.toKotlinInstant
 
 /**
  * An optional [DataSource] capability: grouped totals, such as stock per item and site or sales per day, computed by
@@ -19,6 +27,8 @@ import java.math.RoundingMode
  * - [AggregateFunction.MIN] and [AggregateFunction.MAX] work on numbers, text and instants, and keep the field's type.
  * - Records whose group field is null form a group of their own, which sorts after the others when ascending.
  * - Groups come in [AggregateQuery.sort] order, then by every group field ascending, so the order is total.
+ * - A group field with a [TimeBucket] in [AggregateQuery.buckets] groups by the bucket's start, as [startOf] gives,
+ *   and its key is that instant.
  */
 public interface Aggregating {
     /**
@@ -40,6 +50,8 @@ public data class AggregateQuery(
     val sort: List<Sort> = emptyList(),
     /** The most groups to return, at least 1. */
     val limit: Int = 1000,
+    /** The span of time that some of the instant [groupBy] fields are grouped into, by field. */
+    val buckets: Map<String, TimeBucket> = emptyMap(),
 ) {
     init {
         require(measures.isNotEmpty()) { "An aggregate needs at least one measure." }
@@ -100,6 +112,12 @@ public fun Resource.checkAggregate(query: AggregateQuery) {
     checkQuery(Query(query.filter))
     for (field in query.groupBy) fieldType(field)
     if (query.groupBy.size != query.groupBy.toSet().size) throw InvalidQueryException("A field can't be grouped by twice.")
+    for ((field, bucket) in query.buckets) {
+        if (field !in query.groupBy) throw InvalidQueryException("'$field' has a time bucket but isn't grouped by.")
+        if (fieldType(field) != FieldType.INSTANT) {
+            throw InvalidQueryException("Only an instant field can be grouped by ${bucket.name.lowercase()}, not '$field'.")
+        }
+    }
     for (measure in query.measures) {
         val field = measure.field
         if (field == null) {
@@ -135,6 +153,18 @@ public fun averageOf(sum: Value?, count: Long): Value? {
     }
     val mean = total.divide(BigDecimal.valueOf(count), AVERAGE_SCALE, RoundingMode.HALF_EVEN).stripTrailingZeros()
     return Value.Decimal.of(mean.toPlainString())
+}
+
+/** The first instant of the [bucket] that holds [instant], in UTC. Every adapter keys bucketed groups by it. */
+public fun startOf(bucket: TimeBucket, instant: Instant): Instant {
+    val day = instant.toJavaInstant().atOffset(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS)
+    val start = when (bucket) {
+        TimeBucket.DAY -> day
+        TimeBucket.WEEK -> day.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        TimeBucket.MONTH -> day.withDayOfMonth(1)
+        TimeBucket.YEAR -> day.withDayOfYear(1)
+    }
+    return start.toInstant().toKotlinInstant()
 }
 
 /** The decimal places of [averageOf]. */
