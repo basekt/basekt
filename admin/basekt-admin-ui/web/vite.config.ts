@@ -11,9 +11,13 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 //
 // The wire types come straight from basekt-admin-api's generated file: a change to the admin API's JSON that the
 // panel doesn't handle fails this build, not the panel at runtime.
-export default defineConfig({
+// `npm run dev` serves the panel at /admin/ and sends the API and theme to a server running the plugin, such as the
+// sample shop: http://localhost:8080 unless BASEKT_SERVER says otherwise.
+const server = process.env.BASEKT_SERVER ?? "http://localhost:8080"
+
+export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
-  base: "./",
+  base: command === "build" ? "./" : "/admin/",
   resolve: {
     alias: {
       "@wire": here("../../basekt-admin-api/typescript/basekt-admin-api.ts"),
@@ -25,12 +29,11 @@ export default defineConfig({
     rollupOptions: { input: here("./src/main.tsx") },
   },
   server: {
-    // `npm run dev` against a server running on 8080 (such as the sample shop) with the panel at /admin.
-    proxy: { "/admin": "http://localhost:8080" },
+    proxy: { "/admin/api": server, "/admin/theme.css": server },
   },
   test: {
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
   },
-})
+}))

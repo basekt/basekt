@@ -1,11 +1,12 @@
 <!doctype html>
-<!-- For `npm run dev` only. In the jar, the Ktor plugin renders the shell page itself. -->
+<!-- For `npm run dev` only, at /admin/. In the jar, the Ktor plugin renders the shell page itself. -->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BaseKt admin (dev)</title>
-    <link rel="stylesheet" href="/admin/theme.css" />
+    <!-- Vite puts its base, /admin/, in front: this loads /admin/theme.css from the server. -->
+    <link rel="stylesheet" href="/theme.css" />
     <script id="basekt-admin-config" type="application/json">
       {"path": "/admin", "apiPath": "/admin/api", "brand": {"name": "BaseKt", "logo": null}, "defaultMode": "system"}
     </script>
