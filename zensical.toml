@@ -1,0 +1,62 @@
+[project]
+site_name = "BaseKt"
+site_description = "A modular backend and admin toolkit for Ktor."
+site_url = "https://basekt.github.io/basekt/"
+repo_url = "https://github.com/basekt/basekt"
+repo_name = "basekt/basekt"
+edit_uri = "edit/main/docs/"
+copyright = "Apache-2.0"
+nav = [
+  { "Home" = "index.md" },
+  { "Getting started" = "getting-started.md" },
+  { "Guide" = [
+    { "Schema and the REST API" = "schema.md" },
+    { "Permissions and record scopes" = "permissions.md" },
+    { "Hooks" = "hooks.md" },
+    { "Automatic fields" = "automatic-fields.md" },
+    { "Concurrent writes" = "concurrent-writes.md" },
+    { "Actions and workflows" = "actions-workflows.md" },
+    { "Aggregates and reports" = "aggregates-reports.md" },
+    { "Audit" = "audit.md" },
+    { "Files and storage" = "files.md" },
+  ] },
+  { "Admin" = [
+    { "Admin API" = "admin-api.md" },
+    { "Admin panel and themes" = "admin-panel.md" },
+  ] },
+  { "Adapters" = "adapters.md" },
+  { "Modules" = "modules.md" },
+  { "Building and releasing" = "building.md" },
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.action.edit",
+  "content.code.copy",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
