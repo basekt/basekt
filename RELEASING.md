@@ -39,8 +39,8 @@ These are done once by an owner of the `basekt` GitHub organization.
 |---|---|---|
 | 1. Namespace | [central.sonatype.com](https://central.sonatype.com) → Namespaces | Register `io.github.basekt`. Verify it by creating a public repository in the `basekt` org named with the verification key Central shows, then delete that repository once the namespace says *Verified*. |
 | 2. Publishing token | central.sonatype.com → Account → Generate User Token | Store its username and password as repository secrets `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`. |
-| 3. Signing key | your machine | `gpg --quick-gen-key "BaseKt Releases <...>" rsa4096 sign 0`, then publish the public key: `gpg --keyserver keyserver.ubuntu.com --send-keys <KEY_ID>`. Central checks signatures against public keyservers. |
-| 4. Signing secrets | GitHub → basekt/basekt → Settings → Secrets → Actions | `SIGNING_KEY`: the output of `gpg --armor --export-secret-keys <KEY_ID>`. `SIGNING_KEY_PASSWORD`: its passphrase, or leave it unset if the key has none. |
+| 3. Signing key | your machine (skip if you already have one, such as the key another project signs its releases with) | `gpg --quick-gen-key "BaseKt Releases <...>" rsa4096 sign 0`, then publish the public key: `gpg --keyserver keyserver.ubuntu.com --send-keys <KEY_ID>`. Central checks signatures against public keyservers. |
+| 4. Signing secrets | GitHub → basekt/basekt → Settings → Secrets → Actions | `GPG_SIGNING_KEY`: the output of `gpg --armor --export-secret-keys <KEY_ID>`. `GPG_SIGNING_PASSWORD`: its passphrase, or leave it unset if the key has none. These are the same names awakekt/awake uses, so the same key can be added to both. |
 
-The workflow checks for `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD` and `SIGNING_KEY` before it builds, and
+The workflow checks for `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD` and `GPG_SIGNING_KEY` before it builds, and
 fails with the names of any that are missing.

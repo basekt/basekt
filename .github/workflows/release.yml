@@ -33,13 +33,13 @@ jobs:
         env:
           USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
         run: |
           missing=()
           [[ -n $USERNAME ]] || missing+=(MAVEN_CENTRAL_USERNAME)
           [[ -n $PASSWORD ]] || missing+=(MAVEN_CENTRAL_PASSWORD)
           # Maven Central rejects unsigned artifacts, so a release without a key fails here, not after the upload.
-          [[ -n $SIGNING_KEY ]] || missing+=(SIGNING_KEY)
+          [[ -n $SIGNING_KEY ]] || missing+=(GPG_SIGNING_KEY)
           if (( ${#missing[@]} )); then echo "::error::Missing repository secrets: ${missing[*]} (see RELEASING.md)"; exit 1; fi
 
       - uses: actions/setup-java@v4
@@ -56,8 +56,8 @@ jobs:
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_SIGNING_PASSWORD }}
         run: >
           ./gradlew publishAndReleaseToMavenCentral
           -Pbasekt.version=${{ steps.version.outputs.version }}
