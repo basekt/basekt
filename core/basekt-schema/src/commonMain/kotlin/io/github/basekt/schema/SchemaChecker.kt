@@ -53,6 +53,7 @@ internal object SchemaChecker {
             for (action in resource.actions) checkAction(schema, action, "$at.actions.${action.name}", ::problem)
             checkWorkflow(schema, resource, "$at.workflow", ::problem)
             if (resource.group != null && resource.group.isBlank()) problem("$at.group", "A menu group can't be blank.")
+            for (field in resource.fields) (field.auto as? Auto.Inherited)?.let { checkInherited(schema, resource, field, it, "$at.fields.${field.name}", ::problem) }
             resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
         }
         return problems
@@ -89,6 +90,20 @@ internal object SchemaChecker {
         field.auto?.let { checkAuto(field, it, at, problem) }
     }
 
+    private fun checkInherited(schema: Schema, resource: Resource, field: Field, auto: Auto.Inherited, at: String, problem: (String, String) -> Unit) {
+        val via = resource.field(auto.via)
+        if (via == null || via.type != FieldType.REFERENCE) {
+            problem(at, "An inherited field needs a reference field to copy through, but '${auto.via}' isn't one.")
+            return
+        }
+        val parent = schema.resource(via.target.orEmpty())?.field(auto.field)
+        when {
+            parent == null -> problem(at, "'${via.target}' has no field '${auto.field}' to inherit.")
+            parent.type != field.type || parent.list != field.list -> problem(at, "'${via.target}.${auto.field}' has a different type than this field.")
+            parent.auto is Auto.Inherited -> Unit
+        }
+    }
+
     private fun checkAuto(field: Field, auto: Auto, at: String, problem: (String, String) -> Unit) {
         when (auto) {
             Auto.CreatedAt, Auto.UpdatedAt -> if (field.type != FieldType.INSTANT) {
@@ -101,6 +116,8 @@ internal object SchemaChecker {
             Auto.CreatedBy, Auto.UpdatedBy -> if (field.type != FieldType.STRING && field.type != FieldType.REFERENCE) {
                 problem(at, "A caller id needs a string or reference field.")
             }
+            // Checked against the resource and schema, with the other cross-field rules.
+            is Auto.Inherited -> Unit
             is Auto.Sequence -> {
                 if (field.type != FieldType.STRING && field.type != FieldType.INT && field.type != FieldType.LONG) {
                     problem(at, "A sequence needs a string, int or long field.")

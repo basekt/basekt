@@ -290,6 +290,12 @@ public class FieldBuilder internal constructor() {
     public fun updatedBy(): Unit = auto(Auto.UpdatedBy)
 
     /**
+     * The server copies [field] of the record that the reference field [via] points to into this field when the
+     * record is created. See [Auto.Inherited].
+     */
+    public fun inherit(via: String, field: String): Unit = auto(Auto.Inherited(via, field))
+
+    /**
      * The server counts the record's writes in the field, and refuses an update that sends a version other than the
      * current one. See [Auto.Version].
      */
