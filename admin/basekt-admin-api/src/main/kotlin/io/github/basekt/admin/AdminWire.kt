@@ -74,6 +74,10 @@ public data class AdminAction(
     val input: List<AdminField>,
     /** A question to ask before running it, or `null`. */
     val confirm: String?,
+    /** For a workflow's transition, the field that holds the record's state; `null` for other actions. */
+    val stateField: String? = null,
+    /** For a workflow's transition, the states it may start from; a panel offers it only on records in one of them. */
+    val from: List<String>? = null,
 )
 
 /** A field as an admin panel sees it. */

@@ -82,9 +82,15 @@ public class ResourceService(
         val declared = schema.resources.flatMap { r -> r.actions.map { r.name to it.name } }
         val missing = declared.filter { (r, a) -> actions.handler(r, a) == null }
         require(missing.isEmpty()) { "These actions have no code registered: ${missing.joinToString { "${it.first}.${it.second}" }}." }
-        val unknownActions = actions.handlers.flatMap { (r, named) -> named.keys.map { r to it } } - declared.toSet()
+        // A transition's code is optional: it guards the transition and acts beside it.
+        val runnable = schema.resources.flatMap { r -> r.runnableActions.map { r.name to it.name } }.toSet()
+        val unknownActions = actions.handlers.flatMap { (r, named) -> named.keys.map { r to it } } - runnable
         require(unknownActions.isEmpty()) {
             "Code is registered for actions the schema doesn't declare: ${unknownActions.joinToString { "${it.first}.${it.second}" }}."
+        }
+        val workflows = schema.resources.filter { it.workflow != null }.map { it.name }
+        require(workflows.isEmpty() || dataSource is ConditionalWrites) {
+            "The workflows of ${workflows.joinToString()} need a data source that offers ConditionalWrites."
         }
     }
 
@@ -185,13 +191,15 @@ public class ResourceService(
      * a record. The action's code runs in one transaction, and the extensions learn of its writes once it commits.
      */
     public suspend fun run(resource: Resource, name: String, caller: Identity?, id: String?, body: JsonObject): JsonObject? {
-        val action = resource.action(name)?.takeIf { (it.target == ActionTarget.RECORD) == (id != null) }
+        val transition = resource.transition(name)
+        val action = (resource.action(name) ?: transition?.asAction())?.takeIf { (it.target == ActionTarget.RECORD) == (id != null) }
             ?: throw ApiException(ErrorCode.NOT_FOUND, "'${resource.name}' has no ${if (id == null) "resource" else "record"} action '$name'.")
         if (!action.access.allows(caller?.roles)) {
             throw if (caller == null) ApiException(ErrorCode.UNAUTHORIZED, "Sign in to run '${resource.name}.$name'.")
             else ApiException(ErrorCode.FORBIDDEN, "Your roles don't allow you to run '${resource.name}.$name'.")
         }
-        val handler = checkNotNull(actions.handler(resource.name, name)) { "'${resource.name}.$name' has no code." }
+        val handler = actions.handler(resource.name, name)
+        check(handler != null || transition != null) { "'${resource.name}.$name' has no code." }
         val inputResource = action.inputResource
         val input = when (val result = inputResource.decodeRecord(body, WriteMode.CREATE, validators)) {
             is DecodeResult.Valid -> result.record
@@ -203,7 +211,17 @@ public class ResourceService(
         val answer = dataSource.transaction { tx ->
             val record = id?.let { writable(tx, resource, Operation.UPDATE, caller, it) }
             checkReferences(tx, inputResource, input)
-            val answer = ActionContext(resource, caller, record, input, tx, this, changes, origin).handler(input)
+            val state = transition?.let { checkState(resource, it, id!!, record!!) }
+            val context = ActionContext(resource, caller, record, input, tx, this, changes, origin)
+            val answer = handler?.let { context.it(input) }
+            if (transition != null) {
+                // Only if no other transition moved the record since it was read.
+                val field = resource.workflow!!.field
+                val (before, after) = updateIn(tx, resource, origin, id!!, mapOf(field to Value.Text(transition.to)), Filter.Compare(field, Comparison.EQ, state!!)) {
+                    tx.get(resource, id) ?: throw notFound(resource, id)
+                }
+                changes += Change.Updated(resource, before, after)
+            }
             for (extension in extensions) extension.ran(run, origin.context(tx))
             answer
         }
@@ -258,6 +276,7 @@ public class ResourceService(
         origin: Origin,
         id: String,
         input: Record,
+        condition: Filter? = null,
         load: suspend () -> Record,
     ): Pair<Record, Record> {
         val caller = origin.caller
@@ -276,10 +295,14 @@ public class ResourceService(
         if (changes != stamped) revalidate(resource, changes, WriteMode.UPDATE)
         checkReferences(tx, resource, changes)
         checkExtensions(tx, resource, changes)
-        val updated = if (version == null) {
-            tx.update(resource, id, changes) ?: throw notFound(resource, id)
-        } else {
-            versionedUpdate(tx, resource, id, version.name, expected, current, changes)
+        val updated = when {
+            version != null -> versionedUpdate(tx, resource, id, version.name, expected, current, changes, condition)
+            condition != null -> when (val result = (tx as ConditionalWrites).updateIf(resource, id, condition, changes)) {
+                is ConditionalUpdate.Updated -> result.record
+                ConditionalUpdate.NotFound -> throw notFound(resource, id)
+                ConditionalUpdate.ConditionFailed -> throw moved(resource, id)
+            }
+            else -> tx.update(resource, id, changes) ?: throw notFound(resource, id)
         }
         for (hook in hooks.afterUpdate[resource.name].orEmpty()) context.hook(Updated(current, updated))
         written(Change.Updated(resource, current, updated), origin, tx)
@@ -399,6 +422,7 @@ public class ResourceService(
                 Auto.CreatedBy -> callerId.takeIf { creating }
                 Auto.UpdatedBy -> callerId
                 Auto.Version -> Value.Integer(1).takeIf { creating }
+                Auto.State -> resource.workflow?.let { Value.Text(it.initial) }?.takeIf { creating }
                 is Auto.Sequence -> if (creating) {
                     val number = (tx as Sequencing).nextValue("${resource.name}.${field.name}", auto.start)
                     auto.valueOf(number, field.type)
@@ -422,20 +446,38 @@ public class ResourceService(
         expected: Value?,
         current: Record,
         changes: Record,
+        extra: Filter? = null,
     ): Record {
         val rest = changes - version
+        fun and(condition: Filter?): Filter? = listOfNotNull(condition, extra).let { if (it.size > 1) Filter.And(it) else it.firstOrNull() }
         val condition = expected?.let { Filter.Compare(version, Comparison.EQ, it) }
         val result = if (current[version] == null) {
-            (tx as ConditionalWrites).updateIf(resource, id, condition ?: Filter.IsNull(version), rest + (version to Value.Integer(1)))
+            (tx as ConditionalWrites).updateIf(resource, id, and(condition ?: Filter.IsNull(version)), rest + (version to Value.Integer(1)))
         } else {
-            (tx as ConditionalWrites).updateIf(resource, id, condition, rest, mapOf(version to Value.Integer(1)))
+            (tx as ConditionalWrites).updateIf(resource, id, and(condition), rest, mapOf(version to Value.Integer(1)))
         }
         return when (result) {
             is ConditionalUpdate.Updated -> result.record
             ConditionalUpdate.NotFound -> throw notFound(resource, id)
-            ConditionalUpdate.ConditionFailed -> throw stale(resource, id, tx.get(resource, id)?.get(version))
+            ConditionalUpdate.ConditionFailed -> throw if (extra != null) moved(resource, id) else stale(resource, id, tx.get(resource, id)?.get(version))
         }
     }
+
+    /** Returns the state of [record], and throws a conflict if [transition] can't start from it. */
+    private fun checkState(resource: Resource, transition: io.github.basekt.schema.Transition, id: String, record: Record): Value {
+        val state = record[resource.workflow!!.field]
+        val name = (state as? Value.Text)?.value
+        if (name == null || name !in transition.from) {
+            throw ApiException(
+                ErrorCode.CONFLICT,
+                "'${resource.name}/$id' is ${name ?: "in no state"}, so it can't '${transition.name}': that needs ${transition.from.joinToString(" or ")}.",
+            )
+        }
+        return state
+    }
+
+    private fun moved(resource: Resource, id: String) =
+        ApiException(ErrorCode.CONFLICT, "'${resource.name}/$id' changed while this ran. Reload it and try again.")
 
     private fun stale(resource: Resource, id: String, now: Value?) = ApiException(
         ErrorCode.CONFLICT,

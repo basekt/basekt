@@ -96,6 +96,7 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
     private val relations = mutableListOf<Relation>()
     private var permissions = Permissions()
     private val actions = mutableListOf<Action>()
+    private var workflow: Workflow? = null
 
     /**
      * Declares that this resource belongs to a [target] record: adds the reference field [field] (by default
@@ -132,7 +133,38 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
         actions += ActionBuilder(name, target).apply(block).build()
     }
 
-    internal fun build(): Resource = Resource(name, fields.toList(), relations.toList(), permissions, actions.toList())
+    /**
+     * Makes the enum [field], declared before, the state of a [Workflow] that starts in [initial] and changes only
+     * through the transitions [block] declares.
+     */
+    public fun workflow(field: String, initial: String, block: WorkflowBuilder.() -> Unit) {
+        workflow = WorkflowBuilder(field, initial).apply(block).build()
+    }
+
+    internal fun build(): Resource =
+        Resource(name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow)
+}
+
+/** Marks the field of [workflow] as its [Auto.State]. */
+internal fun withState(fields: List<Field>, workflow: Workflow?): List<Field> =
+    fields.map { if (workflow != null && it.name == workflow.field && it.auto == null) it.copy(auto = Auto.State) else it }
+
+/** Declares the transitions of a [Workflow]. */
+@SchemaDsl
+public class WorkflowBuilder internal constructor(private val field: String, private val initial: String) {
+    private val transitions = mutableListOf<Transition>()
+
+    /** Declares the transition [name] from [from] to [to]; [block] sets its input, who may run it and a confirmation. */
+    public fun transition(name: String, from: String, to: String, block: ActionBuilder.() -> Unit): Unit =
+        transition(name, listOf(from), to, block)
+
+    /** Declares the transition [name] from any of [from] to [to]. */
+    public fun transition(name: String, from: List<String>, to: String, block: ActionBuilder.() -> Unit) {
+        val action = ActionBuilder(name, ActionTarget.RECORD).apply(block).build()
+        transitions += Transition(name, from, to, action.access, action.input, action.confirm)
+    }
+
+    internal fun build(): Workflow = Workflow(field, initial, transitions.toList())
 }
 
 /** Declares an [Action]'s input, who may run it, and what to confirm first. */

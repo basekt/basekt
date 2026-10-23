@@ -246,6 +246,33 @@ so staff see only their own sites' totals. It needs a data source that offers `A
 Exposed adapters do (Exposed runs one `SELECT … GROUP BY`). Otherwise it's `501 not_implemented`. The admin API serves
 the same at `GET /admin/api/resources/{name}/aggregate`, with `search` too.
 
+**Workflows** make an enum field a state machine, for approvals and anything else that moves through statuses. The
+server sets the state: records start in the initial one, clients can't write it, and only named transitions change it:
+
+```kotlin
+resource("claims") {
+    decimal("amount") { required() }
+    string("owner") { createdBy() }
+    enum("status", listOf("draft", "pending", "approved", "rejected"))
+    workflow("status", initial = "draft") {
+        transition("submit", from = "draft", to = "pending") { allow(authenticated) }
+        transition("approve", from = "pending", to = "approved") { allow("manager"); input { string("note") } }
+        transition("reject", from = "pending", to = "rejected") { allow("manager") }
+    }
+}
+
+install(BaseKt) {
+    actions {   // optional: a transition's guard and side effects, in its transaction
+        on("claims", "approve") { if ((record!!["owner"] as Value.Text?)?.value == caller?.id) fail("Not your own claim."); null }
+    }
+}
+```
+
+A transition runs like a record action, at `POST /api/claims/{id}/actions/approve`. It checks the role and the
+caller's scope, then the record's state (`409` if the transition can't start from it), then runs the code, if any. The
+state then changes through the usual write steps (automatic fields, hooks, versions, audit), and only if no other
+transition moved the record in the meantime. The admin panel shows each record's valid transitions as buttons.
+
 **The admin API** is JSON only, for a panel to render itself from:
 
 | Route under `/admin/api` | What it does |
