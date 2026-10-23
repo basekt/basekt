@@ -179,6 +179,12 @@ public data class Field(
      * transition may be a list. [rules] and [values] apply to each item, and a required list needs at least one.
      */
     val list: Boolean = false,
+    /**
+     * Whether the field is kept from the API. No response, admin form, filter, sort or search shows it, a client can't
+     * write it, and the audit log redacts it. Trusted code, such as hooks and actions, reads and writes it, so it
+     * holds what callers must never see, such as a password hash. A hidden field can't be required.
+     */
+    val hidden: Boolean = false,
 )
 
 /**

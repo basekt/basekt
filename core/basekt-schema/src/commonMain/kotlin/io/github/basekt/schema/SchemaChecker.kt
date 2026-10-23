@@ -81,6 +81,7 @@ internal object SchemaChecker {
         if (field.type != FieldType.ENUM && field.values != null) problem(at, "Only an enum field has values.")
         if (field.type != FieldType.REFERENCE && field.target != null) problem(at, "Only a reference field has a target.")
         if (field.type != FieldType.FILE && field.bucket != null) problem(at, "Only a file field has a bucket.")
+        if (field.hidden && field.required) problem(at, "A hidden field can't be required: no client could fill it in.")
         if (field.unique && field.auto != null && field.auto !is Auto.Sequence) {
             problem(at, "Only a sequence can be an automatic unique field.")
         }
@@ -191,6 +192,7 @@ internal object SchemaChecker {
         for (field in action.input) {
             checkField(schema, field, "$at.input.${field.name}", problem, input = true)
             if (field.auto != null) problem("$at.input.${field.name}", "An action's input is the caller's, so the server can't set it.")
+            if (field.hidden) problem("$at.input.${field.name}", "An action's input comes from the caller, so it can't be hidden.")
         }
     }
 

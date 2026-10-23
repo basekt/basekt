@@ -140,7 +140,7 @@ private fun parseSort(resource: Resource, text: String): List<Sort> = text.split
 
 /** Returns [name]'s field, treating [Resource.ID] as a string field. */
 private fun field(resource: Resource, name: String): Field =
-    resource.field(name) ?: if (name == Resource.ID) Field(Resource.ID, resource.fieldType(name))
+    resource.field(name)?.takeUnless { it.hidden } ?: if (name == Resource.ID) Field(Resource.ID, resource.fieldType(name))
     else invalidQuery("'${resource.name}' has no field '$name'.")
 
 private fun invalidQuery(message: String): Nothing = throw ApiException(ErrorCode.INVALID_QUERY, message)
