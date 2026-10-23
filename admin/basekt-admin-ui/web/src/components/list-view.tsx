@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react"
+import { ActionButtons } from "@/components/action-button"
 import { BulkActions, BulkFailures, ExportButton } from "@/components/bulk-actions"
 import { FilePreview } from "@/forms/file-widget"
 import type { AdminField, AdminResource, BulkFailure, JsonObject } from "@wire"
@@ -70,6 +71,7 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">{humanize(resource.name)}</h1>
         <div className="flex items-center gap-2">
+          <ActionButtons resource={resource} target="resource" onDone={() => page.reload()} />
           <ExportButton resource={resource} params={params} />
           {can(resource, "create") && (
             <Button asChild>

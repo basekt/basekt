@@ -5,6 +5,7 @@ import io.github.basekt.data.Filter
 import io.github.basekt.data.InvalidQueryException
 import io.github.basekt.data.Page
 import io.github.basekt.data.Query
+import io.github.basekt.schema.Field
 import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Operation
 import io.github.basekt.schema.Relation
@@ -82,6 +83,16 @@ internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) 
                             call.respond(HttpStatusCode.NoContent)
                         }
                     }
+                    post("actions/{action}") {
+                        handle(runtime) { caller ->
+                            respondAnswer(service.run(resource(runtime), call.parameters["action"]!!, caller, id(), optionalBody()))
+                        }
+                    }
+                }
+            }
+            post("actions/{action}") {
+                handle(runtime) { caller ->
+                    respondAnswer(service.run(resource(runtime), call.parameters["action"]!!, caller, null, optionalBody()))
                 }
             }
             post("bulk-delete") {
@@ -119,13 +130,12 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
     val readable = runtime.schema.resources.filter { it.permissions.read.allows(roles) }.map { it.name }.toSet()
     val resources = runtime.schema.resources.mapNotNull { resource ->
         val operations = Operation.entries.filter { resource.permissions.of(it).allows(roles) }
-        if (operations.isEmpty()) return@mapNotNull null
+        val actions = resource.actions.filter { it.access.allows(roles) }
+        if (operations.isEmpty() && actions.isEmpty()) return@mapNotNull null
         val scoped = runtime.service.scopedValues(resource, Operation.CREATE, caller)
         AdminResource(
             name = resource.name,
-            fields = resource.fields.map {
-                AdminField(it.name, it.type, it.required, it.values, it.target, it.rules, it.bucket, scoped[it.name]?.sorted(), it.auto)
-            },
+            fields = resource.fields.map { it.toAdmin(scoped[it.name]) },
             relations = resource.relations.filter { it.target in readable }.map { relation ->
                 when (relation) {
                     is Relation.BelongsTo -> AdminRelation(relation.name, RelationKind.BELONGS_TO, relation.target, relation.field)
@@ -135,10 +145,14 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
             operations = operations,
             searchable = resource.searchable(),
             sortable = listOf(Resource.ID) + resource.fields.map { it.name },
+            actions = actions.map { action -> AdminAction(action.name, action.target, action.input.map { it.toAdmin(null) }, action.confirm) },
         )
     }
     return AdminSchema(caller = caller?.let { AdminCaller(it.id, it.roles.sorted()) }, resources = resources)
 }
+
+private fun Field.toAdmin(scopedValues: Set<String>?): AdminField =
+    AdminField(name, type, required, values, target, rules, bucket, scopedValues?.sorted(), auto)
 
 private fun Resource.searchable(): List<String> =
     fields.filter { it.type == FieldType.STRING || it.type == FieldType.ENUM }.map { it.name }
@@ -211,6 +225,19 @@ private suspend fun RoutingContext.handle(runtime: BaseKtRuntime, block: suspend
 private fun RoutingContext.resource(runtime: BaseKtRuntime): Resource = runtime.service.resource(call.parameters["resource"]!!)
 
 private fun RoutingContext.id(): String = call.parameters["id"]!!
+
+/** Reads the body as a JSON object, or an empty one when there is no body. */
+private suspend fun RoutingContext.optionalBody(): JsonObject {
+    val text = call.receiveText()
+    if (text.isBlank()) return JsonObject(emptyMap())
+    return runCatching { Json.parseToJsonElement(text) }.getOrNull() as? JsonObject
+        ?: throw ApiException(ErrorCode.BAD_REQUEST, "The request body must be a JSON object.")
+}
+
+/** Answers with an action's [answer], or no content. */
+private suspend fun RoutingContext.respondAnswer(answer: JsonObject?) {
+    if (answer == null) call.respond(HttpStatusCode.NoContent) else call.respondText(answer.toString(), ContentType.Application.Json)
+}
 
 private suspend fun RoutingContext.body(): JsonObject {
     val text = call.receiveText()

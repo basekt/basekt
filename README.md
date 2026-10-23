@@ -173,6 +173,40 @@ when ((data as ConditionalWrites).updateIf(pools, poolId, Filter.Compare("left",
 The in-memory and Exposed adapters offer it. The Exposed adapter does it as one `UPDATE … WHERE`, which the database
 checks again under the row's lock.
 
+**Actions** are named operations beyond create, update and delete, such as lending a copy or archiving everything
+that's done. The declaration is schema data, with an input checked like a record, who may run it, and whether it runs
+on one record or the whole resource. The code is registered at install:
+
+```kotlin
+resource("copies") {
+    int("available") { required(); min(0) }
+    action("lend") {
+        input { string("borrower") { required() } }
+        allow("librarian")
+        confirm("Lend a copy?")
+    }
+}
+
+install(BaseKt) {
+    actions {
+        on("copies", "lend") { input ->
+            val copy = (record!!["id"] as Value.Text).value
+            val anyLeft = Filter.Compare("available", Comparison.GTE, Value.Integer(1))
+            if ((data as ConditionalWrites).updateIf(copies, copy, anyLeft, increments = mapOf("available" to Value.Integer(-1)))
+                !is ConditionalUpdate.Updated) fail("None left.")
+            create(loans, mapOf("copyId" to Value.Text(copy), "borrower" to input["borrower"]))
+            null   // answer with the record as it is now
+        }
+    }
+}
+```
+
+The action is served at `POST /api/copies/{id}/actions/lend`, or `POST /api/{resource}/actions/{name}` for a
+resource action. Everything it writes is one transaction, and `fail` rolls it all back. `create`, `update` and
+`delete` in an action go through the same steps as the REST API (automatic fields, validation, hooks, versions), with
+the action's permission in place of the caller's. A record action needs the record in the caller's update scope. The
+admin API lists the actions each caller may run, and the panel shows them as buttons, with a form for their input.
+
 **The admin API** is JSON only, for a panel to render itself from:
 
 | Route under `/admin/api` | What it does |

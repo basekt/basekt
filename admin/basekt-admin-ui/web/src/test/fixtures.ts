@@ -17,6 +17,7 @@ export const books: AdminResource = {
   operations: ["read", "create", "update", "delete"],
   searchable: ["title"],
   sortable: ["id", "title", "pages", "fee", "lendable", "authorId"],
+  actions: [],
 }
 
 export const authors: AdminResource = {
@@ -26,6 +27,7 @@ export const authors: AdminResource = {
   operations: ["read", "create", "update", "delete"],
   searchable: ["name"],
   sortable: ["id", "name"],
+  actions: [],
 }
 
 export const librarySchema: AdminSchema = { version: 1, caller: { id: "librarian", roles: ["staff"] }, resources: [books, authors] }
@@ -43,6 +45,7 @@ export const tickets: AdminResource = {
   operations: ["read"],
   searchable: ["subject", "state"],
   sortable: ["id", "subject", "state", "openedAt", "views", "screenshot"],
+  actions: [],
 }
 
 export const helpDeskSchema: AdminSchema = { version: 1, caller: { id: "viewer", roles: ["observer"] }, resources: [tickets] }

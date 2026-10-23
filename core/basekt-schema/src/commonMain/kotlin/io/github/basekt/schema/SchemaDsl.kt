@@ -40,12 +40,10 @@ public class SchemaBuilder {
     public fun build(): Schema = Schema(resources.toList()).requireValid()
 }
 
-/** Declares the fields, relations and permissions of one resource. */
+/** Declares typed fields: a resource's, or an action's input. */
 @SchemaDsl
-public class ResourceBuilder internal constructor(private val name: String) {
-    private val fields = mutableListOf<Field>()
-    private val relations = mutableListOf<Relation>()
-    private var permissions = Permissions()
+public open class FieldsBuilder internal constructor() {
+    internal val fields: MutableList<Field> = mutableListOf()
 
     /** Declares a string field. */
     public fun string(name: String, block: FieldBuilder.() -> Unit = {}): Unit = field(name, FieldType.STRING, block)
@@ -80,6 +78,25 @@ public class ResourceBuilder internal constructor(private val name: String) {
     public fun file(name: String, bucket: String, block: FieldBuilder.() -> Unit = {}): Unit =
         field(name, FieldType.FILE, block, bucket = bucket)
 
+    private fun field(
+        name: String,
+        type: FieldType,
+        block: FieldBuilder.() -> Unit,
+        values: List<String>? = null,
+        target: String? = null,
+        bucket: String? = null,
+    ) {
+        fields += FieldBuilder().apply(block).build(name, type, values, target, bucket)
+    }
+}
+
+/** Declares the fields, relations, permissions and actions of one resource. */
+@SchemaDsl
+public class ResourceBuilder internal constructor(private val name: String) : FieldsBuilder() {
+    private val relations = mutableListOf<Relation>()
+    private var permissions = Permissions()
+    private val actions = mutableListOf<Action>()
+
     /**
      * Declares that this resource belongs to a [target] record: adds the reference field [field] (by default
      * `<name>Id`) and the relation [name].
@@ -110,18 +127,46 @@ public class ResourceBuilder internal constructor(private val name: String) {
         permissions = PermissionsBuilder(permissions).apply(block).build()
     }
 
-    private fun field(
-        name: String,
-        type: FieldType,
-        block: FieldBuilder.() -> Unit,
-        values: List<String>? = null,
-        target: String? = null,
-        bucket: String? = null,
-    ) {
-        fields += FieldBuilder().apply(block).build(name, type, values, target, bucket)
+    /** Declares the action [name] on [target]. Register the code that runs it with the server. See [Action]. */
+    public fun action(name: String, target: ActionTarget = ActionTarget.RECORD, block: ActionBuilder.() -> Unit) {
+        actions += ActionBuilder(name, target).apply(block).build()
     }
 
-    internal fun build(): Resource = Resource(name, fields.toList(), relations.toList(), permissions)
+    internal fun build(): Resource = Resource(name, fields.toList(), relations.toList(), permissions, actions.toList())
+}
+
+/** Declares an [Action]'s input, who may run it, and what to confirm first. */
+@SchemaDsl
+public class ActionBuilder internal constructor(private val name: String, private val target: ActionTarget) {
+    private var input = emptyList<Field>()
+    private var access: Access = Access.Nobody
+    private var confirm: String? = null
+
+    /** Anyone, including anonymous callers. */
+    public val everyone: Access get() = Access.Everyone
+
+    /** Any authenticated caller. */
+    public val authenticated: Access get() = Access.Authenticated
+
+    /** Declares the fields the caller sends, with the same functions as a resource's fields. */
+    public fun input(block: FieldsBuilder.() -> Unit) {
+        input = FieldsBuilder().apply(block).fields.toList()
+    }
+
+    /** Who may run the action. No one may until it is set. */
+    public fun allow(access: Access) {
+        this.access = access
+    }
+
+    /** Callers with any of [roles] may run the action. */
+    public fun allow(vararg roles: String): Unit = allow(Access.Roles(roles.toSet()))
+
+    /** A panel asks [question] before running the action. */
+    public fun confirm(question: String) {
+        confirm = question
+    }
+
+    internal fun build(): Action = Action(name, target, input, access, confirm)
 }
 
 /** Declares whether a field is required and its [Rule]s. */

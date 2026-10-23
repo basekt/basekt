@@ -2,6 +2,7 @@ import { useState } from "react"
 import { ChevronLeft, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import type { AdminResource, JsonObject } from "@wire"
+import { ActionButtons } from "@/components/action-button"
 import { ErrorState } from "@/components/error-state"
 import {
   AlertDialog,
@@ -37,7 +38,10 @@ export function RecordView({ resource, id }: { resource: AdminResource; id: stri
           <BackToList resource={resource} />
           <h1 className="text-2xl font-semibold tracking-tight">{id}</h1>
         </div>
-        {can(resource, "delete") && record.data && <DeleteButton resource={resource} id={id} />}
+        <div className="flex flex-wrap items-center gap-2">
+          {record.data && <ActionButtons resource={resource} target="record" id={id} onDone={record.reload} />}
+          {can(resource, "delete") && record.data && <DeleteButton resource={resource} id={id} />}
+        </div>
       </div>
       {record.error ? (
         <ErrorState error={record.error} onRetry={record.reload} />

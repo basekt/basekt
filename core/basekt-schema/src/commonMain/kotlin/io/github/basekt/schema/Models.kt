@@ -97,6 +97,7 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
     private val buckets = mutableMapOf<String, String>()
     private val relations = mutableListOf<Relation>()
     private var permissions = Permissions()
+    private val actions = mutableListOf<Action>()
 
     init {
         val id = (0 until descriptor.elementsCount).firstOrNull { descriptor.getElementName(it) == Resource.ID }
@@ -155,6 +156,11 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
         permissions = PermissionsBuilder(permissions).apply(block).build()
     }
 
+    /** Declares the action [name] on [target]. Register the code that runs it with the server. See [Action]. */
+    public fun action(name: String, target: ActionTarget = ActionTarget.RECORD, block: ActionBuilder.() -> Unit) {
+        actions += ActionBuilder(name, target).apply(block).build()
+    }
+
     /** Builds the model. */
     @PublishedApi
     internal fun build(): Model<T> {
@@ -171,7 +177,7 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
                 builder.build(property, types.getValue(property), values[property], null)
             }
         }
-        return Model(Resource(name, built, relations.toList(), permissions), serializer)
+        return Model(Resource(name, built, relations.toList(), permissions, actions.toList()), serializer)
     }
 
     private fun builder(property: String): FieldBuilder = fields[property]
