@@ -1,10 +1,12 @@
 package io.github.basekt.admin
 
 import io.github.basekt.schema.Chart
+import io.github.basekt.schema.ReportCompare
 import io.github.basekt.schema.ReportFilter
 import io.github.basekt.schema.ReportFunction
 import io.github.basekt.schema.ReportOperator
 import io.github.basekt.schema.ReportOrder
+import io.github.basekt.schema.ReportRange
 import io.github.basekt.schema.TimeBucket
 import io.github.basekt.schema.schema
 import io.ktor.client.request.get
@@ -36,6 +38,8 @@ private val stationSchema = schema {
         enum("quality", listOf("ok", "suspect"))
         report("temperatureByDay", Chart.LINE) {
             groupBy("takenAt", TimeBucket.DAY, timeZone = "Asia/Manila"); avg("celsius"); limit(7); where("quality", "ok")
+            range("takenAt", 7, TimeBucket.DAY)
+            compare(ReportCompare.PREVIOUS_YEAR)
         }
         permissions { read(everyone); create("sensor") }
     }
@@ -86,5 +90,8 @@ class AdminReportsTest {
         assertEquals(7, daily.limit)
         assertEquals("Asia/Manila", daily.timeZone)
         assertEquals(listOf(ReportFilter("quality", ReportOperator.EQ, listOf("ok"))), daily.filters)
+        assertEquals(ReportRange("takenAt", 7, TimeBucket.DAY), daily.range)
+        assertEquals(null, line.range)
+        assertEquals(ReportCompare.PREVIOUS_YEAR, daily.compare)
     }
 }
