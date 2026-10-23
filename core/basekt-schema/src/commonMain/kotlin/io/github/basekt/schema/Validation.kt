@@ -115,6 +115,10 @@ public fun Resource.decodeRecord(
             errors += FieldError(name, FieldErrorCode.UNKNOWN_FIELD, "'${this.name}' has no field '$name'.")
             continue
         }
+        if (field.hidden) {
+            errors += FieldError(name, FieldErrorCode.READ_ONLY, "'$name' can't be set through the API.")
+            continue
+        }
         // An update may name the version it last read; the server compares it instead of writing it.
         val expectedVersion = field.auto == Auto.Version && mode == WriteMode.UPDATE
         if (field.auto != null && !expectedVersion) {
@@ -167,7 +171,7 @@ public fun Resource.validateRecord(
 public fun Resource.encodeRecord(record: Record): JsonObject {
     val out = linkedMapOf<String, JsonElement>()
     record[Resource.ID]?.let { out[Resource.ID] = it.toJson() }
-    for (field in fields) if (field.name in record) out[field.name] = record[field.name]?.toJson() ?: JsonNull
+    for (field in fields) if (!field.hidden && field.name in record) out[field.name] = record[field.name]?.toJson() ?: JsonNull
     return JsonObject(out)
 }
 

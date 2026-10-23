@@ -83,7 +83,7 @@ internal class AuditRecorder(
 
     private fun value(resource: Resource, field: Field, value: Value?): JsonElement = when {
         value == null -> JsonNull
-        "${resource.name}.${field.name}" in redacted -> JsonPrimitive(REDACTED)
+        field.hidden || "${resource.name}.${field.name}" in redacted -> JsonPrimitive(REDACTED)
         else -> value.toJson()
     }
 }

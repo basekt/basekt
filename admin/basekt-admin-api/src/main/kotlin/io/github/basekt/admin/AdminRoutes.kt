@@ -154,7 +154,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
         val scoped = runtime.service.scopedValues(resource, Operation.CREATE, caller)
         AdminResource(
             name = resource.name,
-            fields = resource.fields.map { it.toAdmin(scoped[it.name]) },
+            fields = resource.visibleFields().map { it.toAdmin(scoped[it.name]) },
             relations = resource.relations.filter { it.target in readable }.map { relation ->
                 when (relation) {
                     is Relation.BelongsTo -> AdminRelation(relation.name, RelationKind.BELONGS_TO, relation.target, relation.field)
@@ -163,7 +163,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
             },
             operations = operations,
             searchable = resource.searchable(),
-            sortable = listOf(Resource.ID) + resource.fields.map { it.name },
+            sortable = listOf(Resource.ID) + resource.visibleFields().map { it.name },
             group = resource.group,
             actions = actions.map { action ->
                 val transition = resource.transition(action.name)
@@ -180,8 +180,11 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
 private fun Field.toAdmin(scopedValues: Set<String>?): AdminField =
     AdminField(name, type, required, values, target, rules, bucket, scopedValues?.sorted(), auto, list)
 
+/** The fields a panel may show: the ones that aren't [Field.hidden]. */
+private fun Resource.visibleFields(): List<Field> = fields.filterNot { it.hidden }
+
 private fun Resource.searchable(): List<String> =
-    fields.filter { it.type == FieldType.STRING || it.type == FieldType.ENUM }.map { it.name }
+    visibleFields().filter { it.type == FieldType.STRING || it.type == FieldType.ENUM }.map { it.name }
 
 /** Parses the list parameters: BaseKt's filters, sort, limit and cursor, plus `search` over the searchable fields. */
 private fun RoutingContext.query(resource: Resource, defaultLimit: Int, maxLimit: Int): Query {
