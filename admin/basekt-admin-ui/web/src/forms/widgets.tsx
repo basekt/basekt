@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react"
 import type { AdminField, FieldType, JsonValue } from "@wire"
+import { FileWidget } from "@/forms/file-widget"
 import { ReferencePicker } from "@/forms/reference-picker"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -31,6 +32,7 @@ export const widgets: Record<FieldType, Widget> = {
   instant: InstantWidget,
   enum: EnumWidget,
   reference: ReferenceWidget,
+  file: FileWidget,
 }
 
 /** The widget for a type this panel doesn't know: a text box, so the value can still be read and edited. */

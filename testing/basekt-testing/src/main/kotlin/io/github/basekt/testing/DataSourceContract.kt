@@ -87,6 +87,7 @@ public abstract class DataSourceContract {
             "at" to Value.Timestamp(Instant.parse("2026-03-04T05:06:07.123Z")),
             "kind" to text("b"),
             "groupId" to text(group.id()),
+            "attachment" to text("docs/3f1c2a/report-2026.pdf"),
         )
         val created = source.create(entries, values)
         assertEquals(values, source.get(entries, created.id())!! - Resource.ID)
@@ -408,6 +409,8 @@ public abstract class DataSourceContract {
         val kind: Kind? = null,
         /** The group's id. */
         val groupId: String? = null,
+        /** An attached file's key. */
+        val attachment: String? = null,
     )
 
     /** The kinds of an [Entry]. */
@@ -426,7 +429,10 @@ public abstract class DataSourceContract {
     /** The schema the contract runs on: every field type and both relation kinds. */
     public companion object {
         /** The `entries` resource of [contractSchema], declared as a typed model of [Entry]. */
-        public val typedEntries: Model<Entry> = model<Entry>("entries") { belongsTo(Entry::groupId, "groups") }
+        public val typedEntries: Model<Entry> = model<Entry>("entries") {
+            belongsTo(Entry::groupId, "groups")
+            file(Entry::attachment, "docs")
+        }
 
         /** Two resources that use every field type: `groups`, and `entries` that belong to a group. */
         public val contractSchema: Schema = schema {
@@ -443,6 +449,7 @@ public abstract class DataSourceContract {
                 instant("at")
                 enum("kind", listOf("a", "b", "c"))
                 belongsTo("group", "groups")
+                file("attachment", "docs")
             }
         }
     }

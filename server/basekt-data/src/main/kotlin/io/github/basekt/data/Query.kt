@@ -165,7 +165,7 @@ private fun Resource.checkFilter(filter: Filter) {
 private fun Resource.checkValue(field: String, value: Value) {
     val type = fieldType(field)
     val fits = when (type) {
-        FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE -> value is Value.Text
+        FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE, FieldType.FILE -> value is Value.Text
         FieldType.INT, FieldType.LONG -> value is Value.Integer
         FieldType.DECIMAL -> value is Value.Decimal
         FieldType.BOOL -> value is Value.Bool

@@ -53,6 +53,12 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
     /** Where `BaseKtAdmin`'s JSON API is mounted. `basekt.adminUi.apiPath`, `/admin/api` by default. */
     public var apiPath: String = config.propertyOrNull("apiPath")?.getString() ?: "/admin/api"
 
+    /**
+     * Where `BaseKtFiles` serves files, for file fields' uploads and previews. `basekt.adminUi.filesPath`, `/files` by
+     * default. Without `BaseKtFiles` installed, file fields can still show their keys.
+     */
+    public var filesPath: String = config.propertyOrNull("filesPath")?.getString() ?: "/files"
+
     /** The mode the panel starts in. `basekt.adminUi.defaultMode` (light, dark or system), system by default. */
     public var defaultMode: ThemeMode = config.propertyOrNull("defaultMode")?.getString()
         ?.let { value -> ThemeMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } }
@@ -103,6 +109,7 @@ public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplica
     val shell = ShellConfig(
         path = path,
         apiPath = apiPath,
+        filesPath = "/" + pluginConfig.filesPath.trim('/'),
         brand = ShellBrand(pluginConfig.brand.name, logo),
         defaultMode = pluginConfig.defaultMode,
     )

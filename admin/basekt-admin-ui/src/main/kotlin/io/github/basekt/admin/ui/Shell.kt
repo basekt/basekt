@@ -23,6 +23,7 @@ import kotlinx.serialization.json.Json
 internal data class ShellConfig(
     val path: String,
     val apiPath: String,
+    val filesPath: String,
     val brand: ShellBrand,
     val defaultMode: ThemeMode,
 )
