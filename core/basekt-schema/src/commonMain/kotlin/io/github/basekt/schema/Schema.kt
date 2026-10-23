@@ -167,6 +167,11 @@ public data class Field(
     val bucket: String? = null,
     /** What the server sets this field to on every write, or `null` for a field the client writes. See [Auto]. */
     val auto: Auto? = null,
+    /**
+     * Whether no two records may hold the same non-null value in this field. A write that would repeat one is refused
+     * with a [FieldErrorCode.UNIQUE] error. Null and unset values never clash.
+     */
+    val unique: Boolean = false,
 )
 
 /**
@@ -397,7 +402,31 @@ public data class Scope(
     val operations: Set<Operation> = Operation.entries.toSet(),
     /** The roles it doesn't apply to. */
     val unless: Set<String> = emptySet(),
+    /**
+     * Other ways into the same scope. A record is in the scope when it satisfies [field] and [match], or any one of
+     * these, such as a transfer that a caller reaches from either its source or its destination. Empty means [field]
+     * alone.
+     */
+    val orElse: List<ScopeClause> = emptyList(),
 ) {
+    /** Every way into the scope: the main [field] and [match], then [orElse]. */
+    public val clauses: List<ScopeClause>
+        get() = listOf(ScopeClause(this.field, match)) + orElse
+
+    /**
+     * Like [valuesFor], for every one of the [clauses]: the field and the values it may hold for the caller, in order,
+     * or `null` if this scope doesn't apply to them.
+     */
+    public fun clauseValuesFor(
+        operation: Operation,
+        id: String?,
+        roles: Set<String>,
+        attributes: Map<String, Set<String>>,
+    ): List<Pair<String, Set<String>>>? {
+        if (operation !in operations || roles.any { it in unless }) return null
+        return clauses.map { it.field to it.match.valuesOf(id, attributes) }
+    }
+
     /**
      * Returns the values [field] may hold for a caller with [id], [roles] and [attributes] performing [operation], or
      * `null` if this scope doesn't apply to them. `null` [id] means an anonymous caller, who has no values.
@@ -409,17 +438,29 @@ public data class Scope(
         attributes: Map<String, Set<String>>,
     ): Set<String>? {
         if (operation !in operations || roles.any { it in unless }) return null
-        if (id == null) return emptySet()
-        return when (match) {
-            ScopeMatch.Caller -> setOf(id)
-            is ScopeMatch.Attribute -> attributes[match.name].orEmpty()
-        }
+        return match.valuesOf(id, attributes)
     }
 }
+
+/** One way into a [Scope]: a [field] that must hold one of the caller's values given by [match]. */
+@Serializable
+public data class ScopeClause(
+    /** The field to compare: a string, enum or reference field, or [Resource.ID]. */
+    val field: String,
+    /** The caller's values the field must hold one of. */
+    val match: ScopeMatch,
+)
 
 /** The caller's values that a [Scope]'s field must hold one of. */
 @Serializable
 public sealed interface ScopeMatch {
+    /** Returns this match's values for a caller with [id] and [attributes]. An anonymous caller (`null` [id]) has none. */
+    public fun valuesOf(id: String?, attributes: Map<String, Set<String>>): Set<String> = when {
+        id == null -> emptySet()
+        this is Attribute -> attributes[name].orEmpty()
+        else -> setOf(id)
+    }
+
     /** The caller's own id, for records a caller owns. */
     @Serializable
     @SerialName("caller")

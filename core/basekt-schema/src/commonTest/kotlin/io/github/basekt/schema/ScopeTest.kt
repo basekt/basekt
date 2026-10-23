@@ -86,4 +86,44 @@ class ScopeTest {
         val paths = error.problems.map { it.path }
         for (i in 0..4) assertTrue("resources.jobs.permissions.scopes.$i" in paths, "expected a problem on scope $i in $paths")
     }
+
+    /** Made-up freight: a load is reached from either of its docks. */
+    private val freightSchema = schema {
+        resource("loads") {
+            string("fromDock")
+            string("toDock") { unique() }
+            permissions { read(authenticated); scopeAnyOf(on = setOf(Operation.READ), unless = setOf("dispatcher")) { attribute("fromDock", "dock"); attribute("toDock", "dock") } }
+        }
+    }
+
+    @Test
+    fun `a scope with several ways in is data, survives JSON and gives each way's values`() {
+        val scope = freightSchema.resource("loads")!!.permissions.scopes.single()
+        assertEquals(Scope("fromDock", ScopeMatch.Attribute("dock"), setOf(Operation.READ), setOf("dispatcher"), listOf(ScopeClause("toDock", ScopeMatch.Attribute("dock")))), scope)
+        assertEquals(freightSchema, Schema.fromJson(freightSchema.toJson()))
+        assertTrue(freightSchema.resource("loads")!!.field("toDock")!!.unique)
+        val docks = mapOf("dock" to setOf("north"))
+        assertEquals(listOf("fromDock" to setOf("north"), "toDock" to setOf("north")), scope.clauseValuesFor(Operation.READ, "u1", emptySet(), docks))
+        assertNull(scope.clauseValuesFor(Operation.READ, "u1", setOf("dispatcher"), docks))
+        assertNull(scope.clauseValuesFor(Operation.UPDATE, "u1", emptySet(), docks))
+    }
+
+    @Test
+    fun `every way into a scope is checked`() {
+        val error = assertFailsWith<InvalidSchemaException> {
+            schema {
+                resource("loads") {
+                    string("fromDock")
+                    permissions { scopeAnyOf { attribute("fromDock", "dock"); attribute("missing", "dock") } }
+                }
+            }
+        }
+        assertEquals(listOf("resources.loads.permissions.scopes.0"), error.problems.map { it.path })
+    }
+
+    @Test
+    fun `only a sequence may be automatic and unique`() {
+        assertFailsWith<InvalidSchemaException> { schema { resource("a") { instant("at") { createdAt(); unique() } } } }
+        schema { resource("a") { string("ref") { sequence("R-", 4); unique() } } }
+    }
 }

@@ -29,6 +29,8 @@ internal class ResourceTable(val resource: Resource, mapping: TableMapping) : Ta
 
     init {
         for (field in resource.fields.filter { it.type == FieldType.REFERENCE }) index(false, column(field.name), id)
+        // The service checks uniqueness in the write's transaction; the index keeps two racing writers from both winning.
+        for (field in resource.fields.filter { it.unique }) uniqueIndex(column(field.name))
         for (spec in mapping.indexes.filter { it.resource == resource.name }) {
             index(false, *spec.fields.map(::column).toTypedArray(), id)
         }

@@ -77,6 +77,9 @@ internal object SchemaChecker {
         if (field.type != FieldType.ENUM && field.values != null) problem(at, "Only an enum field has values.")
         if (field.type != FieldType.REFERENCE && field.target != null) problem(at, "Only a reference field has a target.")
         if (field.type != FieldType.FILE && field.bucket != null) problem(at, "Only a file field has a bucket.")
+        if (field.unique && field.auto != null && field.auto !is Auto.Sequence) {
+            problem(at, "Only a sequence can be an automatic unique field.")
+        }
         for (rule in field.rules) checkRule(field, rule, at, problem)
         field.auto?.let { checkAuto(field, it, at, problem) }
     }
@@ -188,16 +191,18 @@ internal object SchemaChecker {
     }
 
     private fun checkScope(resource: Resource, scope: Scope, at: String, problem: (String, String) -> Unit) {
-        if (scope.field != Resource.ID) {
-            val field = resource.field(scope.field)
-            when {
-                field == null -> problem(at, "The scoped field '${scope.field}' doesn't exist on '${resource.name}'.")
-                field.type != FieldType.STRING && field.type != FieldType.ENUM && field.type != FieldType.REFERENCE ->
-                    problem(at, "The scoped field '${scope.field}' must be a string, enum or reference field.")
+        for (clause in scope.clauses) {
+            if (clause.field != Resource.ID) {
+                val field = resource.field(clause.field)
+                when {
+                    field == null -> problem(at, "The scoped field '${clause.field}' doesn't exist on '${resource.name}'.")
+                    field.type != FieldType.STRING && field.type != FieldType.ENUM && field.type != FieldType.REFERENCE ->
+                        problem(at, "The scoped field '${clause.field}' must be a string, enum or reference field.")
+                }
             }
+            val match = clause.match
+            if (match is ScopeMatch.Attribute && match.name.isBlank()) problem(at, "A scope needs an attribute name.")
         }
-        val match = scope.match
-        if (match is ScopeMatch.Attribute && match.name.isBlank()) problem(at, "A scope needs an attribute name.")
         if (scope.operations.isEmpty()) problem(at, "A scope needs at least one operation.")
         if (scope.unless.any { it.isBlank() }) problem(at, "A scope's unless roles can't be blank.")
     }

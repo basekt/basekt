@@ -108,8 +108,15 @@ public class ResourceService(
      * scope limits them. A transport that queries the [dataSource] itself, such as for a count, ANDs it in.
      */
     public fun scopeFilter(resource: Resource, operation: Operation, caller: Identity?): Filter? {
-        val filters = scopeValues(resource, operation, caller).map { (scope, values) ->
-            if (values.isEmpty()) Filter.Or(emptyList()) else Filter.In(scope.field, values.map { Value.Text(it) })
+        val filters = scopeClauses(resource, operation, caller).map { clauses ->
+            val ways = clauses.filter { (_, values) -> values.isNotEmpty() }.map { (field, values) ->
+                Filter.In(field, values.map { Value.Text(it) })
+            }
+            when (ways.size) {
+                0 -> Filter.Or(emptyList())
+                1 -> ways.single()
+                else -> Filter.Or(ways)
+            }
         }
         return when (filters.size) {
             0 -> null
@@ -120,10 +127,12 @@ public class ResourceService(
 
     /**
      * Returns the values [caller] may give each of [resource]'s fields that a scope limits for [operation]. A field
-     * the caller may set to anything is absent.
+     * the caller may set to anything is absent, and so is a field of a scope with several ways in: those are checked
+     * together, as a whole, when the record is written.
      */
     public fun scopedValues(resource: Resource, operation: Operation, caller: Identity?): Map<String, Set<String>> =
-        scopeValues(resource, operation, caller).groupBy({ it.first.field }, { it.second })
+        scopeClauses(resource, operation, caller).filter { it.size == 1 }.map { it.single() }
+            .groupBy({ it.first }, { it.second })
             .mapValues { (_, sets) -> sets.reduce { all, values -> all intersect values } }
 
     /** Lists records of [resource] that match [query], if [caller] may read them. */
@@ -166,7 +175,9 @@ public class ResourceService(
         val input = decode(resource, scoped(resource, Operation.UPDATE, caller, body), WriteMode.UPDATE)
         val origin = Origin.of(caller)
         return dataSource.transaction { tx ->
-            updateIn(tx, resource, origin, id, input) { writable(tx, resource, Operation.UPDATE, caller, id) }
+            updateIn(tx, resource, origin, id, input) {
+                writable(tx, resource, Operation.UPDATE, caller, id).also { staysInScope(resource, caller, it, input) }
+            }
         }.let { (before, after) ->
             committed(Change.Updated(resource, before, after))
             after
@@ -255,6 +266,7 @@ public class ResourceService(
         for (hook in hooks.beforeCreate[resource.name].orEmpty()) record = context.hook(record).accepted()
         if (record != stamped) revalidate(resource, record, WriteMode.CREATE)
         checkReferences(tx, resource, record)
+        checkUnique(tx, resource, record, null)
         checkExtensions(tx, resource, record)
         val created = try {
             tx.create(resource, record)
@@ -294,6 +306,7 @@ public class ResourceService(
         }
         if (changes != stamped) revalidate(resource, changes, WriteMode.UPDATE)
         checkReferences(tx, resource, changes)
+        checkUnique(tx, resource, changes, id)
         checkExtensions(tx, resource, changes)
         val updated = when {
             version != null -> versionedUpdate(tx, resource, id, version.name, expected, current, changes, condition)
@@ -346,13 +359,14 @@ public class ResourceService(
         return queried { dataSource.list(target, narrowed) }
     }
 
-    private fun scopeValues(resource: Resource, operation: Operation, caller: Identity?): List<Pair<Scope, Set<String>>> =
+    /** Returns, for each scope that applies to [caller], the field and allowed values of each of its ways in. */
+    private fun scopeClauses(resource: Resource, operation: Operation, caller: Identity?): List<List<Pair<String, Set<String>>>> =
         resource.permissions.scopes.mapNotNull { scope ->
-            scope.valuesFor(operation, caller?.id, caller?.roles.orEmpty(), caller?.attributes.orEmpty())?.let { scope to it }
+            scope.clauseValuesFor(operation, caller?.id, caller?.roles.orEmpty(), caller?.attributes.orEmpty())
         }
 
     private fun inScope(resource: Resource, operation: Operation, caller: Identity?, record: Record): Boolean =
-        scopeValues(resource, operation, caller).all { (scope, values) -> (record[scope.field] as? Value.Text)?.value in values }
+        scopeClauses(resource, operation, caller).all { clauses -> clauses.any { (field, values) -> (record[field] as? Value.Text)?.value in values } }
 
     /** Returns the record of [resource] with [id] if it is in [caller]'s read scope, and throws not found otherwise. */
     private suspend fun readable(source: DataSource, resource: Resource, caller: Identity?, id: String): Record {
@@ -376,7 +390,8 @@ public class ResourceService(
      */
     private fun scoped(resource: Resource, operation: Operation, caller: Identity?, body: JsonObject): JsonObject {
         val scoped = scopedValues(resource, operation, caller)
-        if (scoped.isEmpty()) return body
+        val anyOf = scopeClauses(resource, operation, caller).filter { it.size > 1 }
+        if (scoped.isEmpty() && anyOf.isEmpty()) return body
         val filled = body.toMutableMap()
         for ((field, values) in scoped) {
             // The server sets an automatic field itself, such as the caller's id for ownedBy("createdBy").
@@ -400,7 +415,52 @@ public class ResourceService(
             val text = (given as? JsonPrimitive)?.takeIf { it.isString }?.content ?: continue
             if (text !in values) throw outsideScope(resource, field)
         }
+        if (operation == Operation.CREATE) for (clauses in anyOf) checkAnyOf(resource, clauses, body)
         return JsonObject(filled)
+    }
+
+    /**
+     * Checks a create [body] against a scope with several ways in: it must give at least one of the fields a value the
+     * caller has. An update is checked against the whole record it produces, by [staysInScope].
+     */
+    private fun checkAnyOf(resource: Resource, clauses: List<Pair<String, Set<String>>>, body: JsonObject) {
+        val names = clauses.joinToString { it.first }
+        // The server sets an automatic field itself, so it can't be outside the caller's values.
+        if (clauses.any { resource.field(it.first)?.auto != null }) return
+        val given = clauses.mapNotNull { (field, values) ->
+            val text = (body[field] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapNotNull null
+            text in values
+        }
+        when {
+            clauses.all { it.second.isEmpty() } -> throw ApiException(
+                ErrorCode.FORBIDDEN,
+                "You have no value for any of $names, so you can't create '${resource.name}' records.",
+            )
+            given.isEmpty() ->
+                throw invalid(listOf(FieldError(clauses.first().first, FieldErrorCode.REQUIRED, "Give one of $names a value that is yours.")))
+            given.none { it } -> throw ApiException(
+                ErrorCode.FORBIDDEN,
+                "You can't create '${resource.name}' with none of $names inside your own values.",
+            )
+        }
+    }
+
+    /**
+     * Refuses an update of [current] by [input] that would leave a scope with several ways in: the record the update
+     * produces must still be reachable by one of them.
+     */
+    private fun staysInScope(resource: Resource, caller: Identity?, current: Record, input: Record) {
+        val anyOf = scopeClauses(resource, Operation.UPDATE, caller).filter { it.size > 1 }
+        if (anyOf.isEmpty()) return
+        val after = current + input
+        for (clauses in anyOf) {
+            if (clauses.none { (field, values) -> (after[field] as? Value.Text)?.value in values }) {
+                throw ApiException(
+                    ErrorCode.FORBIDDEN,
+                    "You can't move '${resource.name}/${current[Resource.ID]}' out of your own values of ${clauses.joinToString { it.first }}.",
+                )
+            }
+        }
     }
 
     /**
@@ -526,6 +586,21 @@ public class ResourceService(
             else FieldError(field.name, FieldErrorCode.MISSING_REFERENCE, "There is no '${field.target}' with id '$id'.")
         }
         if (missing.isNotEmpty()) throw invalid(missing)
+    }
+
+    /**
+     * Refuses a write of [record] that gives a unique field a value another record than [id] already holds. Checked in
+     * the write's transaction, so a data source that also keeps a unique index is only a second line of defence.
+     */
+    private suspend fun checkUnique(source: DataSource, resource: Resource, record: Record, id: String?) {
+        val clashes = resource.fields.filter { it.unique }.mapNotNull { field ->
+            val value = record[field.name] ?: return@mapNotNull null
+            val filter = Filter.Compare(field.name, Comparison.EQ, value)
+            val others = source.list(resource, Query(filter = filter, limit = 2)).items.filter { it[Resource.ID] != id?.let(Value::Text) }
+            if (others.isEmpty()) null
+            else FieldError(field.name, FieldErrorCode.UNIQUE, "Another '${resource.name}' already has ${field.name} '${value}'.")
+        }
+        if (clashes.isNotEmpty()) throw invalid(clashes)
     }
 
     private suspend fun checkExtensions(source: DataSource, resource: Resource, record: Record) {
