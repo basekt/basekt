@@ -12,7 +12,6 @@ import kotlinx.io.Buffer
 import kotlinx.io.RawSource
 import kotlinx.io.asSource
 import kotlinx.io.readByteArray
-import java.io.IOException
 import java.nio.channels.Channels
 import java.nio.channels.FileChannel
 import java.nio.file.AtomicMoveNotSupportedException
@@ -94,12 +93,12 @@ public class LocalBlobStore(
     }
 
     override suspend fun open(key: BlobKey, range: LongRange?): BlobContent? = withContext(Dispatchers.IO) {
+        val file = path(key)
+        // A directory, such as the prefix of another key, isn't a blob. Linux would open one; Windows wouldn't.
+        if (!file.isRegularFile()) return@withContext null
         val channel = try {
-            FileChannel.open(path(key), StandardOpenOption.READ)
+            FileChannel.open(file, StandardOpenOption.READ)
         } catch (_: NoSuchFileException) {
-            return@withContext null
-        } catch (_: IOException) {
-            // A directory, such as the prefix of another key, isn't a blob.
             return@withContext null
         }
         try {
