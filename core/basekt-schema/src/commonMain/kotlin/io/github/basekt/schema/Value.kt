@@ -78,6 +78,18 @@ public sealed interface Value : Comparable<Value> {
         override fun toString(): String = value.toString()
     }
 
+    /**
+     * A list of values of one kind: the value of a [Field.list] input. Lists are never stored or compared, so they
+     * can't be a record's field, a filter or a sort key.
+     */
+    public data class Items(
+        /** The items, in order. */
+        val values: List<Value>,
+    ) : Value {
+        override fun compareTo(other: Value): Int = throw IllegalArgumentException("Can't compare lists")
+        override fun toString(): String = values.joinToString(prefix = "[", postfix = "]")
+    }
+
     /** A point in time: the value of instant fields. */
     public data class Timestamp(
         /** The instant. */

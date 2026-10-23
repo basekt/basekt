@@ -580,10 +580,16 @@ public class ResourceService(
     }
 
     private suspend fun checkReferences(source: DataSource, resource: Resource, record: Record) {
-        val missing = resource.fields.filter { it.type == FieldType.REFERENCE }.mapNotNull { field ->
-            val id = (record[field.name] as Value.Text?)?.value ?: return@mapNotNull null
-            if (source.get(resource(field.target!!), id) != null) null
-            else FieldError(field.name, FieldErrorCode.MISSING_REFERENCE, "There is no '${field.target}' with id '$id'.")
+        val missing = resource.fields.filter { it.type == FieldType.REFERENCE }.flatMap { field ->
+            val ids = when (val value = record[field.name]) {
+                null -> emptyList()
+                is Value.Items -> value.values.map { (it as Value.Text).value }
+                else -> listOf((value as Value.Text).value)
+            }
+            ids.mapNotNull { id ->
+                if (source.get(resource(field.target!!), id) != null) null
+                else FieldError(field.name, FieldErrorCode.MISSING_REFERENCE, "There is no '${field.target}' with id '$id'.")
+            }
         }
         if (missing.isNotEmpty()) throw invalid(missing)
     }

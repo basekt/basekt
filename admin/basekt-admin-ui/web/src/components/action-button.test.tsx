@@ -16,7 +16,7 @@ const withActions: AdminSchema = {
       {
         name: "lend",
         target: "record",
-        input: [{ name: "borrower", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null }],
+        input: [{ name: "borrower", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false }],
         confirm: "Lend this book?",
         stateField: null,
         from: null,

@@ -77,6 +77,7 @@ internal fun Value.toColumn(type: FieldType): Any = when (this) {
     is Value.Decimal -> BigDecimal(literal)
     is Value.Bool -> value
     is Value.Timestamp -> value
+    is Value.Items -> throw IllegalArgumentException("A list is an action input, so it has no column.")
 }
 
 internal fun fromColumn(type: FieldType, stored: Any): Value = when (type) {
