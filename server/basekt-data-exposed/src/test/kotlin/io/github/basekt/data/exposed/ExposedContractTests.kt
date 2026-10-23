@@ -4,7 +4,7 @@ import io.github.basekt.data.DataSource
 import io.github.basekt.testing.DataSourceContract
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty
+import org.junit.jupiter.api.condition.EnabledIf
 import java.util.concurrent.atomic.AtomicInteger
 
 class H2ContractTest : DataSourceContract() {
@@ -12,8 +12,12 @@ class H2ContractTest : DataSourceContract() {
         ExposedDataSource(h2(), contractSchema).also { runBlocking { it.createTables() } }
 }
 
-/** The contract on a real Postgres. Run it with `-Pbasekt.postgres.url=jdbc:postgresql://host/db` and its user and password. */
-@EnabledIfSystemProperty(named = "basekt.postgres.url", matches = ".+")
+/**
+ * The contract on a real Postgres: a container when Docker is available, or the database that
+ * `-Pbasekt.postgres.url=jdbc:postgresql://host/db` (and its user and password) names. Skipped without either, except
+ * with `-Pbasekt.postgres.required=true`, as in CI.
+ */
+@EnabledIf("io.github.basekt.data.exposed.DatabasesKt#postgresAvailable")
 class PostgresContractTest : DataSourceContract() {
     private val created = mutableListOf<ExposedDataSource>()
 

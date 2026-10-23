@@ -1,6 +1,8 @@
 package io.github.basekt.data.exposed
 
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.testcontainers.DockerClientFactory
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 import java.sql.Connection
@@ -41,10 +43,33 @@ internal class RecordingH2 {
         } as Connection
 }
 
-/** The Postgres database named by the `basekt.postgres.*` system properties, which Gradle passes on when set. */
-internal fun postgres(): Database = Database.connect(
-    url = System.getProperty("basekt.postgres.url"),
-    driver = "org.postgresql.Driver",
-    user = System.getProperty("basekt.postgres.user").orEmpty(),
-    password = System.getProperty("basekt.postgres.password").orEmpty(),
-)
+/**
+ * Whether the Postgres tests run: with a database named by `basekt.postgres.url`, or else with a container when
+ * Docker is available. With `basekt.postgres.required`, as in CI, they always run, and fail without Docker.
+ */
+internal fun postgresAvailable(): Boolean =
+    externalPostgresUrl != null || postgresRequired || DockerClientFactory.instance().isDockerAvailable
+
+/**
+ * The Postgres database of the tests: the one the `basekt.postgres.*` system properties name, which Gradle passes on
+ * when set, or else a throwaway container started once for the whole run.
+ */
+internal fun postgres(): Database = postgresDatabase
+
+private val externalPostgresUrl: String? = System.getProperty("basekt.postgres.url")?.takeIf { it.isNotBlank() }
+private val postgresRequired: Boolean = System.getProperty("basekt.postgres.required").toBoolean()
+
+private val postgresDatabase: Database by lazy {
+    if (externalPostgresUrl != null) {
+        Database.connect(
+            url = externalPostgresUrl,
+            driver = "org.postgresql.Driver",
+            user = System.getProperty("basekt.postgres.user").orEmpty(),
+            password = System.getProperty("basekt.postgres.password").orEmpty(),
+        )
+    } else {
+        // Testcontainers' reaper removes the container when the test JVM exits.
+        val container = PostgreSQLContainer("postgres:17-alpine").also { it.start() }
+        Database.connect(container.jdbcUrl, driver = "org.postgresql.Driver", user = container.username, password = container.password)
+    }
+}
