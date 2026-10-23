@@ -20,13 +20,16 @@ import io.github.basekt.schema.Schema
 import io.github.basekt.schema.Value
 import io.github.basekt.schema.WriteMode
 import io.github.basekt.schema.decodeRecord
+import io.github.basekt.schema.validateRecord
 import kotlinx.serialization.json.JsonObject
 
 /**
- * The operations behind the REST routes, with no Ktor types: permission checks, validation, referential integrity
- * and calls to the [dataSource]. Other modules, such as an admin API, reuse it.
+ * The operations behind the REST routes, with no Ktor types: permission checks, validation, [hooks], referential
+ * integrity and calls to the [dataSource]. Every transport (REST, the admin API, GraphQL...) goes through it, so the
+ * rules are the same everywhere.
  *
- * Every function throws [ApiException] when the request can't be served.
+ * A write runs in one transaction: permission, validation, before-hooks, validation of what they changed, reference
+ * checks, the write, then after-hooks. Every function throws [ApiException] when the request can't be served.
  */
 public class ResourceService(
     /** The schema whose resources are served. */
@@ -35,7 +38,14 @@ public class ResourceService(
     public val dataSource: DataSource,
     /** The validators that [io.github.basekt.schema.Rule.Custom] rules name. */
     private val validators: Map<String, FieldValidator> = emptyMap(),
+    /** The code that runs around writes. */
+    private val hooks: Hooks = Hooks.None,
 ) {
+    init {
+        val unknown = hooks.resources.filter { schema.resource(it) == null }
+        require(unknown.isEmpty()) { "Hooks name resources the schema doesn't have: ${unknown.joinToString()}." }
+    }
+
     /** Returns the resource called [name], or throws [ErrorCode.NOT_FOUND]. */
     public fun resource(name: String): Resource =
         schema.resource(name) ?: throw ApiException(ErrorCode.NOT_FOUND, "There is no resource '$name'.")
@@ -55,31 +65,52 @@ public class ResourceService(
     /** Validates [body] and creates a record of [resource] from it, if [caller] may. */
     public suspend fun create(resource: Resource, caller: Identity?, body: JsonObject): Record {
         authorize(resource, Operation.CREATE, caller)
-        val record = decode(resource, body, WriteMode.CREATE)
+        val decoded = decode(resource, body, WriteMode.CREATE)
         return dataSource.transaction { tx ->
+            val context = HookContext(resource, caller, tx)
+            var record = decoded
+            for (hook in hooks.beforeCreate[resource.name].orEmpty()) record = context.hook(record).accepted()
+            if (record != decoded) revalidate(resource, record, WriteMode.CREATE)
             checkReferences(tx, resource, record)
-            try {
+            val created = try {
                 tx.create(resource, record)
             } catch (e: DuplicateIdException) {
                 throw ApiException(ErrorCode.CONFLICT, e.message!!)
             }
+            for (hook in hooks.afterCreate[resource.name].orEmpty()) context.hook(created)
+            created
         }
     }
 
     /** Validates [body] and applies it to the record of [resource] with [id], if [caller] may. */
     public suspend fun update(resource: Resource, caller: Identity?, id: String, body: JsonObject): Record {
         authorize(resource, Operation.UPDATE, caller)
-        val changes = decode(resource, body, WriteMode.UPDATE)
+        val decoded = decode(resource, body, WriteMode.UPDATE)
         return dataSource.transaction { tx ->
+            val context = HookContext(resource, caller, tx)
+            val current = tx.get(resource, id) ?: throw notFound(resource, id)
+            var changes = decoded
+            for (hook in hooks.beforeUpdate[resource.name].orEmpty()) {
+                changes = context.hook(Update(id, current, changes)).accepted()
+            }
+            if (changes != decoded) revalidate(resource, changes, WriteMode.UPDATE)
             checkReferences(tx, resource, changes)
-            tx.update(resource, id, changes) ?: throw notFound(resource, id)
+            val updated = tx.update(resource, id, changes) ?: throw notFound(resource, id)
+            for (hook in hooks.afterUpdate[resource.name].orEmpty()) context.hook(Updated(current, updated))
+            updated
         }
     }
 
     /** Deletes the record of [resource] with [id], if [caller] may. */
     public suspend fun delete(resource: Resource, caller: Identity?, id: String) {
         authorize(resource, Operation.DELETE, caller)
-        if (!dataSource.delete(resource, id)) throw notFound(resource, id)
+        dataSource.transaction { tx ->
+            val context = HookContext(resource, caller, tx)
+            val current = tx.get(resource, id) ?: throw notFound(resource, id)
+            for (hook in hooks.beforeDelete[resource.name].orEmpty()) context.hook(Deletion(id, current)).accepted()
+            if (!tx.delete(resource, id)) throw notFound(resource, id)
+            for (hook in hooks.afterDelete[resource.name].orEmpty()) context.hook(current)
+        }
     }
 
     /** Returns the one record that the record [id] of [resource] belongs to through [relation]. */
@@ -124,6 +155,22 @@ public class ResourceService(
             is DecodeResult.Invalid -> throw invalid(result.errors)
         }
 
+    /** Checks what before-hooks produced: field names and value types, then the schema's rules. */
+    private fun revalidate(resource: Resource, record: Record, mode: WriteMode) {
+        for ((name, value) in record) {
+            if (name == Resource.ID && mode == WriteMode.CREATE) {
+                check(value is Value.Text) { "A hook on '${resource.name}' set a non-text id." }
+                continue
+            }
+            val field = checkNotNull(resource.field(name)) { "A hook on '${resource.name}' set the unknown field '$name'." }
+            check(value == null || value.fits(field.type)) {
+                "A hook on '${resource.name}' set '$name' to '$value', which isn't a ${field.type.name.lowercase()}."
+            }
+        }
+        val errors = resource.validateRecord(record, mode, validators)
+        if (errors.isNotEmpty()) throw invalid(errors)
+    }
+
     private suspend fun checkReferences(source: DataSource, resource: Resource, record: Record) {
         val missing = resource.fields.filter { it.type == FieldType.REFERENCE }.mapNotNull { field ->
             val id = (record[field.name] as Value.Text?)?.value ?: return@mapNotNull null
@@ -139,9 +186,23 @@ public class ResourceService(
         throw ApiException(ErrorCode.INVALID_QUERY, e.message!!)
     }
 
+    private fun <T> Verdict<T>.accepted(): T = when (this) {
+        is Verdict.Proceed -> value
+        is Verdict.Veto -> throw if (fields.isEmpty()) ApiException(ErrorCode.REJECTED, reason)
+        else ApiException(ApiError(ErrorCode.VALIDATION_FAILED, reason, fields))
+    }
+
     private fun invalid(errors: List<FieldError>) =
         ApiException(ApiError(ErrorCode.VALIDATION_FAILED, "The record has invalid fields.", errors))
 
     private fun notFound(resource: Resource, id: String) =
         ApiException(ErrorCode.NOT_FOUND, "There is no '${resource.name}' with id '$id'.")
+}
+
+private fun Value.fits(type: FieldType): Boolean = when (type) {
+    FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE -> this is Value.Text
+    FieldType.INT, FieldType.LONG -> this is Value.Integer
+    FieldType.DECIMAL -> this is Value.Decimal
+    FieldType.BOOL -> this is Value.Bool
+    FieldType.INSTANT -> this is Value.Timestamp
 }

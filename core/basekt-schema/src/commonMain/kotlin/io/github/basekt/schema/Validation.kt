@@ -45,6 +45,9 @@ public enum class FieldErrorCode {
 
     /** A reference points to a record that doesn't exist. */
     @SerialName("missing_reference") MISSING_REFERENCE,
+
+    /** A hook of the application rejected the value. */
+    @SerialName("rejected") REJECTED,
 }
 
 /** A rejected value of [field], with a typed [code] and a readable [message]. */
