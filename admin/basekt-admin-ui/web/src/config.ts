@@ -7,6 +7,16 @@ export interface Brand {
   logo: string | null
 }
 
+/** The host's login route, which trades a name and a password for a bearer token. Mirrors the plugin's `ShellLogin`. */
+export interface LoginRoute {
+  /** The route's path on the panel's server, such as `/auth/login`. */
+  path: string
+  usernameField: string
+  usernameLabel: string
+  passwordField: string
+  tokenField: string
+}
+
 /**
  * What the Ktor plugin tells the panel, in the shell page's `basekt-admin-config` JSON script. The plugin's
  * `ShellConfig` writes it; keep the two in step.
@@ -20,6 +30,8 @@ export interface PanelConfig {
   filesPath: string
   brand: Brand
   defaultMode: ThemeMode
+  /** Where viewers sign in with a name and a password, or null to paste a token only. */
+  login: LoginRoute | null
 }
 
 const fallback: PanelConfig = {
@@ -28,6 +40,7 @@ const fallback: PanelConfig = {
   filesPath: "/files",
   brand: { name: "BaseKt", logo: null },
   defaultMode: "system",
+  login: null,
 }
 
 /** Reads the config the shell page carries, or the defaults when there is none. */
@@ -41,6 +54,7 @@ export function readConfig(doc: Document = document): PanelConfig {
     filesPath: trimSlash(parsed.filesPath ?? fallback.filesPath),
     brand: { ...fallback.brand, ...parsed.brand },
     defaultMode: parsed.defaultMode ?? fallback.defaultMode,
+    login: parsed.login ?? null,
   }
 }
 

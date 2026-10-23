@@ -43,6 +43,31 @@ public class BrandConfig internal constructor(config: ApplicationConfig) {
 }
 
 /**
+ * A login route of the host app that the panel's sign-in screen calls with a name and a password, such as
+ * `POST /auth/login` with `{"email": …, "password": …}` answering `{"token": …}`. The panel keeps the token like one a
+ * viewer pastes, and sends it as a bearer token. Settings come from `basekt.adminUi.login`.
+ */
+public class LoginConfig internal constructor(config: ApplicationConfig) {
+    /**
+     * The route's path on this server, such as `/auth/login`, or `null` to sign in with a pasted token only. It must be
+     * a path, not a URL: the password only ever goes to the panel's own server. `basekt.adminUi.login.path`.
+     */
+    public var path: String? = config.propertyOrNull("login.path")?.getString()
+
+    /** The JSON property the name goes in. `basekt.adminUi.login.usernameField`, `email` by default. */
+    public var usernameField: String = config.propertyOrNull("login.usernameField")?.getString() ?: "email"
+
+    /** How the form labels the name. `basekt.adminUi.login.usernameLabel`, `Email` by default. */
+    public var usernameLabel: String = config.propertyOrNull("login.usernameLabel")?.getString() ?: "Email"
+
+    /** The JSON property the password goes in. `basekt.adminUi.login.passwordField`, `password` by default. */
+    public var passwordField: String = config.propertyOrNull("login.passwordField")?.getString() ?: "password"
+
+    /** The JSON property of the answer that holds the bearer token. `basekt.adminUi.login.tokenField`, `token` by default. */
+    public var tokenField: String = config.propertyOrNull("login.tokenField")?.getString() ?: "token"
+}
+
+/**
  * The configuration of [BaseKtAdminUi]. Settings can come from the `basekt.adminUi` section of the application's
  * configuration; values set in the `install` block win. The theme is set in Kotlin only, with [theme].
  */
@@ -67,11 +92,19 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
     /** The name and logo. */
     public val brand: BrandConfig = BrandConfig(config)
 
+    /** The host app's login route, for signing in with a name and a password. Off until [LoginConfig.path] is set. */
+    public val login: LoginConfig = LoginConfig(config)
+
     internal val themeBuilder = ThemeBuilder()
 
     /** Sets the brand's name and logo. */
     public fun brand(block: BrandConfig.() -> Unit) {
         brand.block()
+    }
+
+    /** Lets viewers sign in with a name and a password through the host app's login route. See [LoginConfig]. */
+    public fun login(block: LoginConfig.() -> Unit) {
+        login.block()
     }
 
     /** Sets the theme; what it leaves out keeps [Theme.Default]'s value. */
@@ -90,7 +123,8 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
  * | `/theme.css` | the [Theme]'s CSS variables |
  * | `/assets/…` | the panel's scripts and styles, cached for a year since their names change with their content |
  *
- * The panel calls the API with the browser's cookies and, once a viewer signs in with one, a bearer token. Install
+ * The panel calls the API with the browser's cookies and, once a viewer signs in, a bearer token: one they paste, or
+ * one the host's [login][BaseKtAdminUiConfig.login] route answers for their name and password. Install
  * `BaseKtAdmin` from `basekt-admin-api` for the API itself; this module doesn't depend on it.
  */
 public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplicationPlugin(
@@ -106,12 +140,21 @@ public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplica
     require(logo == null || logo.startsWith("/") || logo.startsWith("https://") || logo.startsWith("data:image/")) {
         "The brand logo must be a path on this server, an https: URL or a data:image/ URL, not '$logo'."
     }
+    val login = pluginConfig.login.path?.trim()?.takeIf { it.isNotEmpty() }?.let { loginPath ->
+        require(loginPath.startsWith("/") && !loginPath.startsWith("//")) {
+            "The login path must be a path on this server, such as /auth/login, not '$loginPath': passwords stay on this server."
+        }
+        val fields = with(pluginConfig.login) { listOf(usernameField, passwordField, tokenField) }
+        require(fields.all { it.isNotBlank() }) { "The login's field names can't be blank." }
+        with(pluginConfig.login) { ShellLogin(loginPath, usernameField, usernameLabel, passwordField, tokenField) }
+    }
     val shell = ShellConfig(
         path = path,
         apiPath = apiPath,
         filesPath = "/" + pluginConfig.filesPath.trim('/'),
         brand = ShellBrand(pluginConfig.brand.name, logo),
         defaultMode = pluginConfig.defaultMode,
+        login = login,
     )
     val entry = PanelAssets.load(application.environment.classLoader)
     val themeCss = ThemeCss.write(Theme.Default + pluginConfig.themeBuilder.build())

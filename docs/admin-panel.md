@@ -12,10 +12,27 @@ panel change:
 - an error card that says when the server couldn't be reached, shows the [request id](schema.md#request-ids-and-server-errors),
   and copies a report or downloads the page's recent failed calls (kept in memory only) for whoever runs the panel.
 
-It hides what the caller's roles don't allow, signs in with a bearer token or rides the host's cookie session, and
-has light and dark modes.
+It hides what the caller's roles don't allow, signs in with a name and password, a bearer token, or the host's cookie
+session ([signing in](#signing-in)), and has light and dark modes.
 
 ![The sample shop's products in the admin panel](assets/staff-products.jpg)
+
+## Signing in
+
+With no more set up, the panel rides the host's cookie session, or asks for a bearer token to paste. To let staff sign
+in with a name and a password instead, point it at the host app's login route:
+
+```kotlin
+install(BaseKtAdminUi) {
+    login { path = "/auth/login" }   // POST {"email": …, "password": …} → {"token": …}
+}
+```
+
+The sign-in screen then asks for the email and the password, posts them as JSON to that route, and keeps the token in
+the answer's `token` property like one pasted, sending it as a bearer token. `usernameField`, `usernameLabel`,
+`passwordField` and `tokenField` fit other shapes, such as `{"username": …}`, and every setting can also come from
+`basekt.adminUi.login`. The path must be on the panel's own server, so a password never goes anywhere else. A 401 or
+403 shows the route's own message on the form, and pasting a token stays one click away.
 
 ## Themes
 

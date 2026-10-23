@@ -11,6 +11,7 @@ import { SignIn } from "@/components/sign-in"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Toaster } from "@/components/ui/sonner"
+import { passwordLogin } from "@/api/login"
 import type { PanelConfig } from "@/config"
 import { humanize } from "@/lib/fields"
 import { useAsync } from "@/lib/use-async"
@@ -48,13 +49,28 @@ export function App({ config, tokens: givenTokens, fetchImpl }: {
     return null
   }
 
+  const tryPasswordSignIn = async (username: string, password: string, remember: boolean): Promise<string | null> => {
+    if (!config.login) return null
+    let value: string
+    try {
+      value = await passwordLogin(config.login, username, password, fetchImpl)
+    } catch (error) {
+      if (error instanceof ApiFailure && error.network) return "Couldn't reach the server. Check the connection and try again."
+      if (error instanceof ApiFailure && (error.unauthorized || error.forbidden)) return error.error?.message ?? "That name or password was refused."
+      return error instanceof Error ? error.message : String(error)
+    }
+    return trySignIn(value, remember)
+  }
+
   const unauthorized = schema.error instanceof ApiFailure && schema.error.unauthorized
   if (signInReason !== null || unauthorized) {
     return (
       <SignIn
         brand={config.brand}
         reason={signInReason || (unauthorized ? (token ? "Your token was refused. Sign in again." : "The admin API needs you to sign in.") : undefined)}
+        login={config.login}
         onSignIn={trySignIn}
+        onPasswordSignIn={tryPasswordSignIn}
         onCancel={unauthorized ? undefined : () => setSignInReason(null)}
       />
     )
