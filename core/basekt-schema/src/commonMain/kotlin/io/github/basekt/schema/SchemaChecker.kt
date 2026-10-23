@@ -242,10 +242,18 @@ internal object SchemaChecker {
         }
         if (report.limit !in 1..MAX_REPORT_GROUPS) problem(at, "A report shows from 1 to $MAX_REPORT_GROUPS groups, not ${report.limit}.")
         if (report.timeZone != null) {
-            if (report.bucket == null) problem(at, "A time zone only applies to a time bucket.")
+            if (report.bucket == null && report.range == null) problem(at, "A time zone only applies to a time bucket or a range.")
             if (!timeZonePattern.matches(report.timeZone)) problem(at, "'${report.timeZone}' is not a time zone region such as Asia/Manila or UTC.")
         }
         report.filters.forEachIndexed { i, filter -> checkReportFilter(::visible, filter, "$at.filters.$i", problem) }
+        report.range?.let { range ->
+            if (visible(range.field)?.type != FieldType.INSTANT) problem("$at.range", "A range needs an instant field, not '${range.field}'.")
+            if (range.last !in 1..MAX_RANGE_SPANS) problem("$at.range", "A range holds from 1 to $MAX_RANGE_SPANS spans, not ${range.last}.")
+        }
+        if (report.compare != null) {
+            if (report.range == null) problem("$at.compare", "A comparison needs a range to compare with an earlier one.")
+            if (report.chart == Chart.PIE) problem("$at.compare", "A pie can't show a comparison: use a bar, a line or a number.")
+        }
     }
 
     private fun checkReportFilter(visible: (String) -> Field?, filter: ReportFilter, at: String, problem: (String, String) -> Unit) {

@@ -5,7 +5,7 @@ needs no Node. It renders every screen from the [admin API](admin-api.md)'s `/sc
 panel change:
 
 - a sidebar of what the caller may see, and a home screen with the [reports](aggregates-reports.md#reports) they may
-  read, as charts;
+  read, as charts, with a [range picker](aggregates-reports.md#rolling-ranges) and a range menu on each card;
 - lists with search, filters, sort, cursor paging, bulk delete and CSV export;
 - forms with a widget per field type, including a searchable picker for references, and validation errors and hook
   vetoes shown on their fields.
