@@ -4,6 +4,28 @@ Every library module is published to Maven Central as `io.github.basekt:<module>
 published. Publishing uses the [vanniktech maven-publish](https://vanniktech.github.io/gradle-maven-publish-plugin/)
 plugin through the `basekt.publish` convention in `build-logic`.
 
+## Snapshots
+
+Every push to `main` publishes the libraries as `basekt.version` from `gradle.properties` (always a `-SNAPSHOT`, such
+as `0.2.0-SNAPSHOT`) to Maven Central's snapshots repository, through the **Snapshot** workflow. Snapshots aren't
+signed, are replaced by each push, and expire after a while, so they're for trying the latest `main`, not for pinning.
+To use one:
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven("https://central.sonatype.com/repository/maven-snapshots/") { mavenContent { snapshotsOnly() } }
+    }
+}
+// build.gradle.kts
+dependencies { implementation("io.github.basekt:basekt-server:0.2.0-SNAPSHOT") }
+```
+
+Gradle re-checks a snapshot every 24 hours; `--refresh-dependencies` forces it. After a tagged release, bump
+`basekt.version` on `main` to the next `-SNAPSHOT`.
+
 ## Cutting a release
 
 1. Make sure `main` is green.
@@ -38,6 +60,7 @@ These are done once by an owner of the `basekt` GitHub organization.
 | Step | Where | What |
 |---|---|---|
 | 1. Namespace | [central.sonatype.com](https://central.sonatype.com) → Namespaces | Register `io.github.basekt`. Verify it by creating a public repository in the `basekt` org named with the verification key Central shows, then delete that repository once the namespace says *Verified*. |
+| 1b. Snapshots | central.sonatype.com → Namespaces → `io.github.basekt` | Enable SNAPSHOTs, so the Snapshot workflow can publish. |
 | 2. Publishing token | central.sonatype.com → Account → Generate User Token | Store its username and password as repository secrets `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`. |
 | 3. Signing key | your machine (skip if you already have one, such as the key another project signs its releases with) | `gpg --quick-gen-key "BaseKt Releases <...>" rsa4096 sign 0`, then publish the public key: `gpg --keyserver keyserver.ubuntu.com --send-keys <KEY_ID>`. Central checks signatures against public keyservers. |
 | 4. Signing secrets | GitHub → basekt/basekt → Settings → Secrets → Actions | `GPG_SIGNING_KEY`: the output of `gpg --armor --export-secret-keys <KEY_ID>`. `GPG_SIGNING_PASSWORD`: its passphrase, or leave it unset if the key has none. These are the same names awakekt/awake uses, so the same key can be added to both. |
