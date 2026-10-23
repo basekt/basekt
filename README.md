@@ -161,12 +161,14 @@ The runnable example is [`samples/sample-shop`](samples/sample-shop): Exposed on
 | `server:basekt-data-exposed` | ✓ works | Exposed/JDBC adapter: Postgres, MySQL, H2. Keyset cursors, one-query `getMany`, savepoints |
 | `server:basekt-auth` | ✓ works | Ktor Authentication adapters (JWT, bearer), `PrincipalRoles` mapped to permissions, typed 401 and 403 |
 | `admin:basekt-admin-api` | ✓ works | `install(BaseKtAdmin)`: a JSON admin API from the schema (per-caller schema, list and search, CRUD, bulk delete, CSV export) and its TypeScript types |
-| `testing:basekt-testing` | ✓ works | the `DataSourceContract` suite every adapter runs, plus test fixtures |
+| `testing:basekt-testing` | ✓ works | the `DataSourceContract` and `BlobStoreContract` suites every adapter runs, plus test fixtures |
 | `admin:basekt-admin-ui` | ✓ works | `install(BaseKtAdminUi)`: a schema-driven admin panel (React, shadcn/ui and Tailwind, prebuilt into the jar) with a typed Kotlin theme |
 | `samples:sample-shop` | ✓ works | a small shop backend: Exposed on H2, JWT and bearer auth, a pricing hook, the admin API and the admin panel |
 | `server:basekt-graphql` | later | a GraphQL API generated at runtime from the same schema, on the same `DataSource` and service layer |
 | `server:basekt-realtime` | later | change feeds over WebSockets |
-| `server:basekt-storage` (+ `-local`, `-s3`, `-gcs`) | later | file uploads behind one interface |
+| `server:basekt-storage` | ✓ works | the `BlobStore` SPI: streamed puts and reads of files, byte ranges, and optional listing and presigned URLs |
+| `server:basekt-storage-memory`, `-local` | ✓ works | in-memory and local-filesystem stores, both passing the `BlobStoreContract` suite |
+| `server:basekt-files`, `server:basekt-storage-s3` | next | `install(BaseKtFiles)`: buckets, uploads, downloads and `file` fields; and an S3 store |
 | `server:basekt-audit` | later | an audit log of who changed what |
 | `client:basekt-client` | later | a typed multiplatform client SDK: auth, queries, realtime, storage |
 | `server:basekt-data-jdbc`, `-mongo` | later | more data adapters |
