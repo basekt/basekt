@@ -4,6 +4,6 @@ plugins { id("basekt.jvm-library") }
 dependencies {
     api(project(":server:basekt-server"))
     api(libs.ktor.server.auth)
-    implementation(libs.ktor.server.auth.jwt)
+    api(libs.ktor.server.auth.jwt)
     testImplementation(project(":testing:basekt-testing"))
 }
