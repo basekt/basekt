@@ -28,8 +28,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-private val ErrorJson = Json { encodeDefaults = true }
-
 internal fun Route.baseKtRoutes(runtime: BaseKtRuntime, defaultPageSize: Int, maxPageSize: Int) {
     val service = runtime.service
     val schemaJson = runtime.schema.toJson()
@@ -91,7 +89,7 @@ private suspend fun RoutingContext.handle(runtime: BaseKtRuntime, block: suspend
         block(runtime.identities.resolve(call))
     } catch (e: ApiException) {
         call.respondText(
-            ErrorJson.encodeToString(ApiError.serializer(), e.error),
+            e.error.toJson(),
             ContentType.Application.Json,
             HttpStatusCode.fromValue(e.error.error.status),
         )

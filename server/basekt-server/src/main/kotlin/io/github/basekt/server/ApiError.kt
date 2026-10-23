@@ -3,6 +3,7 @@ package io.github.basekt.server
 import io.github.basekt.schema.FieldError
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /** The JSON body of every error BaseKt returns to a client. */
 @Serializable
@@ -14,6 +15,11 @@ public data class ApiError(
     /** The rejected fields, for [ErrorCode.VALIDATION_FAILED]. */
     val fields: List<FieldError> = emptyList(),
 )
+
+private val ErrorJson = Json { encodeDefaults = true }
+
+/** Encodes this error as the JSON body BaseKt sends. */
+public fun ApiError.toJson(): String = ErrorJson.encodeToString(ApiError.serializer(), this)
 
 /** The kinds of [ApiError], each with its HTTP status. */
 @Serializable

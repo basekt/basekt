@@ -117,7 +117,7 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
 
     val runtime = BaseKtRuntime(schema, dataSource, ResourceService(schema, dataSource, validators), pluginConfig.identities, basePath)
     application.attributes.put(RuntimeKey, runtime)
-    application.routing { baseKtRoutes(runtime, defaultPageSize, maxPageSize) }
+    application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }
 
     on(MonitoringEvent(ApplicationStarted)) { app ->
         app.log.info("BaseKt serves ${schema.resources.size} resources under $basePath")
