@@ -14,6 +14,7 @@ import io.ktor.server.routing.routing
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
@@ -114,6 +115,24 @@ class BaseKtAdminUiTest {
     }
 
     @Test
+    fun `a login route tells the panel to ask for a name and a password`() = testApplication {
+        environment { config = MapApplicationConfig("basekt.adminUi.login.path" to "/auth/login") }
+        application { install(BaseKtAdminUi) { login { usernameField = "username"; usernameLabel = "Staff id" } } }
+        val login = shellConfig("/admin")["login"]!!.jsonObject
+        assertEquals("/auth/login", login["path"]!!.jsonPrimitive.content)
+        assertEquals("username", login["usernameField"]!!.jsonPrimitive.content)
+        assertEquals("Staff id", login["usernameLabel"]!!.jsonPrimitive.content)
+        assertEquals("password", login["passwordField"]!!.jsonPrimitive.content)
+        assertEquals("token", login["tokenField"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `without a login route the panel asks for a token`() = testApplication {
+        application { install(BaseKtAdminUi) }
+        assertEquals(JsonNull, shellConfig("/admin")["login"])
+    }
+
+    @Test
     fun `deep links get the shell, but the API and missing assets stay 404`() = testApplication {
         application {
             install(BaseKtAdminUi)
@@ -138,6 +157,10 @@ class BaseKtAdminUiTest {
             { path = "/" },
             { path = "/admin"; apiPath = "/admin/" },
             { brand { logo = "javascript:alert(1)" } },
+            // A password goes only to this server.
+            { login { path = "https://elsewhere.test/login" } },
+            { login { path = "//elsewhere.test/login" } },
+            { login { path = "/auth/login"; tokenField = " " } },
         )) {
             assertFailsWith<IllegalArgumentException> {
                 testApplication {

@@ -16,7 +16,12 @@ function page(json: string | null): Document {
 describe("readConfig", () => {
   it("reads the shell page's config", () => {
     const config = readConfig(page('{"path":"/back-office/","apiPath":"/back-office/api","filesPath":"/uploads","brand":{"name":"Acme","logo":"/logo.svg"},"defaultMode":"dark"}'))
-    expect(config).toEqual({ path: "/back-office", apiPath: "/back-office/api", filesPath: "/uploads", brand: { name: "Acme", logo: "/logo.svg" }, defaultMode: "dark" })
+    expect(config).toEqual({ path: "/back-office", apiPath: "/back-office/api", filesPath: "/uploads", brand: { name: "Acme", logo: "/logo.svg" }, defaultMode: "dark", login: null })
+  })
+
+  it("reads the host's login route", () => {
+    const login = { path: "/auth/login", usernameField: "email", usernameLabel: "Email", passwordField: "password", tokenField: "token" }
+    expect(readConfig(page(JSON.stringify({ path: "/admin", login }))).login).toEqual(login)
   })
 
   it("falls back to the defaults without one", () => {

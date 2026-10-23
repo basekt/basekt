@@ -26,10 +26,20 @@ internal data class ShellConfig(
     val filesPath: String,
     val brand: ShellBrand,
     val defaultMode: ThemeMode,
+    val login: ShellLogin? = null,
 )
 
 @Serializable
 internal data class ShellBrand(val name: String, val logo: String?)
+
+@Serializable
+internal data class ShellLogin(
+    val path: String,
+    val usernameField: String,
+    val usernameLabel: String,
+    val passwordField: String,
+    val tokenField: String,
+)
 
 private val json = Json { encodeDefaults = true }
 
