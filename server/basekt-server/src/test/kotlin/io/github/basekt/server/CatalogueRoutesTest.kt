@@ -88,7 +88,7 @@ class CatalogueRoutesTest {
         val response = client.postJson("/api/books", """{"title": "Orphan", "authorId": "nobody"}""", "librarian")
         assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
         assertTrue("missing_reference" in response.bodyAsText())
-        assertEquals("""{"items":[],"nextCursor":null}""", client.get("/api/books").bodyAsText())
+        assertEquals("""{"items":[],"nextCursor":null,"hasNext":false}""", client.get("/api/books").bodyAsText())
     }
 
     @Test

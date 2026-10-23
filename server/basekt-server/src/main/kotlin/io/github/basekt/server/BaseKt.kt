@@ -89,7 +89,7 @@ public val BaseKtStarted: EventDefinition<BaseKtRuntime> = EventDefinition()
 /**
  * Serves a schema's resources as a REST API under [BaseKtConfig.basePath]:
  * - `GET /schema`: the schema as JSON;
- * - `GET /{resource}`: a page of records, filtered and sorted by query parameters (see [parseQuery]);
+ * - `GET /{resource}`: a page of records (`items`, `nextCursor`, `hasNext`), filtered and sorted by query parameters (see [parseQuery]);
  * - `POST /{resource}`: create a record; `GET`, `PATCH` and `DELETE /{resource}/{id}`: one record;
  * - `GET /{resource}/{id}/{relation}`: the record it belongs to, or the records that belong to it.
  *

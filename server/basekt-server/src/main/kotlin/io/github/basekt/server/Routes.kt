@@ -116,6 +116,7 @@ private suspend fun RoutingContext.respondPage(resource: Resource, page: Page) {
             mapOf(
                 "items" to JsonArray(page.items.map(resource::encodeRecord)),
                 "nextCursor" to (page.nextCursor?.let(::JsonPrimitive) ?: JsonNull),
+                "hasNext" to JsonPrimitive(page.hasNext),
             ),
         ),
     )
