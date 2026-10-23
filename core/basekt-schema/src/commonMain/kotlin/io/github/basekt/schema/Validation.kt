@@ -2,6 +2,7 @@ package io.github.basekt.schema
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -146,6 +147,10 @@ public fun Resource.validateRecord(
     for (field in fields) {
         val present = field.name in record
         val value = record[field.name]
+        if (value is Value.Items && field.required && value.values.isEmpty()) {
+            errors += FieldError(field.name, FieldErrorCode.REQUIRED, "'${field.name}' needs at least one item.")
+            continue
+        }
         if (value == null) {
             // The server sets an automatic field after the client's record is decoded.
             if (field.required && (mode == WriteMode.CREATE || present) && !(field.auto != null && !present)) {
@@ -173,6 +178,7 @@ public fun Value.toJson(): JsonElement = when (this) {
     is Value.Decimal -> JsonPrimitive(literal)
     is Value.Bool -> JsonPrimitive(value)
     is Value.Timestamp -> JsonPrimitive(value.toString())
+    is Value.Items -> JsonArray(values.map { it.toJson() })
 }
 
 /**
@@ -180,6 +186,10 @@ public fun Value.toJson(): JsonElement = when (this) {
  * ranges, not [Rule]s.
  */
 public fun Field.decode(json: JsonElement): Value? {
+    if (list) {
+        val items = (json as? JsonArray)?.map { copy(list = false).decode(it) ?: return null } ?: return null
+        return Value.Items(items)
+    }
     val primitive = json as? JsonPrimitive ?: return null
     if (primitive is JsonNull) return null
     return when (type) {
@@ -212,6 +222,10 @@ public fun Schema.missingValidators(validators: Map<String, FieldValidator>): Se
         .map { it.name }.filterNot { it in validators }.toSet()
 
 private fun Field.check(value: Value, validators: Map<String, FieldValidator>): FieldError? {
+    if (value is Value.Items) {
+        val each = copy(list = false)
+        return value.values.firstNotNullOfOrNull { each.check(it, validators) }
+    }
     fun error(code: FieldErrorCode, message: String) = FieldError(name, code, message)
     if (type == FieldType.ENUM && (value as? Value.Text)?.value !in values.orEmpty()) {
         return error(FieldErrorCode.ENUM, "Expected one of ${values.orEmpty().joinToString()}.")

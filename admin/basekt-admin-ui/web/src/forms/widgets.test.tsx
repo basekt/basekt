@@ -33,6 +33,18 @@ describe("the widget registry", () => {
     expect(widgetFor({ ...fieldOf(books, "title"), type: "geopoint" as FieldType })).toBe(fallbackWidget)
   })
 
+  it("edits a list one item per line, with numbers for integer fields", async () => {
+    const tags = renderWidget({ ...fieldOf(books, "title"), list: true }, null)
+    await userEvent.type(screen.getByLabelText("title"), "a{Enter}b")
+    expect(tags.value()).toEqual(["a", "b"])
+  })
+
+  it("sends the items of an integer list as numbers", async () => {
+    const loads = renderWidget({ ...fieldOf(books, "pages"), list: true }, null)
+    await userEvent.type(screen.getByLabelText("pages"), "3{Enter}x")
+    expect(loads.value()).toEqual([3, "x"])
+  })
+
   it("edits text, and clears an optional field to null", async () => {
     const title = renderWidget(fieldOf(books, "title"), "Dune")
     const box = screen.getByLabelText("title")

@@ -214,10 +214,16 @@ public class FieldBuilder internal constructor() {
     private val rules = mutableListOf<Rule>()
     private var auto: Auto? = null
     private var unique = false
+    private var list = false
 
     /** Makes the field required: a record must have a non-null value. */
     public fun required() {
         required = true
+    }
+
+    /** Makes the field a list of values of its type. Only an action's or a transition's input may be one. See [Field.list]. */
+    public fun list() {
+        list = true
     }
 
     /** Makes the field unique: no two records may hold the same non-null value. See [Field.unique]. */
@@ -291,7 +297,7 @@ public class FieldBuilder internal constructor() {
         auto(Auto.Sequence(prefix, digits, start))
 
     internal fun build(name: String, type: FieldType, values: List<String>?, target: String?, bucket: String? = null): Field =
-        Field(name, type, required, values, target, rules.toList(), bucket, auto, unique)
+        Field(name, type, required, values, target, rules.toList(), bucket, auto, unique, list)
 }
 
 /** Declares who may perform each [Operation]. */

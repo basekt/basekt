@@ -106,6 +106,8 @@ public data class AdminField(
     val scopedValues: List<String>? = null,
     /** What the server sets the field to, or `null` for a field the caller writes. A panel leaves it out of forms. */
     val auto: Auto? = null,
+    /** Whether the field is a list of values, as an action's input can be. A panel asks for one item per line. */
+    val list: Boolean = false,
 )
 
 /** A relation as an admin panel sees it. */

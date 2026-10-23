@@ -174,6 +174,11 @@ public data class Field(
      * with a [FieldErrorCode.UNIQUE] error. Null and unset values never clash.
      */
     val unique: Boolean = false,
+    /**
+     * Whether the field holds a list of values of its [type], as [Value.Items]. Only the input of an action or a
+     * transition may be a list. [rules] and [values] apply to each item, and a required list needs at least one.
+     */
+    val list: Boolean = false,
 )
 
 /**

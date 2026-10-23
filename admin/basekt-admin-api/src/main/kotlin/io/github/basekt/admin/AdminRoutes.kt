@@ -178,7 +178,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
 }
 
 private fun Field.toAdmin(scopedValues: Set<String>?): AdminField =
-    AdminField(name, type, required, values, target, rules, bucket, scopedValues?.sorted(), auto)
+    AdminField(name, type, required, values, target, rules, bucket, scopedValues?.sorted(), auto, list)
 
 private fun Resource.searchable(): List<String> =
     fields.filter { it.type == FieldType.STRING || it.type == FieldType.ENUM }.map { it.name }

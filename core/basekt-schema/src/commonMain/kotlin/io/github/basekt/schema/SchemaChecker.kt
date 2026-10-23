@@ -58,7 +58,10 @@ internal object SchemaChecker {
         return problems
     }
 
-    private fun checkField(schema: Schema, field: Field, at: String, problem: (String, String) -> Unit) {
+    private fun checkField(schema: Schema, field: Field, at: String, problem: (String, String) -> Unit, input: Boolean = false) {
+        if (field.list && !input) problem(at, "Only the input of an action or a transition can be a list.")
+        if (field.list && field.type == FieldType.FILE) problem(at, "A list can't hold files.")
+        if (field.list && field.unique) problem(at, "A list can't be unique.")
         if (!namePattern.matches(field.name)) problem(at, "'${field.name}' is not a valid name: use letters, digits and '_', starting with a letter.")
         if (field.name == Resource.ID) problem(at, "'${Resource.ID}' is reserved: every record has it already.")
         when (field.type) {
@@ -186,7 +189,7 @@ internal object SchemaChecker {
         if (action.confirm != null && action.confirm.isBlank()) problem(at, "A confirmation question can't be blank.")
         duplicates(action.input.map { it.name }).forEach { problem("$at.input.$it", "Input field '$it' is declared twice.") }
         for (field in action.input) {
-            checkField(schema, field, "$at.input.${field.name}", problem)
+            checkField(schema, field, "$at.input.${field.name}", problem, input = true)
             if (field.auto != null) problem("$at.input.${field.name}", "An action's input is the caller's, so the server can't set it.")
         }
     }

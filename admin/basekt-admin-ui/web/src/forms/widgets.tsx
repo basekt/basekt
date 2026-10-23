@@ -40,7 +40,32 @@ export const fallbackWidget: Widget = TextWidget
 
 /** The widget for [field]. */
 export function widgetFor(field: AdminField): Widget {
+  if (field.list) return ListWidget
   return (widgets as Partial<Record<string, Widget>>)[field.type] ?? fallbackWidget
+}
+
+/** A list, edited as one item per line. Items of an integer field are sent as numbers once they parse. */
+function ListWidget({ field, id, value, onChange, invalid, describedBy }: WidgetProps) {
+  const [text, setText] = useState(Array.isArray(value) ? value.join("\n") : "")
+  const numeric = field.type === "int" || field.type === "long"
+  const change = (next: string) => {
+    setText(next)
+    const lines = next.split("\n").map((line) => line.trim()).filter((line) => line !== "")
+    if (lines.length === 0) onChange(field.required ? [] : null)
+    else onChange(lines.map((line) => (numeric && /^-?\d+$/.test(line) && Number.isSafeInteger(Number(line)) ? Number(line) : line)))
+  }
+  return (
+    <textarea
+      id={id}
+      rows={4}
+      value={text}
+      onChange={(e) => change(e.target.value)}
+      aria-invalid={invalid}
+      aria-describedby={describedBy}
+      placeholder="One per line"
+      className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-16 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+    />
+  )
 }
 
 function TextWidget({ field, id, value, onChange, invalid, describedBy }: WidgetProps) {
