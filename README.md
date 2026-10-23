@@ -145,7 +145,8 @@ install(BaseKtAdminUi) {
 
 ![The sample shop's products in the admin panel](admin/basekt-admin-ui/docs/staff-products.jpg)
 
-**Files** (`basekt-files`) are kept in buckets over any `BlobStore`: in memory, on local disk, or later S3.
+**Files** (`basekt-files`) are kept in buckets over any `BlobStore`: in memory, on local disk, or on S3 with
+`S3BlobStore(S3Settings(endpoint, bucket, region, accessKey, secretKey))` from `basekt-storage-s3`.
 
 ```kotlin
 install(BaseKtFiles) {
@@ -172,7 +173,8 @@ that no record ever points to are swept after a day. The admin panel uploads, pr
 fields.
 
 The runnable example is [`samples/sample-shop`](samples/sample-shop): Exposed on H2, JWT and demo bearer tokens, a
-"price can't drop below cost" hook, the admin API, and the admin panel with an indigo theme set in Kotlin. Run
+"price can't drop below cost" hook, product images on local disk, the admin API, and the admin panel with an indigo
+theme set in Kotlin. Run
 `./gradlew :samples:sample-shop:run`, then try `curl localhost:8080/api/products`, or open
 `http://localhost:8080/admin` and sign in with `staff-token` (everything) or `customer-token` (browse, place orders).
 
@@ -195,7 +197,7 @@ The runnable example is [`samples/sample-shop`](samples/sample-shop): Exposed on
 | `server:basekt-storage` | ✓ works | the `BlobStore` SPI: streamed puts and reads of files, byte ranges, and optional listing and presigned URLs |
 | `server:basekt-storage-memory`, `-local` | ✓ works | in-memory and local-filesystem stores, both passing the `BlobStoreContract` suite |
 | `server:basekt-files` | ✓ works | `install(BaseKtFiles)`: buckets with limits and permissions, streamed uploads, downloads with ranges and safe headers, and `file` fields kept in step with their files |
-| `server:basekt-storage-s3` | next | an S3 store for AWS, MinIO and R2 |
+| `server:basekt-storage-s3` | ✓ works | an S3 store for AWS, MinIO, R2 and other S3-compatible services: Signature V4 with no SDK, multipart uploads, ranges and presigned URLs |
 | `server:basekt-audit` | later | an audit log of who changed what |
 | `client:basekt-client` | later | a typed multiplatform client SDK: auth, queries, realtime, storage |
 | `server:basekt-data-jdbc`, `-mongo` | later | more data adapters |
@@ -227,6 +229,13 @@ panel ships prebuilt in `basekt-admin-ui`'s jar.
 
 ```bash
 ./gradlew build
+```
+
+The S3 store's contract suite runs against an in-process fake that checks every request's signature. To also run it
+against a real S3-compatible store, pass a bucket it may write to (each run uses a fresh prefix):
+
+```bash
+./gradlew :server:basekt-storage-s3:test -Pbasekt.s3.endpoint=http://localhost:9000 -Pbasekt.s3.bucket=basekt -Pbasekt.s3.accessKey=... -Pbasekt.s3.secretKey=...
 ```
 
 The Exposed adapter's tests run on H2. To also run its contract suite on Postgres, pass a database it may create

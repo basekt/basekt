@@ -26,6 +26,7 @@ include(
     ":server:basekt-storage",
     ":server:basekt-storage-memory",
     ":server:basekt-storage-local",
+    ":server:basekt-storage-s3",
     ":server:basekt-files",
     ":admin:basekt-admin-api",
     ":admin:basekt-admin-ui",
