@@ -10,8 +10,8 @@
 It's built for a shop, a SaaS, a game's back office or anything else that needs a backend and an admin, without
 handing your app to a platform.
 
-> **Status: pre-release (0.1.0-SNAPSHOT).** These work now: the schema, the data SPI with its in-memory adapter and
-> contract tests, the `install(BaseKt)` REST plugin, and the sample shop. Exposed, auth and the admin API come next.
+> **Status: pre-release (0.1.0-SNAPSHOT).** These work now: the schema, the data SPI with its in-memory and Exposed
+> adapters and contract tests, the `install(BaseKt)` REST plugin, and the sample shop. Auth and the admin API come next.
 > Nothing is published yet.
 
 ## Why another one
@@ -74,7 +74,7 @@ The base path and page sizes come from the `basekt` section of `ApplicationConfi
 | `server:basekt-server` | ✓ works | `install(BaseKt)`: the schema-driven REST API, permissions and lifecycle |
 | `server:basekt-data` | ✓ works | the `DataSource` SPI: queries, writes, transactions |
 | `server:basekt-data-memory` | ✓ works | in-memory adapter, for tests, samples and prototypes |
-| `server:basekt-data-exposed` | next | Exposed/JDBC adapter: Postgres, MySQL, H2 |
+| `server:basekt-data-exposed` | ✓ works | Exposed/JDBC adapter: Postgres, MySQL, H2. Keyset cursors, one-query `getMany`, savepoints |
 | `server:basekt-auth` | next | Ktor Authentication adapters (JWT, bearer) and roles mapped to permissions |
 | `admin:basekt-admin-api` | next | `install(BaseKtAdmin)`: admin endpoints from the schema (CRUD, actions, export) |
 | `testing:basekt-testing` | ✓ works | the `DataSourceContract` suite every adapter runs, plus test fixtures |
@@ -94,6 +94,13 @@ JDK 17 or later.
 
 ```bash
 ./gradlew build
+```
+
+The Exposed adapter's tests run on H2. To also run its contract suite on Postgres, pass a database it may create
+tables in:
+
+```bash
+./gradlew :server:basekt-data-exposed:test -Pbasekt.postgres.url=jdbc:postgresql://localhost/basekt -Pbasekt.postgres.user=basekt -Pbasekt.postgres.password=basekt
 ```
 
 Maven coordinates, once published: `io.github.basekt:<module>:<version>`.

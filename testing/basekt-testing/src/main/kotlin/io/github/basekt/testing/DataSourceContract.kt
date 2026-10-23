@@ -1,6 +1,7 @@
 package io.github.basekt.testing
 
 import io.github.basekt.data.Comparison
+import io.github.basekt.data.Counting
 import io.github.basekt.data.DataSource
 import io.github.basekt.data.Direction
 import io.github.basekt.data.DuplicateIdException
@@ -297,6 +298,18 @@ public abstract class DataSourceContract {
             }
         }
         assertEquals(listOf("kept", "outer"), source.list(entries).items.ids())
+    }
+
+    /** A source that offers [Counting] counts what [DataSource.list] would return. Other sources skip this test. */
+    @Test
+    public fun countingMatchesListing(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is Counting) return@runTest
+        source.seedRanks(1, 2, 3, null)
+        assertEquals(4, source.count(entries))
+        assertEquals(2, source.count(entries, Filter.Compare("rank", Comparison.GTE, int(2))))
+        assertEquals(2, source.count(entries, Filter.Not(Filter.Compare("rank", Comparison.GTE, int(2)))))
+        assertFailsWith<InvalidQueryException> { source.count(entries, Filter.IsNull("colour")) }
     }
 
     /** Concurrent creates all land, with distinct ids. */
