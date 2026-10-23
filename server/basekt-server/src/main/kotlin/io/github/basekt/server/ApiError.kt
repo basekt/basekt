@@ -47,6 +47,9 @@ public enum class ErrorCode(
 
     /** At least one field was rejected; see [ApiError.fields]. */
     @SerialName("validation_failed") VALIDATION_FAILED(422),
+
+    /** A hook of the application refused the write; see [ApiError.message]. */
+    @SerialName("rejected") REJECTED(422),
 }
 
 /** Thrown by [ResourceService] to answer a request with [error]. */

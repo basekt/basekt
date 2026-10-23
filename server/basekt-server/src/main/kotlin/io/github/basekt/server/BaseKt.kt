@@ -52,6 +52,15 @@ public class BaseKtConfig internal constructor(config: ApplicationConfig) {
     /** The validators that the schema's custom rules name. */
     public val validators: MutableMap<String, FieldValidator> = mutableMapOf()
 
+    private val hookBuilder = HooksBuilder()
+
+    /** Declares hooks that run around writes, on every transport. See [Hooks]. */
+    public fun hooks(block: HooksBuilder.() -> Unit) {
+        hookBuilder.apply(block)
+    }
+
+    internal fun builtHooks(): Hooks = hookBuilder.build()
+
     /** Declares the schema with the schema DSL. */
     public fun resources(block: SchemaBuilder.() -> Unit) {
         schema = buildSchema(block)
@@ -115,7 +124,7 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     }
     val basePath = "/" + pluginConfig.basePath.trim('/')
 
-    val runtime = BaseKtRuntime(schema, dataSource, ResourceService(schema, dataSource, validators), pluginConfig.identities, basePath)
+    val runtime = BaseKtRuntime(schema, dataSource, ResourceService(schema, dataSource, validators, pluginConfig.builtHooks()), pluginConfig.identities, basePath)
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }
 
