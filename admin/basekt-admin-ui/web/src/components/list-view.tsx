@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react"
-import type { AdminField, AdminResource, JsonObject } from "@wire"
+import { BulkActions, BulkFailures, ExportButton } from "@/components/bulk-actions"
+import type { AdminField, AdminResource, BulkFailure, JsonObject } from "@wire"
 import { ErrorState } from "@/components/error-state"
 import { FilterBar } from "@/components/filter-bar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -42,12 +44,32 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
   const setSearch = (next: URLSearchParams) => navigate({ screen: "list", resource: resource.name, search: next }, { replace: true })
   const fields: (AdminField | { name: string; type: "id" })[] = [{ name: ID, type: "id" }, ...resource.fields]
   const items = page.data?.items ?? []
+  // Selection is per page: moving to another page or reloading starts with none.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkFailed, setBulkFailed] = useState<BulkFailure[]>([])
+  const selectable = can(resource, "delete")
+  const pageIds = items.map(recordId)
+  const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
+  const toggle = (id: string, on: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  const columns = fields.length + (selectable ? 1 : 0)
+  const afterBulkDelete = (failed: BulkFailure[]) => {
+    setBulkFailed(failed)
+    setSelected(new Set(failed.map((f) => f.id)))
+    page.reload()
+  }
 
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">{humanize(resource.name)}</h1>
         <div className="flex items-center gap-2">
+          <ExportButton resource={resource} params={params} />
           {can(resource, "create") && (
             <Button asChild>
               <Link to={{ screen: "create", resource: resource.name }}>
@@ -63,6 +85,11 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
         <FilterBar resource={resource} search={search} setSearch={setSearch} />
       </div>
 
+      {selectable && selected.size > 0 && (
+        <BulkActions resource={resource} ids={[...selected]} onClear={() => setSelected(new Set())} onDone={afterBulkDelete} />
+      )}
+      {bulkFailed.length > 0 && <BulkFailures failed={bulkFailed} onDismiss={() => setBulkFailed([])} />}
+
       {page.error ? (
         <ErrorState error={page.error} onRetry={page.reload} />
       ) : (
@@ -70,6 +97,16 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
+                {selectable && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      aria-label="Select all on this page"
+                      checked={allSelected ? true : selected.size > 0 ? "indeterminate" : false}
+                      disabled={pageIds.length === 0}
+                      onCheckedChange={(on) => setSelected(on === true ? new Set(pageIds) : new Set())}
+                    />
+                  </TableHead>
+                )}
                 {fields.map((field) => (
                   <TableHead key={field.name} aria-sort={ariaSort(search, field.name)}>
                     <SortHeader resource={resource} field={field.name} search={search} setSearch={setSearch} />
@@ -81,6 +118,7 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
               {page.loading && !page.data ? (
                 [0, 1, 2].map((row) => (
                   <TableRow key={row}>
+                    {selectable && <TableCell />}
                     {fields.map((field) => (
                       <TableCell key={field.name}>
                         <Skeleton className="h-4 w-20" />
@@ -90,12 +128,20 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
                 ))
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={fields.length} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={columns} className="h-24 text-center text-muted-foreground">
                     No records{search.size > 0 ? " match" : " yet"}.
                   </TableCell>
                 </TableRow>
               ) : (
-                items.map((record) => <RecordRow key={recordId(record)} resource={resource} record={record} />)
+                items.map((record) => (
+                  <RecordRow
+                    key={recordId(record)}
+                    resource={resource}
+                    record={record}
+                    selected={selectable ? selected.has(recordId(record)) : undefined}
+                    onSelect={(on) => toggle(recordId(record), on)}
+                  />
+                ))
               )}
             </TableBody>
           </Table>
@@ -110,14 +156,14 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
               : `${mark.start + 1}–${mark.start + items.length}${page.data.total != null ? ` of ${page.data.total}` : ""}`}
           </span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={pages.length === 1} onClick={() => setPages(pages.slice(0, -1))}>
+            <Button variant="outline" size="sm" disabled={pages.length === 1} onClick={() => { setSelected(new Set()); setPages(pages.slice(0, -1)) }}>
               <ChevronLeft /> Previous
             </Button>
             <Button
               variant="outline"
               size="sm"
               disabled={!page.data.hasNext || !page.data.nextCursor}
-              onClick={() => setPages([...pages, { cursor: page.data!.nextCursor, start: mark.start + items.length }])}
+              onClick={() => { setSelected(new Set()); setPages([...pages, { cursor: page.data!.nextCursor, start: mark.start + items.length }]) }}
             >
               Next <ChevronRight />
             </Button>
@@ -128,10 +174,21 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
   )
 }
 
-function RecordRow({ resource, record }: { resource: AdminResource; record: JsonObject }) {
+/** A record's row; with [selected] set, it starts with a checkbox for bulk actions. */
+function RecordRow({ resource, record, selected, onSelect }: {
+  resource: AdminResource
+  record: JsonObject
+  selected?: boolean
+  onSelect: (on: boolean) => void
+}) {
   const id = recordId(record)
   return (
-    <TableRow>
+    <TableRow data-state={selected ? "selected" : undefined}>
+      {selected !== undefined && (
+        <TableCell>
+          <Checkbox aria-label={`Select ${id}`} checked={selected} onCheckedChange={(on) => onSelect(on === true)} />
+        </TableCell>
+      )}
       <TableCell className="font-mono text-xs">
         <Link to={{ screen: "detail", resource: resource.name, id }} className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground">
           {id}

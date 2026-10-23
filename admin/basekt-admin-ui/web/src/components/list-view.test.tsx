@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { apiError, fakeFetch, helpDeskSchema, librarySchema, page } from "@/test/fixtures"
 import { renderPanel } from "@/test/render"
 
@@ -19,7 +19,7 @@ describe("the list view", () => {
 
     const table = await screen.findByRole("table")
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent)
-    expect(headers).toEqual(["ID", "Title", "Pages", "Fee", "Lendable", "Author"])
+    expect(headers).toEqual(["", "ID", "Title", "Pages", "Fee", "Lendable", "Author"])
     expect(await within(table).findByText("Dune")).toBeInTheDocument()
     expect(within(table).getByRole("link", { name: "a1" })).toHaveAttribute("href", "/admin/r/authors/a1")
     expect(within(table).getByText("No")).toBeInTheDocument()
@@ -82,5 +82,48 @@ describe("the list view", () => {
     await userEvent.click(screen.getByRole("link", { name: "Authors" }))
     await userEvent.click(screen.getByRole("link", { name: "Books" }))
     expect(await screen.findByText("Unknown field 'colour'.")).toBeInTheDocument()
+  })
+
+  it("bulk deletes the selection and lists what the API refused", async () => {
+    const user = userEvent.setup()
+    let rows = library
+    const fetch = fakeFetch(({ url, body }) => {
+      if (url.pathname === "/admin/api/schema") return { body: librarySchema }
+      if (url.pathname === "/admin/api/resources/books/records") return { body: page(rows) }
+      if (url.pathname === "/admin/api/resources/books/bulk-delete") {
+        rows = rows.filter((r) => r.id !== "b1")
+        expect(body).toEqual({ ids: ["b1", "b2"] })
+        return { body: { deleted: ["b1"], failed: [{ id: "b2", error: apiError("rejected", "Emma is on loan.") }] } }
+      }
+    })
+    renderPanel("/admin/r/books", fetch)
+
+    await user.click(await screen.findByRole("checkbox", { name: "Select all on this page" }))
+    expect(screen.getByRole("toolbar", { name: "Selected records" })).toHaveTextContent("2 selected")
+    await user.click(within(screen.getByRole("toolbar")).getByRole("button", { name: /delete/i }))
+    await user.click(await screen.findByRole("button", { name: "Delete" }))
+
+    expect(await screen.findByText("1 not deleted")).toBeInTheDocument()
+    expect(screen.getByText(/Emma is on loan\./)).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText("Dune")).not.toBeInTheDocument())
+    expect(screen.getByRole("checkbox", { name: "Select b2" })).toBeChecked()
+  })
+
+  it("exports CSV with the list's parameters, and offers no selection without delete", async () => {
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: helpDeskSchema }
+      if (url.pathname === "/admin/api/resources/tickets/records") return { body: page([{ id: "t1", subject: "Printer jam", state: "open", openedAt: null, views: 1 }]) }
+      if (url.pathname === "/admin/api/resources/tickets/export.csv") return { body: "id,subject" }
+    })
+    URL.createObjectURL = vi.fn(() => "blob:csv")
+    URL.revokeObjectURL = vi.fn()
+    renderPanel("/admin/r/tickets?state=open&sort=-openedAt", fetch)
+
+    expect(await screen.findByText("Printer jam")).toBeInTheDocument()
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: /export csv/i }))
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled())
+    const exported = fetch.calls.find((c) => c.url.pathname.endsWith("export.csv"))!
+    expect([...exported.url.searchParams]).toEqual([["state", "open"], ["sort", "-openedAt"]])
   })
 })

@@ -1,5 +1,5 @@
 // A small shop backend on BaseKt: categories, products, customers and orders, on Exposed and H2, with JWT and
-// bearer auth, a pricing hook and the JSON admin API.
+// bearer auth, a pricing hook, the JSON admin API and the admin panel.
 plugins {
     id("basekt.jvm-library")
     application
@@ -12,6 +12,7 @@ dependencies {
     implementation(project(":server:basekt-data-exposed"))
     implementation(project(":server:basekt-auth"))
     implementation(project(":admin:basekt-admin-api"))
+    implementation(project(":admin:basekt-admin-ui"))
     implementation(libs.ktor.server.cio)
     runtimeOnly(libs.h2)
     runtimeOnly(libs.logback.classic)

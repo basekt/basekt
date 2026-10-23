@@ -10,9 +10,9 @@
 It's built for a shop, a SaaS, a game's back office or anything else that needs a backend and an admin, without
 handing your app to a platform.
 
-> **Status: pre-release (0.1.0-SNAPSHOT).** Every v0.1.0 module works: the schema, the data SPI with its in-memory
-> and Exposed adapters and contract tests, the `install(BaseKt)` REST plugin with hooks, Ktor auth adapters, the JSON
-> admin API, and the sample shop. Nothing is published yet.
+> **Status: 0.1.0 is on Maven Central.** It has the schema, the data SPI with its in-memory and Exposed adapters and
+> contract tests, the `install(BaseKt)` REST plugin with hooks, Ktor auth adapters, the JSON admin API, and the sample
+> shop. The admin panel, `basekt-admin-ui`, works on `main` and ships in 0.2.0.
 
 ## Why another one
 
@@ -57,6 +57,7 @@ fun Application.module() {
         }
     }
     install(BaseKtAdmin) { path = "/admin/api" }           // basekt-admin-api
+    install(BaseKtAdminUi) { path = "/admin" }             // basekt-admin-ui: the panel, from the jar
 }
 ```
 
@@ -118,13 +119,40 @@ Its wire format has TypeScript types in
 [`admin/basekt-admin-api/typescript`](admin/basekt-admin-api/typescript), generated from the Kotlin classes and
 checked in CI. The schema contract is additive only within a version.
 
+**The admin panel** (`basekt-admin-ui`) is a React, shadcn/ui and Tailwind app prebuilt into the jar, so the host
+needs no Node. It renders every screen from the admin API's `/schema`, so adding a resource needs no panel change:
+
+- a sidebar of what the caller may see;
+- lists with search, filters, sort, cursor paging, bulk delete and CSV export;
+- forms with a widget per field type, including a searchable picker for references, and validation errors and hook
+  vetoes shown on their fields.
+
+It hides what the caller's roles don't allow, signs in with a bearer token or rides the host's cookie session, and
+has light and dark modes. Its theme is typed Kotlin that becomes CSS variables at runtime, so changing it needs no
+rebuild:
+
+```kotlin
+install(BaseKtAdminUi) {
+    brand { name = "Shop"; logo = "/static/logo.svg" }
+    theme {
+        use(Theme.fromCss(File("theme.css").readText()))   // optional: a theme from ui.shadcn.com/themes
+        radius = Radius.rem(0.5)
+        light { this[Token.Primary] = Oklch(0.511, 0.262, 276.966) }
+        dark { this[Token.Primary] = Hex("#818cf8") }
+    }
+}
+```
+
+![The sample shop's products in the admin panel](admin/basekt-admin-ui/docs/staff-products.jpg)
+
 The runnable example is [`samples/sample-shop`](samples/sample-shop): Exposed on H2, JWT and demo bearer tokens, a
-"price can't drop below cost" hook and the admin API. Run `./gradlew :samples:sample-shop:run`, then try
-`curl localhost:8080/api/products` or `curl -H "Authorization: Bearer staff-token" localhost:8080/admin/api/schema`.
+"price can't drop below cost" hook, the admin API, and the admin panel with an indigo theme set in Kotlin. Run
+`./gradlew :samples:sample-shop:run`, then try `curl localhost:8080/api/products`, or open
+`http://localhost:8080/admin` and sign in with `staff-token` (everything) or `customer-token` (browse, place orders).
 
 ## Modules
 
-| Module | v0.1.0 | What it is |
+| Module | Status | What it is |
 |---|---|---|
 | `core:basekt-schema` | ✓ works | resources, fields, relations, validation and permissions as data (multiplatform, no Ktor) |
 | `server:basekt-server` | ✓ works | `install(BaseKt)`: the schema-driven REST API, permissions, hooks and lifecycle |
@@ -134,8 +162,8 @@ The runnable example is [`samples/sample-shop`](samples/sample-shop): Exposed on
 | `server:basekt-auth` | ✓ works | Ktor Authentication adapters (JWT, bearer), `PrincipalRoles` mapped to permissions, typed 401 and 403 |
 | `admin:basekt-admin-api` | ✓ works | `install(BaseKtAdmin)`: a JSON admin API from the schema (per-caller schema, list and search, CRUD, bulk delete, CSV export) and its TypeScript types |
 | `testing:basekt-testing` | ✓ works | the `DataSourceContract` suite every adapter runs, plus test fixtures |
-| `samples:sample-shop` | ✓ works | a small shop backend: Exposed on H2, JWT and bearer auth, a pricing hook and the admin API |
-| `admin:basekt-admin-ui` | later | a schema-driven admin panel (React, shadcn and Tailwind, prebuilt into the jar and themed with CSS variables), served by the plugin from the admin API |
+| `admin:basekt-admin-ui` | ✓ works | `install(BaseKtAdminUi)`: a schema-driven admin panel (React, shadcn/ui and Tailwind, prebuilt into the jar) with a typed Kotlin theme |
+| `samples:sample-shop` | ✓ works | a small shop backend: Exposed on H2, JWT and bearer auth, a pricing hook, the admin API and the admin panel |
 | `server:basekt-graphql` | later | a GraphQL API generated at runtime from the same schema, on the same `DataSource` and service layer |
 | `server:basekt-realtime` | later | change feeds over WebSockets |
 | `server:basekt-storage` (+ `-local`, `-s3`, `-gcs`) | later | file uploads behind one interface |
@@ -154,6 +182,7 @@ dependencies {
     implementation("io.github.basekt:basekt-data-exposed:0.1.0")   // or basekt-data-memory
     implementation("io.github.basekt:basekt-auth:0.1.0")
     implementation("io.github.basekt:basekt-admin-api:0.1.0")
+    implementation("io.github.basekt:basekt-admin-ui:0.2.0")      // from 0.2.0
     testImplementation("io.github.basekt:basekt-testing:0.1.0")
 }
 ```
@@ -178,7 +207,12 @@ tables in:
 ./gradlew :server:basekt-data-exposed:test -Pbasekt.postgres.url=jdbc:postgresql://localhost/basekt -Pbasekt.postgres.user=basekt -Pbasekt.postgres.password=basekt
 ```
 
-After changing the admin API's wire classes, regenerate the TypeScript types and commit them:
+The admin panel's source is in `admin/basekt-admin-ui/web`. To work on it with hot reload against a running server
+(the sample shop on port 8080 by default, or `BASEKT_SERVER`), run `npm ci` and `npm run dev` there and open
+`http://localhost:5173/admin/`.
+
+After changing the admin API's wire classes, regenerate the TypeScript types and commit them. The panel compiles
+against them, so a change it doesn't handle fails its build:
 
 ```bash
 ./gradlew :admin:basekt-admin-api:generateTypeScript
