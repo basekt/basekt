@@ -17,6 +17,7 @@ class ReportTest {
             report("plantsPerBed") { groupBy("bed") }
             report("plants", Chart.NUMBER)
             report("tallestPerBed", Chart.PIE) { groupBy("bed"); max("height"); limit(5) }
+            report("tallNorth", Chart.NUMBER) { where("bed", "north"); where("height", ReportOperator.GTE, "100"); whereNull("height", empty = false) }
         }
     }
 
@@ -28,16 +29,29 @@ class ReportTest {
             instant("seenAt")
             report("brightnessByNight", Chart.LINE) { groupBy("night"); avg("magnitude") }
             report("sightingsPerWeek", Chart.LINE) { groupBy("seenAt", TimeBucket.WEEK); limit(52) }
+            report("brightNights", Chart.BAR) {
+                groupBy("seenAt", TimeBucket.DAY, timeZone = "America/Santiago"); where("night", ReportOperator.IN, "1", "2")
+            }
         }
     }
 
     @Test
     fun `reports are schema data with a usual order per chart`() {
         val plants = greenhouse.resource("plants")!!.reports
-        assertEquals(listOf("plantsPerBed", "plants", "tallestPerBed"), plants.map { it.name })
+        assertEquals(listOf("plantsPerBed", "plants", "tallestPerBed", "tallNorth"), plants.map { it.name })
+        assertEquals(
+            listOf(
+                ReportFilter("bed", ReportOperator.EQ, listOf("north")),
+                ReportFilter("height", ReportOperator.GTE, listOf("100")),
+                ReportFilter("height", ReportOperator.NULL, listOf("false")),
+            ),
+            plants[3].filters,
+        )
         assertEquals(Report("tallestPerBed", Chart.PIE, "bed", ReportFunction.MAX, "height", limit = 5), plants[2])
         assertEquals(ReportOrder.VALUE_DESC, plants[0].orderOrDefault)
-        val (byNight, perWeek) = observatory.resource("sightings")!!.reports
+        val (byNight, perWeek, brightNights) = observatory.resource("sightings")!!.reports
+        assertEquals("America/Santiago", brightNights.timeZone)
+        assertEquals(listOf(ReportFilter("night", ReportOperator.IN, listOf("1", "2"))), brightNights.filters)
         assertEquals(ReportOrder.GROUP, byNight.orderOrDefault)
         assertEquals(null, byNight.bucket)
         assertEquals(Report("sightingsPerWeek", Chart.LINE, "seenAt", limit = 52, bucket = TimeBucket.WEEK), perWeek)
@@ -64,11 +78,21 @@ class ReportTest {
         assertTrue(problems({ groupBy("night"); sum("observer") }).single().contains("doesn't exist"))
         assertTrue(problems({ groupBy("night"); max("night"); limit(0) }).single().contains("from 1 to"))
         assertTrue(problems({ groupBy("night", TimeBucket.MONTH) }).single().contains("Only an instant field"))
+        assertTrue(problems({ groupBy("night"); where("night", "many") }).single().contains("not a valid value"))
+        assertTrue(problems({ groupBy("night"); where("observer", "ann") }).single().contains("doesn't exist"))
+        assertTrue(problems({ groupBy("night"); where("night", ReportOperator.EQ, "1", "2") }).single().contains("takes one value"))
+        assertTrue(problems({ groupBy("night"); where("night", ReportOperator.NULL, "maybe") }).single().contains("true or false"))
+        assertTrue(problems({ groupBy("night"); where("night", ReportOperator.CONTAINS, "1") }).single().contains("string fields"))
         assertFailsWith<InvalidSchemaException> {
             schema { resource("sightings") { string("observer"); report("byObserver") { groupBy("observer"); sum("observer") } } }
         }
         assertFailsWith<InvalidSchemaException> {
             schema { resource("sightings") { long("night"); report("n", Chart.NUMBER); report("n", Chart.NUMBER) } }
+        }
+        for (zone in listOf("+08:00", "Asia/Manila; DROP TABLE x")) {
+            assertFailsWith<InvalidSchemaException>(zone) {
+                schema { resource("sightings") { instant("seenAt"); report("n", Chart.LINE) { groupBy("seenAt", TimeBucket.DAY, zone) } } }
+            }
         }
     }
 

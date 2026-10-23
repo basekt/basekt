@@ -185,6 +185,8 @@ private fun Report.toAdmin(): AdminReport = AdminReport(
     order = orderOrDefault,
     limit = limit,
     bucket = bucket,
+    timeZone = timeZone,
+    filters = filters,
 )
 
 private fun Field.toAdmin(scopedValues: Set<String>?): AdminField =

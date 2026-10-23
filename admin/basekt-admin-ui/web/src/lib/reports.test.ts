@@ -4,10 +4,10 @@ import { describeReport, formatBucket, reportParams, reportPoints } from "@/lib/
 import { books, tickets } from "@/test/fixtures"
 
 const feesByAuthor: AdminReport = {
-  name: "feesByAuthor", chart: "bar", groupBy: "authorId", function: "sum", field: "fee", measure: "sum_fee", order: "valueAsc", limit: 5, bucket: null,
+  name: "feesByAuthor", chart: "bar", groupBy: "authorId", function: "sum", field: "fee", measure: "sum_fee", order: "valueAsc", limit: 5, bucket: null, timeZone: null, filters: [],
 }
 const ticketsPerMonth: AdminReport = {
-  name: "ticketsPerMonth", chart: "line", groupBy: "openedAt", function: "count", field: null, measure: "count", order: "group", limit: 6, bucket: "month",
+  name: "ticketsPerMonth", chart: "line", groupBy: "openedAt", function: "count", field: null, measure: "count", order: "group", limit: 6, bucket: "month", timeZone: null, filters: [],
 }
 const pagesOverTime: AdminReport = { ...feesByAuthor, name: "pages", chart: "line", groupBy: "pages", function: "max", field: "pages", measure: "max_pages", order: "group" }
 
@@ -59,6 +59,28 @@ describe("reports", () => {
     const yearsApart = [{ key: { openedAt: "2020-01-01T00:00:00Z" }, values: { count: 1 } }, ...groups]
     const sparse = reportPoints({ ...ticketsPerMonth, bucket: "day" }, tickets, { groups: yearsApart, hasMore: false })
     expect(sparse.map((p) => p.value)).toEqual([1, 2, 4])
+  })
+
+  it("send their filters and time zone, and read buckets on that zone's calendar", () => {
+    const manilaDays: AdminReport = {
+      ...ticketsPerMonth, bucket: "day", timeZone: "Asia/Manila",
+      filters: [{ field: "state", operator: "ne", values: ["closed"] }, { field: "views", operator: "in", values: ["1", "2"] }, { field: "subject", operator: "eq", values: ["Printer"] }],
+    }
+    expect(reportParams(manilaDays)).toEqual({
+      "state[ne]": "closed", "views[in]": "1,2", subject: "Printer", count: "*", limit: "6", timeZone: "Asia/Manila",
+      groupBy: "openedAt:day", "openedAt[null]": "false", sort: "-openedAt",
+    })
+    // Manila's days start at 16:00 UTC the day before, so these are the 16th and the 18th there.
+    const points = reportPoints(manilaDays, tickets, {
+      groups: [
+        { key: { openedAt: "2026-02-17T16:00:00Z" }, values: { count: 3 } },
+        { key: { openedAt: "2026-02-15T16:00:00Z" }, values: { count: 1 } },
+      ],
+      hasMore: false,
+    })
+    expect(points.map((p) => p.value)).toEqual([1, 0, 3])
+    expect(points[0].label).toMatch(/16.*Feb.*2026|Feb.*16.*2026/)
+    expect(points[2].label).toMatch(/18.*Feb.*2026|Feb.*18.*2026/)
   })
 
   it("label buckets in UTC", () => {

@@ -4,9 +4,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * A chart of a resource's records for an admin panel: [function] of [field] over the records, in one group per value
- * of [groupBy]. It is presentation data over the resource's aggregates, so whoever may read the resource may see it,
- * and the caller's read scope applies to its numbers.
+ * A chart of a resource's records for an admin panel: [function] of [field] over the records that match [filters], in
+ * one group per value of [groupBy]. It is presentation data over the resource's aggregates, so whoever may read the
+ * resource may see it, and the caller's read scope applies to its numbers.
  */
 @Serializable
 public data class Report(
@@ -26,6 +26,10 @@ public data class Report(
     val limit: Int = 12,
     /** The span of time an instant [groupBy] field is grouped into, or `null` to group by its values as they are. */
     val bucket: TimeBucket? = null,
+    /** The time zone whose calendar [bucket] follows, such as `Asia/Manila`, or `null` for UTC. */
+    val timeZone: String? = null,
+    /** The conditions a record must meet to count, all of them. */
+    val filters: List<ReportFilter> = emptyList(),
 ) {
     /** The order of the groups: [order], or by group for a line and by value, largest first, otherwise. */
     public val orderOrDefault: ReportOrder
@@ -89,6 +93,51 @@ public enum class TimeBucket {
     @SerialName("year") YEAR,
 }
 
+/**
+ * A condition on a [Report]'s records: [field] compared by [operator] with [values], written as the API's query
+ * parameters write them, such as `completed` for an enum or `2026-01-01T00:00:00Z` for an instant.
+ */
+@Serializable
+public data class ReportFilter(
+    /** The field to compare. */
+    val field: String,
+    /** How to compare it. */
+    val operator: ReportOperator,
+    /** What to compare it with: one value, several for [ReportOperator.IN], or `true` or `false` for [ReportOperator.NULL]. */
+    val values: List<String>,
+)
+
+/** How a [ReportFilter] compares a field. */
+@Serializable
+public enum class ReportOperator {
+    /** Equal to the value. */
+    @SerialName("eq") EQ,
+
+    /** Not equal to the value. */
+    @SerialName("ne") NE,
+
+    /** Greater than the value. */
+    @SerialName("gt") GT,
+
+    /** Greater than or equal to the value. */
+    @SerialName("gte") GTE,
+
+    /** Less than the value. */
+    @SerialName("lt") LT,
+
+    /** Less than or equal to the value. */
+    @SerialName("lte") LTE,
+
+    /** Equal to one of the values. */
+    @SerialName("in") IN,
+
+    /** Text that contains the value. */
+    @SerialName("contains") CONTAINS,
+
+    /** Empty when the value is `true`, set when it is `false`. */
+    @SerialName("null") NULL,
+}
+
 /** The order of a [Report]'s groups. */
 @Serializable
 public enum class ReportOrder {
@@ -111,18 +160,36 @@ public class ReportBuilder internal constructor(private val name: String, privat
     private var order: ReportOrder? = null
     private var limit = 12
     private var bucket: TimeBucket? = null
+    private var timeZone: String? = null
+    private val filters = mutableListOf<ReportFilter>()
 
     /** Makes one group per value of [field]. */
     public fun groupBy(field: String) {
         groupBy = field
         bucket = null
+        timeZone = null
     }
 
-    /** Makes one group per [bucket] of the instant field [field], such as one per month: a time series. */
-    public fun groupBy(field: String, bucket: TimeBucket) {
+    /**
+     * Makes one group per [bucket] of the instant field [field], such as one per month: a time series. Days, weeks,
+     * months and years follow the calendar of [timeZone], a region such as `Asia/Manila`, or UTC when it is `null`.
+     */
+    public fun groupBy(field: String, bucket: TimeBucket, timeZone: String? = null) {
         groupBy = field
         this.bucket = bucket
+        this.timeZone = timeZone
     }
+
+    /** Counts only the records whose [field] equals [value], such as `where("status", "completed")`. */
+    public fun where(field: String, value: String): Unit = where(field, ReportOperator.EQ, value)
+
+    /** Counts only the records whose [field] compares by [operator] with [values]. See [ReportFilter]. */
+    public fun where(field: String, operator: ReportOperator, vararg values: String) {
+        filters += ReportFilter(field, operator, values.toList())
+    }
+
+    /** Counts only the records whose [field] is empty, or set when [empty] is false. */
+    public fun whereNull(field: String, empty: Boolean = true): Unit = where(field, ReportOperator.NULL, empty.toString())
 
     /** Counts the records, or the ones with [field] set. This is the default. */
     public fun count(field: String? = null): Unit = compute(ReportFunction.COUNT, field)
@@ -154,5 +221,5 @@ public class ReportBuilder internal constructor(private val name: String, privat
         this.field = field
     }
 
-    internal fun build(): Report = Report(name, chart, groupBy, function, field, order, limit, bucket)
+    internal fun build(): Report = Report(name, chart, groupBy, function, field, order, limit, bucket, timeZone, filters.toList())
 }

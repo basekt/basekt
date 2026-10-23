@@ -12,12 +12,18 @@ export interface ReportPoint {
 const MAX_FILLED_POINTS = 400
 
 /**
- * The aggregate parameters that compute [report]: its groups, its measure, their order and how many. A time series in
- * group order asks for its latest buckets, which [reportPoints] puts back in time order, and leaves out records
- * without a time.
+ * The aggregate parameters that compute [report]: its filters, groups, measure, their order and how many. A time
+ * series in group order asks for its latest buckets, which [reportPoints] puts back in time order, and leaves out
+ * records without a time.
  */
 export function reportParams(report: AdminReport): ListParams {
-  const params: ListParams = { [report.function]: report.field ?? "*", limit: String(report.limit) }
+  const params: ListParams = {}
+  for (const filter of report.filters) {
+    params[filter.operator === "eq" ? filter.field : `${filter.field}[${filter.operator}]`] = filter.values.join(",")
+  }
+  params[report.function] = report.field ?? "*"
+  params.limit = String(report.limit)
+  if (report.timeZone) params.timeZone = report.timeZone
   if (report.groupBy === null) return params
   params.groupBy = report.bucket ? `${report.groupBy}:${report.bucket}` : report.groupBy
   if (report.bucket) params[`${report.groupBy}[null]`] = "false"
@@ -32,7 +38,8 @@ export function reportPoints(report: AdminReport, resource: AdminResource, page:
   const field = resource.fields.find((f) => f.name === report.groupBy)
   return page.groups.map((group) => {
     const key = report.groupBy === null ? null : group.key[report.groupBy]
-    const label = key === null || key === undefined ? "None" : report.bucket ? formatBucket(String(key), report.bucket) : formatValue(field, key)
+    const label =
+      key === null || key === undefined ? "None" : report.bucket ? formatBucket(String(key), report.bucket, zoneOf(report)) : formatValue(field, key)
     return { label, value: toNumber(group.values[report.measure]) }
   })
 }
@@ -42,9 +49,10 @@ export function reportPoints(report: AdminReport, resource: AdminResource, page:
  * or a sum, and as `null` for an average, min or max, which have no value there.
  */
 function timeSeries(report: AdminReport, bucket: TimeBucket, page: AdminAggregatePage): ReportPoint[] {
+  // Keyed by calendar date, so the steps between buckets are whole days and months whatever the zone's offsets do.
   const values = new Map<number, number>()
   for (const group of page.groups) {
-    const time = Date.parse(String(group.key[report.groupBy!]))
+    const time = calendarDay(String(group.key[report.groupBy!]), zoneOf(report))
     if (!Number.isNaN(time)) values.set(time, toNumber(group.values[report.measure]))
   }
   const times = [...values.keys()].sort((a, b) => a - b)
@@ -71,10 +79,14 @@ function nextBucket(time: number, bucket: TimeBucket): number {
   }
 }
 
-/** A bucket's start as a label: "16 Feb 2026", "Week of 16 Feb 2026", "Feb 2026" or "2026", in UTC like the bucket. */
-export function formatBucket(start: string, bucket: TimeBucket): string {
-  const date = new Date(start)
-  if (Number.isNaN(date.getTime())) return start
+/**
+ * A bucket's start as a label on [zone]'s calendar, where the bucket was cut: "16 Feb 2026", "Week of 16 Feb 2026",
+ * "Feb 2026" or "2026".
+ */
+export function formatBucket(start: string, bucket: TimeBucket, zone = "UTC"): string {
+  const day = calendarDay(start, zone)
+  if (Number.isNaN(day)) return start
+  const date = new Date(day)
   switch (bucket) {
     case "year":
       return String(date.getUTCFullYear())
@@ -85,6 +97,28 @@ export function formatBucket(start: string, bucket: TimeBucket): string {
     default:
       return date.toLocaleDateString(undefined, { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" })
   }
+}
+
+/**
+ * The date [instant] falls on in [zone], as the UTC midnight of that date: a calendar day with no offset left in it,
+ * or NaN when [instant] isn't one. An unknown zone counts as UTC.
+ */
+function calendarDay(instant: string, zone: string): number {
+  const date = new Date(instant)
+  if (Number.isNaN(date.getTime())) return NaN
+  let parts: Intl.DateTimeFormatPart[]
+  try {
+    parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(date)
+  } catch {
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  }
+  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value)
+  return Date.UTC(part("year"), part("month") - 1, part("day"))
+}
+
+/** The zone whose calendar [report]'s buckets follow. */
+function zoneOf(report: AdminReport): string {
+  return report.timeZone ?? "UTC"
 }
 
 /** Whether [report] is a time series in time order, which shows its latest buckets. */

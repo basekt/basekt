@@ -29,6 +29,9 @@ internal val SchemaJson: Json = Json {
 
 private val namePattern = Regex("[A-Za-z][A-Za-z0-9_]*")
 
+/** A time zone region of the IANA database, such as `Asia/Manila` or `UTC`. Fixed offsets aren't regions. */
+private val timeZonePattern = Regex("[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*")
+
 /** A bucket name: the first segment of a file's key. */
 private val bucketPattern = Regex("[A-Za-z0-9][A-Za-z0-9._-]*")
 
@@ -238,6 +241,32 @@ internal object SchemaChecker {
             }
         }
         if (report.limit !in 1..MAX_REPORT_GROUPS) problem(at, "A report shows from 1 to $MAX_REPORT_GROUPS groups, not ${report.limit}.")
+        if (report.timeZone != null) {
+            if (report.bucket == null) problem(at, "A time zone only applies to a time bucket.")
+            if (!timeZonePattern.matches(report.timeZone)) problem(at, "'${report.timeZone}' is not a time zone region such as Asia/Manila or UTC.")
+        }
+        report.filters.forEachIndexed { i, filter -> checkReportFilter(::visible, filter, "$at.filters.$i", problem) }
+    }
+
+    private fun checkReportFilter(visible: (String) -> Field?, filter: ReportFilter, at: String, problem: (String, String) -> Unit) {
+        val field = visible(filter.field)
+        val name = filter.operator.name.lowercase()
+        when {
+            field == null -> problem(at, "The filtered field '${filter.field}' doesn't exist.")
+            filter.operator == ReportOperator.NULL ->
+                if (filter.values.singleOrNull() !in setOf("true", "false")) problem(at, "A null filter takes true or false.")
+            filter.operator == ReportOperator.IN -> when {
+                filter.values.isEmpty() -> problem(at, "An in filter needs at least one value.")
+                // The values travel comma-separated, like the API's `field[in]=a,b`.
+                filter.values.any { ',' in it } -> problem(at, "An in filter's values can't contain ','.")
+            }
+            filter.values.size != 1 -> problem(at, "A $name filter takes one value, not ${filter.values.size}.")
+            filter.operator == ReportOperator.CONTAINS && field.type != FieldType.STRING ->
+                problem(at, "A contains filter applies to string fields only.")
+        }
+        if (field != null && filter.operator != ReportOperator.NULL && filter.operator != ReportOperator.CONTAINS) {
+            filter.values.filter { field.parse(it) == null }.forEach { problem(at, "'$it' is not a valid value for '${field.name}'.") }
+        }
     }
 
     private fun checkScope(resource: Resource, scope: Scope, at: String, problem: (String, String) -> Unit) {

@@ -236,7 +236,8 @@ GET /api/aggregate/movements?groupBy=itemId,siteId&sum=quantity&count&max=at&qua
 
 The parameters are:
 - `groupBy`, with one or more fields. An instant field can be grouped by `day`, `week` (from Monday), `month` or
-  `year` in UTC, as in `groupBy=at:month`, and its key is the start of each span;
+  `year`, as in `groupBy=at:month`, and its key is the start of each span. Spans follow UTC's calendar, or a time zone
+  region's with `timeZone=Asia/Manila`;
 - `count` (records, or `count=*`), `count=field` (records with the field set), and `sum=`, `avg=`, `min=` and `max=`,
   each with one or more fields;
 - `sort`, by group fields or measure names, and `limit`, up to `basekt.aggregate.maxLimit` (1000 by default);
@@ -245,8 +246,9 @@ The parameters are:
 Sums keep integers as integers. An average is exact to 12 places on every database. The caller's read scope applies,
 so staff see only their own sites' totals. It needs a data source that offers `Aggregating`, as the in-memory and
 Exposed adapters do (Exposed runs one `SELECT … GROUP BY`). Otherwise it's `501 not_implemented`. The Exposed adapter
-groups by time spans on H2 and Postgres; on other databases a `groupBy` with one is refused as `invalid_query`. The
-admin API serves the same at `GET /admin/api/resources/{name}/aggregate`, with `search` too.
+groups by time spans on H2 and Postgres; on other databases a `groupBy` with one is refused as `invalid_query`. On H2,
+a span in a zone with daylight saving splits on the day the clocks change. The admin API serves the same at
+`GET /admin/api/resources/{name}/aggregate`, with `search` too.
 
 **Reports** are charts of those aggregates, declared on a resource as schema data. The admin panel draws them on its
 home screen:
@@ -259,8 +261,11 @@ resource("orders") {
     report("orderCount", Chart.NUMBER)                                  // a count of every order
     report("revenueByStatus") { groupBy("status"); sum("total") }        // a bar per status, largest first
     report("ordersByStatus", Chart.PIE) { groupBy("status"); limit(5) }
-    report("revenuePerMonth", Chart.LINE) {                             // a time series: the last 12 months
-        groupBy("placedAt", TimeBucket.MONTH); sum("total")
+    report("revenuePerDay", Chart.LINE) {                               // a time series: the last 30 days
+        groupBy("placedAt", TimeBucket.DAY, timeZone = "Asia/Manila")   // days of Manila's calendar
+        sum("total")
+        where("status", ReportOperator.NE, "cancelled")
+        limit(30)
     }
 }
 ```
@@ -268,7 +273,9 @@ resource("orders") {
 A report is a `number`, `bar`, `line` or `pie`. It counts records, or takes the `sum`, `avg`, `min` or `max` of a
 number field, for each value of its group field. Bars and pies show the largest groups first, and lines go in group
 order. `order(...)` changes that, and `limit(...)` caps the groups. A line grouped by a time span is a time series: it
-shows the latest spans and leaves out records without a time. A report gives no new access: the caller needs read
+shows the latest spans and leaves out records without a time. Spans follow UTC's calendar unless the report names a
+time zone region. `where(...)` counts only the records that match, with the operators of the list filters (`eq`, `ne`,
+`gt`, `gte`, `lt`, `lte`, `in`, `contains` and `null`). A report gives no new access: the caller needs read
 access to the resource, its scope applies to the numbers, and the panel fetches them from the aggregate route. The
 panel draws them with shadcn/ui's charts, in the theme's `chart-1` to `chart-5` colours.
 

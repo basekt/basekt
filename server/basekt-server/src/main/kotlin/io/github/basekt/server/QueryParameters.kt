@@ -14,6 +14,8 @@ import io.github.basekt.schema.Resource
 import io.github.basekt.schema.TimeBucket
 import io.github.basekt.schema.Value
 import io.github.basekt.schema.parse
+import java.time.ZoneId
+import java.time.ZoneOffset
 
 /**
  * Turns URL query parameters into a [Query] for [resource]:
@@ -57,7 +59,7 @@ public fun parseQuery(
 /**
  * Turns URL query parameters into an [AggregateQuery] for [resource]:
  * - `groupBy=kind,siteId` groups by those fields, and `groupBy=placedAt:month` an instant field by `day`, `week`,
- *   `month` or `year`, in UTC;
+ *   `month` or `year`, in UTC or on the calendar of `timeZone=Asia/Manila`, a time zone region;
  * - `count` or `count=*` counts records, and `count=field` the records with the field set: `count=*,field` asks
  *   for both;
  * - `sum=`, `avg=`, `min=` and `max=` take one or more fields, comma-separated, each a measure named
@@ -73,6 +75,7 @@ public fun parseAggregateQuery(resource: Resource, parameters: Map<String, List<
     val measures = mutableListOf<Measure>()
     var groupBy = emptyList<String>()
     val buckets = mutableMapOf<String, TimeBucket>()
+    var timeZone: ZoneId = ZoneOffset.UTC
     var sort = emptyList<Sort>()
     var limit = maxLimit
     for ((name, values) in parameters) {
@@ -92,6 +95,8 @@ public fun parseAggregateQuery(resource: Resource, parameters: Map<String, List<
             name == "sort" -> sort = value.split(',').filter { it.isNotBlank() }.map { key ->
                 Sort(key.removePrefix("-"), if (key.startsWith('-')) Direction.DESC else Direction.ASC)
             }
+            name == "timeZone" -> timeZone = runCatching { ZoneId.of(value) }.getOrNull()
+                ?: invalidQuery("'$value' is not a time zone: use a region such as Asia/Manila.")
             name == "limit" -> limit = value.toIntOrNull()?.takeIf { it in 1..maxLimit }
                 ?: invalidQuery("limit must be a whole number from 1 to $maxLimit.")
             function != null -> for (given in values.ifEmpty { listOf("") }) {
@@ -113,7 +118,7 @@ public fun parseAggregateQuery(resource: Resource, parameters: Map<String, List<
         1 -> filters.single()
         else -> Filter.And(filters)
     }
-    return AggregateQuery(groupBy, measures, filter, sort, limit, buckets)
+    return AggregateQuery(groupBy, measures, filter, sort, limit, buckets, timeZone)
 }
 
 /** The `count` of every record, as opposed to of a field. */

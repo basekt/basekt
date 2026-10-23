@@ -23,6 +23,7 @@ import io.github.basekt.data.exposed.IndexSpec
 import io.github.basekt.data.exposed.TableMapping
 import io.github.basekt.schema.Chart
 import io.github.basekt.schema.Model
+import io.github.basekt.schema.ReportOperator
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.TimeBucket
@@ -139,7 +140,7 @@ public val Orders: Model<Order> = model("orders") {
     field(Order::quantity) { min(1); max(99) }
     report("orderCount", Chart.NUMBER)
     report("ordersByStatus", Chart.PIE) { groupBy("status") }
-    report("ordersPerDay", Chart.LINE) { groupBy("placedAt", TimeBucket.DAY); limit(30) }
+    report("ordersPerDay", Chart.LINE) { groupBy("placedAt", TimeBucket.DAY); where("status", ReportOperator.NE, "cancelled"); limit(30) }
     permissions { read("staff", "customer"); create("customer", "staff"); update("staff"); delete("staff") }
 }
 

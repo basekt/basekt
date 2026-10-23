@@ -109,6 +109,9 @@ class AggregateRoutesTest {
         assertEquals(listOf("2026-09-28T00:00:00Z" to "21", "2026-10-05T00:00:00Z" to "-3"), weeks.map { it.key("at") to it.value("sum_quantity").jsonPrimitive.content })
         val latestDays = groups("/api/aggregate/movements?groupBy=at:day&count&sort=-at&limit=2", staff("north"))
         assertEquals(listOf("2026-10-05T00:00:00Z", "2026-10-03T00:00:00Z"), latestDays.map { it.key("at") })
+        // 08:00 UTC is 17:00 in Tokyo, the same day; in Honolulu it is 22:00 the day before.
+        val honolulu = groups("/api/aggregate/movements?groupBy=at:day&count&timeZone=Pacific/Honolulu&sort=at&limit=1", admin)
+        assertEquals("2026-09-30T10:00:00Z", honolulu.single().key("at"))
         val perSiteMonth = groups("/api/aggregate/movements?groupBy=siteId,at:month&count", admin)
         assertEquals(listOf("north/2026-10-01T00:00:00Z", "south/2026-10-01T00:00:00Z"), perSiteMonth.map { "${it.key("siteId")}/${it.key("at")}" })
     }
@@ -153,7 +156,8 @@ class AggregateRoutesTest {
     fun `bad queries, missing access and sources that can't aggregate get typed errors`() {
         app(fitnessSchema) {
             val member: HttpRequestBuilder.() -> Unit = { caller("m", listOf("member")) }
-            for (query in listOf("sum=member", "count=colour", "count&sort=minutes", "", "count&limit=51", "count&minutes=many", "sum=", "groupBy=kind:month&count", "groupBy=minutes:fortnight&count")) {
+            for (query in listOf("sum=member", "count=colour", "count&sort=minutes", "", "count&limit=51", "count&minutes=many", "sum=", "groupBy=kind:month&count", "groupBy=minutes:fortnight&count",
+                "count&timeZone=Mars/Olympus", "count&timeZone=%2B08:00")) {
                 val response = client.get("/api/aggregate/workouts?$query") { member() }
                 assertEquals(HttpStatusCode.BadRequest, response.status, query)
                 assertEquals("invalid_query", response.json()["error"]!!.jsonPrimitive.content, query)
