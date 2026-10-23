@@ -27,6 +27,7 @@ import kotlin.time.Clock
  *   pageSize:
  *     default: 20
  *     max: 100
+ *   requestIdHeader: X-Request-Id
  * ```
  *
  * Values set in the `install` block win over the configuration file.
@@ -49,6 +50,12 @@ public class BaseKtConfig internal constructor(config: ApplicationConfig) {
 
     /** The most groups an aggregate request may return, and the default. `basekt.aggregate.maxLimit`, 1000 by default. */
     public var maxAggregateGroups: Int = config.propertyOrNull("aggregate.maxLimit")?.getString()?.toInt() ?: 1000
+
+    /**
+     * The header that carries each call's [requestId], in requests from a proxy and in every response.
+     * `basekt.requestIdHeader`, `X-Request-Id` by default. A browser on another origin reads it only if CORS exposes it.
+     */
+    public var requestIdHeader: String = config.propertyOrNull("requestIdHeader")?.getString() ?: "X-Request-Id"
 
     /** Finds out who made each call. Anonymous by default; an auth module replaces it. */
     public var identities: IdentityResolver = IdentityResolver.Anonymous
@@ -133,7 +140,8 @@ public val BaseKtStarted: EventDefinition<BaseKtRuntime> = EventDefinition()
  * - `GET /{resource}/{id}/{relation}`: the record it belongs to, or the records that belong to it.
  *
  * Every operation checks the resource's permissions against the caller's roles from
- * [BaseKtConfig.identities]. Errors are [ApiError] JSON bodies.
+ * [BaseKtConfig.identities]. Errors are [ApiError] JSON bodies. Every call of the application gets a [requestId], sent
+ * back in [BaseKtConfig.requestIdHeader] and in error bodies, and server errors are logged with it.
  */
 public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = createApplicationPlugin(
     name = "BaseKt",
@@ -155,11 +163,15 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
         "Page sizes must satisfy 1 <= default ($defaultPageSize) <= max ($maxPageSize)."
     }
     val basePath = "/" + pluginConfig.basePath.trim('/')
+    val requestIdHeader = pluginConfig.requestIdHeader
+    require(requestIdHeader.isNotBlank()) { "requestIdHeader can't be blank." }
 
     val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock, pluginConfig.builtActions())
     val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList(), pluginConfig.clock, pluginConfig.maxAggregateGroups)
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }
+
+    onCall { call -> call.assignRequestId(requestIdHeader) }
 
     on(MonitoringEvent(ApplicationStarted)) { app ->
         app.log.info("BaseKt serves ${schema.resources.size} resources under $basePath")

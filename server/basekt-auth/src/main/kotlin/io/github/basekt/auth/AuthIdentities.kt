@@ -5,6 +5,7 @@ import io.github.basekt.server.ApiException
 import io.github.basekt.server.ErrorCode
 import io.github.basekt.server.Identity
 import io.github.basekt.server.ScopedIdentityResolver
+import io.github.basekt.server.forCall
 import io.github.basekt.server.toJson
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -83,7 +84,7 @@ private val AuthErrorBodies = createRouteScopedPlugin("BaseKtAuthErrorBodies") {
             for ((name, values) in body.headers.entries()) {
                 if (name != HttpHeaders.ContentLength) values.forEach { call.response.headers.append(name, it) }
             }
-            TextContent(error.toJson(), ContentType.Application.Json, HttpStatusCode.fromValue(error.error.status))
+            TextContent(error.forCall(call).toJson(), ContentType.Application.Json, HttpStatusCode.fromValue(error.error.status))
         }
     }
 }

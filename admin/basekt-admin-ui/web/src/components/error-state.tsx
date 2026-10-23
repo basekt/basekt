@@ -1,15 +1,18 @@
-import { CircleAlert, Lock, ShieldX } from "lucide-react"
+import { CircleAlert, Copy, Download, Lock, ShieldX, WifiOff } from "lucide-react"
+import { toast } from "sonner"
 import { ApiFailure } from "@/api/client"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { errorLog, errorLogName, errorReport } from "@/lib/error-report"
 import { usePanel } from "@/panel"
 
 /**
- * Explains a failed call. A 401 offers to sign in, a 403 says the caller's roles don't allow it, and anything else
- * shows the server's message.
+ * Explains a failed call. A 401 offers to sign in, a 403 says the caller's roles don't allow it, a call that got no
+ * answer says the server couldn't be reached, and anything else shows the server's message with its request id. Those
+ * last two offer to copy the details of the failure, or download the log of this page's recent failures, to report it.
  */
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  const { requestSignIn, signedIn } = usePanel()
+  const { api, requestSignIn, signedIn } = usePanel()
   if (error instanceof ApiFailure && error.unauthorized) {
     return (
       <Alert>
@@ -33,17 +36,49 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
       </Alert>
     )
   }
+  const failure = error instanceof ApiFailure ? error : null
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(errorReport(error))
+      toast.success("Details copied. Paste them where you report the problem.")
+    } catch {
+      toast.error("The browser didn't allow copying. Download the log instead.")
+    }
+  }
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([errorLog(api.failures.entries())], { type: "application/json" }))
+    const link = Object.assign(document.createElement("a"), { href: url, download: errorLogName() })
+    link.click()
+    URL.revokeObjectURL(url)
+  }
   return (
     <Alert variant="destructive">
-      <CircleAlert />
-      <AlertTitle>Something went wrong</AlertTitle>
+      {failure?.network ? <WifiOff /> : <CircleAlert />}
+      <AlertTitle>{failure?.network ? "Couldn't reach the server" : "Something went wrong"}</AlertTitle>
       <AlertDescription>
-        <p>{error instanceof Error ? error.message : String(error)}</p>
-        {onRetry && (
-          <Button size="sm" variant="outline" className="mt-2" onClick={onRetry}>
-            Try again
-          </Button>
+        <p>
+          {failure?.network
+            ? "No answer came back. Check the connection and try again; if it keeps happening, send the details to whoever runs this panel."
+            : error instanceof Error ? error.message : String(error)}
+        </p>
+        {failure?.requestId && (
+          <p className="text-xs">
+            Request id: <code className="select-all">{failure.requestId}</code>
+          </p>
         )}
+        <div className="mt-2 flex flex-wrap gap-2">
+          {onRetry && (
+            <Button size="sm" variant="outline" onClick={onRetry}>
+              Try again
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={copy}>
+            <Copy /> Copy details
+          </Button>
+          <Button size="sm" variant="ghost" onClick={download}>
+            <Download /> Download log
+          </Button>
+        </div>
       </AlertDescription>
     </Alert>
   )

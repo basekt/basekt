@@ -71,7 +71,14 @@ That serves:
 | `GET`, `PATCH`, `DELETE /api/{resource}/{id}` | reads, patches or deletes one record |
 | `GET /api/{resource}/{id}/{relation}` | the record a `belongsTo` points to, or a page of a `hasMany` |
 
-Errors are typed JSON: `{"error": "validation_failed", "message": ..., "fields": [{"field", "code", "message"}]}`.
+Errors are typed JSON: `{"error": "validation_failed", "message": ..., "fields": [{"field", "code", "message"}], "requestId": ...}`.
+
+Every call of the application gets a **request id**, sent back in the `X-Request-Id` header and in every error body.
+An id a proxy sends in that header is kept when it is a plain token. An unexpected exception is answered as
+`500 internal_error`, whose message gives only the request id, and logged through the application's log with the id,
+the method and the path (never the body or credentials), so a client's report finds the log line. Rename the header
+with `basekt.requestIdHeader`; a browser on another origin reads it only if your CORS settings expose it. Other modules
+answer their errors the same way with `call.answeringErrors { }` and `call.respondError(...)`.
 A caller without credentials gets `401 unauthorized`, one without the role `403 forbidden`. The base path and page
 sizes come from the `basekt` section of `ApplicationConfig`.
 
@@ -325,6 +332,8 @@ needs no Node. It renders every screen from the admin API's `/schema`, so adding
 
 - a sidebar of what the caller may see, and a home screen with the reports they may read, as charts;
 - lists with search, filters, sort, cursor paging, bulk delete and CSV export;
+- an error card that says when the server couldn't be reached, shows the request id, and copies a report or
+  downloads the page's recent failed calls (kept in memory only) for whoever runs the panel;
 - forms with a widget per field type, including a searchable picker for references, and validation errors and hook
   vetoes shown on their fields.
 

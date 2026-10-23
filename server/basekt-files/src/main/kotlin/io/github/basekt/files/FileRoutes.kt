@@ -6,7 +6,8 @@ import io.github.basekt.server.ApiException
 import io.github.basekt.server.ErrorCode
 import io.github.basekt.server.Identity
 import io.github.basekt.server.IdentityResolver
-import io.github.basekt.server.toJson
+import io.github.basekt.server.answeringErrors
+import io.github.basekt.server.respondError
 import io.github.basekt.storage.BlobContent
 import io.github.basekt.storage.BlobInfo
 import io.github.basekt.storage.BlobKey
@@ -169,7 +170,7 @@ private suspend fun RoutingContext.download(files: FilesRuntime, caller: Identit
     if (rangeHeader != null && range == null) {
         call.response.header(HttpHeaders.ContentRange, "bytes */${info.size}")
         val error = ApiError(ErrorCode.INVALID_QUERY, "The range '$rangeHeader' isn't within the file's ${info.size} bytes.")
-        call.respondText(error.toJson(), ContentType.Application.Json, HttpStatusCode.RequestedRangeNotSatisfiable)
+        call.respondError(error, HttpStatusCode.RequestedRangeNotSatisfiable)
         return
     }
     if (call.request.httpMethod == HttpMethod.Head) {
@@ -261,12 +262,7 @@ private fun allow(access: Access, caller: Identity?, what: String) {
 
 /** Resolves the caller, runs [block], and answers any [ApiException] with its JSON body. */
 private suspend fun RoutingContext.handle(identities: IdentityResolver, block: suspend RoutingContext.(Identity?) -> Unit) {
-    try {
-        block(identities.resolve(call))
-    } catch (e: ApiException) {
-        if (call.response.isCommitted) return
-        call.respondText(e.error.toJson(), ContentType.Application.Json, HttpStatusCode.fromValue(e.error.error.status))
-    }
+    call.answeringErrors { block(identities.resolve(call)) }
 }
 
 private const val CHUNK = 64L * 1024

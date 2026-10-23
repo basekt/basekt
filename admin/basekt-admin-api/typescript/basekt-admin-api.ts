@@ -206,9 +206,10 @@ export interface ApiError {
   error: ErrorCode;
   message: string;
   fields: FieldError[];
+  requestId: string | null;
 }
 
-export type ErrorCode = "bad_request" | "invalid_query" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "payload_too_large" | "unsupported_type" | "validation_failed" | "rejected" | "not_implemented";
+export type ErrorCode = "bad_request" | "invalid_query" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "payload_too_large" | "unsupported_type" | "validation_failed" | "rejected" | "not_implemented" | "internal_error";
 
 export interface FieldError {
   field: string;

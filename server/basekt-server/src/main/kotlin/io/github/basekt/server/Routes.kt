@@ -98,17 +98,9 @@ internal fun Route.baseKtRoutes(runtime: BaseKtRuntime, defaultPageSize: Int, ma
     }
 }
 
-/** Resolves the caller, runs [block], and answers any [ApiException] with its [ApiError]. */
+/** Resolves the caller, runs [block], and answers its failures as [ApiError]s; see [answeringErrors]. */
 private suspend fun RoutingContext.handle(runtime: BaseKtRuntime, block: suspend RoutingContext.(Identity?) -> Unit) {
-    try {
-        block(runtime.identities.resolve(call))
-    } catch (e: ApiException) {
-        call.respondText(
-            e.error.toJson(),
-            ContentType.Application.Json,
-            HttpStatusCode.fromValue(e.error.error.status),
-        )
-    }
+    call.answeringErrors { block(runtime.identities.resolve(call)) }
 }
 
 private fun RoutingContext.id(): String = call.parameters["id"]!!

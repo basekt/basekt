@@ -1,5 +1,5 @@
 import type { ApiError } from "@wire"
-import { ApiFailure } from "@/api/client"
+import { ApiFailure, FailureLog } from "@/api/client"
 
 /** A stored file, as BaseKtFiles answers an upload. Mirrors `FileRef` in `basekt-files`. */
 export interface FileRef {
@@ -34,7 +34,14 @@ export class FilesApi {
     private readonly token: () => string | null,
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
     private readonly xhr: () => XMLHttpRequest = () => new XMLHttpRequest(),
+    /** Where failed calls are kept for a report, shared with the admin API's. */
+    private readonly failures: FailureLog = new FailureLog(),
   ) {}
+
+  private failed(failure: ApiFailure): ApiFailure {
+    this.failures.record(failure)
+    return failure
+  }
 
   /** The URL of the file at [key]. */
   url(key: string): string {
@@ -53,12 +60,13 @@ export class FilesApi {
       request.upload?.addEventListener("progress", (event) => {
         if (event.lengthComputable && onProgress) onProgress(event.loaded / event.total)
       })
+      const call = { method: "POST", path: `${this.filesPath}/${encodeURIComponent(bucket)}` }
       request.addEventListener("load", () => {
         const body = parse(request.responseText)
         if (request.status >= 200 && request.status < 300) resolve(body as FileRef)
-        else reject(new ApiFailure(request.status, asApiError(body)))
+        else reject(this.failed(new ApiFailure(request.status, asApiError(body), { ...call, requestId: request.getResponseHeader?.("X-Request-Id") })))
       })
-      request.addEventListener("error", () => reject(new ApiFailure(0, null)))
+      request.addEventListener("error", () => reject(this.failed(new ApiFailure(0, null, call))))
       const form = new FormData()
       form.append("file", file, file.name ?? "upload")
       request.send(form)
@@ -73,8 +81,14 @@ export class FilesApi {
     const headers: Record<string, string> = {}
     const token = this.token()
     if (token) headers.Authorization = `Bearer ${token}`
-    const response = await this.fetchImpl(this.url(key), { headers, credentials: "same-origin" })
-    if (!response.ok) throw new ApiFailure(response.status, null)
+    const call = { method: "GET", path: this.url(key) }
+    let response: Response
+    try {
+      response = await this.fetchImpl(call.path, { headers, credentials: "same-origin" })
+    } catch {
+      throw this.failed(new ApiFailure(0, null, call))
+    }
+    if (!response.ok) throw this.failed(new ApiFailure(response.status, null, { ...call, requestId: response.headers.get("X-Request-Id") }))
     return URL.createObjectURL(await response.blob())
   }
 }
@@ -90,6 +104,6 @@ function parse(text: string): unknown {
 function asApiError(body: unknown): ApiError | null {
   const error = body as Partial<ApiError> | null
   return error && typeof error.error === "string" && typeof error.message === "string"
-    ? { error: error.error, message: error.message, fields: error.fields ?? [] }
+    ? { error: error.error, message: error.message, fields: error.fields ?? [], requestId: error.requestId ?? null }
     : null
 }

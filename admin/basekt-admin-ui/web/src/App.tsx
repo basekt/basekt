@@ -32,7 +32,7 @@ export function App({ config, tokens: givenTokens, fetchImpl }: {
   const [token, signIn, signOut] = useToken(tokens)
   const [signInReason, setSignInReason] = useState<string | null>(null)
   const api = useMemo(() => new AdminApi(config.apiPath, () => tokens.get(), fetchImpl), [config.apiPath, tokens, fetchImpl])
-  const files = useMemo(() => new FilesApi(config.filesPath, () => tokens.get(), fetchImpl), [config.filesPath, tokens, fetchImpl])
+  const files = useMemo(() => new FilesApi(config.filesPath, () => tokens.get(), fetchImpl, undefined, api.failures), [config.filesPath, tokens, fetchImpl, api])
   const schema = useAsync(() => api.schema(), [api, token])
 
   const trySignIn = async (value: string, remember: boolean): Promise<string | null> => {
