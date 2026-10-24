@@ -52,6 +52,17 @@ The admin panel's source is in `admin/basekt-admin-ui/web`. To work on it with h
 - **The Markdown editor** is its own chunk, loaded only on a form with a Markdown field. See
   [Extending BaseKt](extending.md#the-markdown-editor) for how it is built and tested.
 
+### The MongoDB adapter
+
+Its contract suite and its own tests run against a real MongoDB with transactions, so a replica set. They use, in this order:
+the server `-Pbasekt.mongo.url=mongodb://host/?replicaSet=rs0` names; else a Testcontainers container when Docker is
+available; else, with `-Pbasekt.mongo.embedded=true`, an embedded `mongod` that is downloaded once to `~/.embedmongo`.
+Without any of them the tests are skipped. CI passes `-Pbasekt.mongo.required=true`, so there they fail instead.
+
+```bash
+./gradlew :server:basekt-data-mongo:test -Pbasekt.mongo.embedded=true
+```
+
 ### Admin API TypeScript types
 
 After changing the admin API's wire classes, regenerate the TypeScript types and commit them. The panel compiles

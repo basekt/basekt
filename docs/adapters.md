@@ -16,8 +16,9 @@ dataSource = ExposedDataSource(database, schema)  // or InMemoryDataSource(), or
 |---|---|
 | `basekt-data-memory` | in-memory adapter, for tests, samples and prototypes |
 | `basekt-data-exposed` | Exposed/JDBC adapter: Postgres, MySQL, H2. Keyset cursors, one-query `getMany`, savepoints |
+| `basekt-data-mongo` | MongoDB adapter: a collection per resource, ObjectId ids and references, transactions, indexes, and existing collections read as they are |
 
-Some features need an optional capability of the data source. The in-memory and Exposed adapters offer all of them:
+Some features need an optional capability of the data source. The in-memory, Exposed and MongoDB adapters offer all of them:
 
 | Capability | Used by |
 |---|---|
@@ -26,6 +27,53 @@ Some features need an optional capability of the data source. The in-memory and 
 | `Aggregating` | [aggregates and reports](aggregates-reports.md); the Exposed adapter runs one `SELECT … GROUP BY` |
 
 Every adapter runs the `DataSourceContract` suite from `basekt-testing`.
+
+### MongoDB
+
+`basekt-data-mongo` stores each resource as a collection, so BaseKt can run on a MongoDB you already have:
+
+```kotlin
+val client = MongoClient.create(System.getenv("MONGODB_URI"))
+val data = MongoDataSource(client, "app", schema)
+data.migrate()   // creates the indexes the schema wants; nothing else changes
+```
+
+It offers every capability above, and passes the same `DataSourceContract` suite as the others, on a real MongoDB 8.0
+replica set. It needs MongoDB 5.0 or later (time buckets in aggregates use `$dateTrunc`) and a replica set, which a
+single node can be, for transactions.
+
+**Documents.** A document holds `_id` and one value per field under the field's name, `null` when unset: strings, enums,
+references and file keys as strings, `int` as int32, `long` as int64, decimals as Decimal128 (exact), booleans, and
+instants as dates. A date holds milliseconds, so an instant's finer digits are dropped.
+
+**Collections that already exist** are read as they are, which is how BaseKt can describe documents another program
+wrote. Numbers may be any numeric type, a missing field is `null`, and what the schema doesn't name is never touched by
+an update. `MongoMapping` says where things are:
+
+```kotlin
+val mapping = MongoMapping(
+    collectionPrefix = "content_",                       // or `collections = mapOf("questions" to "question")`
+    objectIds = mapOf("questions" to setOf("id", "subjectId")),   // stored as ObjectIds, read as hex strings
+    indexes = listOf(IndexSpec("questions", "subjectId", "isActive")),
+)
+```
+
+An id or reference named in `objectIds` is an ObjectId when its value is 24 hexadecimal digits and a string otherwise;
+new ids are ObjectId hex strings, so they fit.
+
+**Transactions** are MongoDB's. A transient failure, such as two transactions writing the same document, runs the block
+again for up to `transactionRetryTimeout` (30 seconds), so a block must be safe to repeat. MongoDB has no savepoints, so
+a nested transaction keeps an undo log of its own writes and plays it back if it fails while the outer one goes on. A
+write MongoDB itself rejects, such as a duplicate id, aborts the whole transaction.
+
+**Sorting** puts nulls last when ascending and first when descending, as the other adapters do. MongoDB doesn't do that
+itself, so a sorted list is read through an aggregation and can't use an index for its order; a list without a sort is in
+id order and can.
+
+**`migrate()`** creates, per resource, a unique index for each `unique()` field (over the documents where it is set, so
+many records may leave it null), an index on `(reference, _id)` for each reference field, and the indexes you list. It
+never changes or drops an index or touches a document. What it can't create, such as a unique index while two documents
+share a value, or keys that already have an index under another name, is listed in `notes`.
 
 ### Upgrading an Exposed database
 
