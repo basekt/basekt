@@ -71,6 +71,68 @@ by default, or with MathJax. A native app takes the TeX from the stored Markdown
 `toPlainText` is for search: it drops the markup, puts paragraphs and list items on their own lines, and keeps each
 formula as its TeX.
 
+## Formulas are optional, and they are text
+
+Formulas are off unless a field says `math()`. Two fields of one resource can differ: in the
+[lessons sample](https://github.com/basekt/basekt/tree/main/samples/sample-lessons), `summary` is `markdown { }` and
+`body` is `markdown { math() }`. In `summary` a `$` is a dollar sign and nothing else; in `body` `$x^2$` is a formula.
+A page that has no formula never loads a math library.
+
+A formula is **not an image**. It is stored as TeX inside the text, so it stays small, searchable and editable, and it
+scales and follows the page's colours. The reader's browser or app draws it. On the web that is KaTeX:
+
+```kotlin
+val html = Markdown.toHtml(lesson.body, options)    // ... <span class="math display">\[x = \frac{-b}{2a}\]</span> ...
+val needsMath = "class=\"math" in html             // load KaTeX only then
+```
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+  onload="document.querySelectorAll('.math').forEach(el =>
+    katex.render(el.textContent.slice(2, -2), el, { displayMode: el.classList.contains('display'), throwOnError: false }))">
+</script>
+```
+
+A native app draws the TeX with its own renderer; GoLearn's Compose apps do this with a Compose LaTeX library.
+
+## Images and storage
+
+A picture, such as a photo or a diagram, is an image: upload it to a `BaseKtFiles` bucket and refer to it from the text
+by its path, `![A parabola](/files/images/seed/parabola.png)`, on a field that says `images()`.
+
+Keep each picture as a record with a **file field**, like the sample's `pictures` resource:
+
+```kotlin
+resource("pictures") {
+    belongsTo("lesson", "lessons") { required() }
+    string("alt") { required() }
+    file("image", "images") { required() }
+}
+```
+
+This matters: BaseKt deletes a file that no record points to, and sweeps uploads nobody claimed after a day. A path
+written only inside the Markdown claims nothing, so the file would disappear. The record keeps it, and also holds the
+alt text and who owns the picture. The upload's `url` goes into the text.
+
+When a formula must be an image, for an email, a PDF or a link preview, which can't run a script, draw it ahead of time
+with a TeX renderer that makes SVG, store the SVG in a bucket, and use that. BaseKt doesn't do this for you yet.
+
+## Try it
+
+```bash
+./gradlew :samples:sample-lessons:run
+```
+
+Open `http://localhost:8080`. The three lessons show a lesson with formulas and a picture from storage, one where `$5`
+stays money in a field that allows formulas, and one with no formulas that loads no KaTeX. To write, send
+`Authorization: Bearer demo-editor`:
+
+```bash
+curl -X POST localhost:8080/api/lessons -H "Authorization: Bearer demo-editor" -H "Content-Type: application/json" \
+  -d '{"title": "Circles", "body": "Area is $\\pi r^2$."}'
+```
+
 ## Your own formula check
 
 The default check doesn't know which commands your renderer supports. If you render with a real TeX parser, give the
@@ -89,7 +151,7 @@ Return a sentence that continues "Formula 2 ...", or `null` to accept.
 - The text of an action's input isn't checked, only the fields of records. Check it in the action, with `Markdown.check`.
 - Writes that trusted code makes through raw data access, such as a hook's `data`, aren't checked.
 - The admin panel edits Markdown as text. A visual editor is a separate piece of work.
-- Links to files go through [files and storage](files.md); use a path or `https` address in the text.
+- A picture named only in the text isn't tracked: keep it as a record with a file field (see above). The check doesn't yet confirm that a `/files/...` path exists.
 
 ## Related
 
