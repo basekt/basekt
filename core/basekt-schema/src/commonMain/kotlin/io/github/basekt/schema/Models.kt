@@ -9,6 +9,7 @@ import kotlinx.serialization.descriptors.SerialKind
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -87,7 +88,7 @@ public inline fun <reified T> model(name: String, noinline block: ModelBuilder<T
 public class ModelBuilder<T> @PublishedApi internal constructor(
     private val name: String,
     private val serializer: KSerializer<T>,
-) {
+) : Extensible {
     private val descriptor = serializer.descriptor
     private val className = descriptor.serialName
     private val fields = linkedMapOf<String, FieldBuilder>()
@@ -100,6 +101,11 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
     private val actions = mutableListOf<Action>()
     private var workflow: Workflow? = null
     private val reports = mutableListOf<Report>()
+    private val extensions = linkedMapOf<String, JsonElement>()
+
+    override fun extend(key: String, value: JsonElement) {
+        extensions[key] = value
+    }
 
     init {
         val id = (0 until descriptor.elementsCount).firstOrNull { descriptor.getElementName(it) == Resource.ID }
@@ -189,7 +195,7 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
                 builder.build(property, types.getValue(property), values[property], null)
             }
         }
-        val resource = Resource(name, withState(built, workflow), relations.toList(), permissions, actions.toList(), workflow, reports = reports.toList())
+        val resource = Resource(name, withState(built, workflow), relations.toList(), permissions, actions.toList(), workflow, reports = reports.toList(), extensions = extensions.toMap())
         return Model(resource, serializer)
     }
 

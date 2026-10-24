@@ -1,7 +1,10 @@
 package io.github.basekt.schema
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.serializer
 
 /**
  * A set of [resources]: the whole data model an application exposes.
@@ -60,6 +63,11 @@ public data class Resource(
     val group: String? = null,
     /** The charts an admin panel shows of its records. See [Report]. */
     val reports: List<Report> = emptyList(),
+    /**
+     * Settings that other modules keep on this resource, by key, as JSON. The schema doesn't know what they mean; see
+     * [Extensible]. Empty by default, and then left out of the JSON form.
+     */
+    val extensions: Map<String, JsonElement> = emptyMap(),
 ) {
     /** Returns the field called [name], or `null` if there isn't one. */
     public fun field(name: String): Field? = fields.firstOrNull { it.name == name }
@@ -75,6 +83,13 @@ public data class Resource(
 
     /** Returns the relation called [name], or `null` if there isn't one. */
     public fun relation(name: String): Relation? = relations.firstOrNull { it.name == name }
+
+    /** Returns the setting kept under [key], decoded with [serializer], or `null` if there isn't one. */
+    public fun <T> extension(key: String, serializer: KSerializer<T>): T? =
+        extensions[key]?.let { SchemaJson.decodeFromJsonElement(serializer, it) }
+
+    /** Returns the setting kept under [key] as a [T], or `null` if there isn't one. */
+    public inline fun <reified T> extension(key: String): T? = extension(key, serializer<T>())
 
     /** Constants for every resource. */
     public companion object {
