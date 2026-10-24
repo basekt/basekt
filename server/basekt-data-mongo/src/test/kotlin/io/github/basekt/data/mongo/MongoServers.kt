@@ -37,7 +37,10 @@ private val connectionString: String by lazy {
         runCatching { DockerClientFactory.instance().isDockerAvailable }.getOrDefault(false) -> {
             // Testcontainers' reaper removes the container when the test JVM exits. The image starts as a replica set.
             val container = MongoDBContainer("mongo:8.0").also { it.start() }
-            container.replicaSetUrl
+            // The replica set names the container by its own hostname, which the test JVM can't reach, so the client is
+            // told to talk to the mapped port directly instead of discovering the members. A direct connection to a
+            // replica set member still supports transactions.
+            "mongodb://${container.host}:${container.firstMappedPort}/?directConnection=true"
         }
         else -> embeddedReplicaSet()
     }
