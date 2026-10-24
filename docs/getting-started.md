@@ -19,7 +19,7 @@ You add only the modules you use. [Modules](modules.md) lists them all.
 
 ## Snapshots
 
-The latest `main` is published as `0.2.0-SNAPSHOT` to Maven Central's snapshots repository
+The latest `main` is published as `0.3.0-SNAPSHOT` to Maven Central's snapshots repository
 (`https://central.sonatype.com/repository/maven-snapshots/`). Snapshots aren't signed, are replaced by each push, and
 expire after a while, so they're for trying the latest `main`, not for pinning. To use one:
 
@@ -32,7 +32,7 @@ dependencyResolutionManagement {
     }
 }
 // build.gradle.kts
-dependencies { implementation("io.github.basekt:basekt-server:0.2.0-SNAPSHOT") }
+dependencies { implementation("io.github.basekt:basekt-server:0.3.0-SNAPSHOT") }
 ```
 
 Gradle re-checks a snapshot every 24 hours; `--refresh-dependencies` forces it.
