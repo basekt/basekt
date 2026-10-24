@@ -1,0 +1,50 @@
+/*
+ * Milkdown's Crepe styles itself with its own colour variables. They are mapped to the panel's theme here, so the
+ * editor follows the theme and the light and dark modes without a second palette.
+ */
+.markdown-editor {
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md, 0.5rem);
+  background: var(--background);
+  overflow: hidden;
+}
+
+.markdown-editor[data-invalid] {
+  border-color: var(--destructive);
+}
+
+.markdown-editor:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+.markdown-editor .milkdown {
+  --crepe-color-background: var(--background);
+  --crepe-color-on-background: var(--foreground);
+  --crepe-color-surface: var(--card);
+  --crepe-color-surface-low: var(--muted);
+  --crepe-color-on-surface: var(--foreground);
+  --crepe-color-on-surface-variant: var(--muted-foreground);
+  --crepe-color-outline: var(--muted-foreground);
+  --crepe-color-primary: var(--primary);
+  --crepe-color-secondary: var(--secondary);
+  --crepe-color-on-secondary: var(--secondary-foreground);
+  --crepe-color-inverse: var(--foreground);
+  --crepe-color-on-inverse: var(--background);
+  --crepe-color-inline-code: var(--destructive);
+  --crepe-color-error: var(--destructive);
+  --crepe-color-hover: var(--accent);
+  --crepe-color-selected: var(--accent);
+  --crepe-color-inline-area: var(--muted);
+  --crepe-base-font-size: 15px;
+  --crepe-font-title: inherit;
+  --crepe-font-default: inherit;
+  --crepe-font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.markdown-editor .milkdown .ProseMirror {
+  min-height: 14rem;
+  max-height: 32rem;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+}

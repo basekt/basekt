@@ -26,16 +26,39 @@ function renderWidget(field: AdminField, initial: JsonValue = null, fetch = fake
   return { fetch, value: () => seen.value }
 }
 
+// The visual editor is ProseMirror, which jsdom can't run: a text box that follows the same contract stands in for it.
+vi.mock("@/forms/markdown-editor", () => ({
+  default: (props: { value: string; math: boolean; onChange: (markdown: string) => void }) => (
+    <textarea aria-label="Visual editor" data-math={String(props.math)} defaultValue={props.value} onChange={(e) => props.onChange(e.target.value)} />
+  ),
+}))
+
 describe("a Markdown field", () => {
   const body: AdminField = {
     name: "body", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false,
     markdown: { math: true, images: false, maxLength: 500 },
   }
 
-  it("is a roomy text box that keeps the text as typed and shows its limit", async () => {
+  it("opens in the visual editor, told whether formulas are allowed", async () => {
+    renderWidget(body, "Solve $x$")
+    const editor = (await screen.findByLabelText("Visual editor")) as HTMLTextAreaElement
+    expect(editor.value).toBe("Solve $x$")
+    expect(editor.dataset.math).toBe("true")
+    expect(screen.getByRole("tab", { name: "Visual" }).getAttribute("aria-selected")).toBe("true")
+  })
+
+  it("reports what the visual editor writes", async () => {
+    const { value } = renderWidget(body, "a")
+    await userEvent.type(await screen.findByLabelText("Visual editor"), "b")
+    expect(value()).toBe("ab")
+  })
+
+  it("shows the Markdown source on its tab, with the limit, and keeps the text as typed", async () => {
     const { value } = renderWidget(body, "Solve $x$")
-    const box = screen.getByLabelText("body") as HTMLTextAreaElement
+    await userEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    const box = screen.getByLabelText("Markdown source") as HTMLTextAreaElement
     expect(box.tagName).toBe("TEXTAREA")
+    expect(box.value).toBe("Solve $x$")
     expect(box.maxLength).toBe(500)
     expect(screen.getByText(/Markdown, with formulas/)).toBeTruthy()
     expect(screen.getByText(/9 of 500 characters/)).toBeTruthy()
@@ -43,14 +66,25 @@ describe("a Markdown field", () => {
     expect(value()).toBe("Solve $x$!")
   })
 
+  it("starts the visual editor over with the text the source box left", async () => {
+    renderWidget(body, "one")
+    await userEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    await userEvent.type(screen.getByLabelText("Markdown source"), " two")
+    await userEvent.click(screen.getByRole("tab", { name: "Visual" }))
+    expect(((await screen.findByLabelText("Visual editor")) as HTMLTextAreaElement).value).toBe("one two")
+  })
+
   it("sends null when an optional field is emptied", async () => {
     const { value } = renderWidget(body, "a")
-    await userEvent.clear(screen.getByLabelText("body"))
+    await userEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    await userEvent.clear(screen.getByLabelText("Markdown source"))
     expect(value()).toBeNull()
   })
 
-  it("says nothing of formulas when they are off", () => {
-    renderWidget({ ...body, markdown: { math: false, images: false, maxLength: 100 } }, "")
+  it("says nothing of formulas when they are off", async () => {
+    renderWidget({ ...body, markdown: { math: false, images: true, maxLength: 100 } }, "")
+    const editor = await screen.findByLabelText("Visual editor")
+    expect((editor as HTMLTextAreaElement).dataset.math).toBe("false")
     expect(screen.queryByText(/formulas/)).toBeNull()
   })
 })

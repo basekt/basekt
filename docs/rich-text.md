@@ -128,10 +128,43 @@ Open `http://localhost:8080`. The three lessons show a lesson with formulas and 
 stays money in a field that allows formulas, and one with no formulas that loads no KaTeX. To write, send
 `Authorization: Bearer demo-editor`:
 
+To edit them in the visual editor, open `http://localhost:8080/admin`, press **Sign in**, paste `demo-editor`, open
+**Lessons** and a lesson.
+
 ```bash
 curl -X POST localhost:8080/api/lessons -H "Authorization: Bearer demo-editor" -H "Content-Type: application/json" \
   -d '{"title": "Circles", "body": "Area is $\\pi r^2$."}'
 ```
+
+## The admin panel's editor
+
+A Markdown field is edited in the admin panel with a **visual editor**: headings, bold and italic, lists, tables, links
+and quotes appear as they will look, with a toolbar on selection and a `/` menu for blocks. The **Markdown** tab beside
+**Visual** shows the text that is saved, and a person can switch at any time. The editor reads and writes Markdown, so
+what it saves is exactly what the plugin checks.
+
+On a field with `math()` a **Formula** button opens a menu of formulas, drawn by KaTeX as they will look, in groups:
+algebra, calculus, trigonometry, Greek letters, relations, matrices and well-known formulas. A click puts the formula
+at the cursor, inline or, with the box ticked, on a line of its own. Click a formula in the text to edit its TeX and
+see it redrawn. A field without `math()` has no formula button, and the editor never turns a `$` into a formula.
+
+A few things to know:
+
+- **Block formulas go on their own lines.** The editor keeps a formula as a block only when `$$` is on a line by itself:
+
+  ```
+  $$
+  x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+  $$
+  ```
+
+  `$$x = ...$$` on one line is a formula inside a paragraph, and the editor saves it back as `$x = ...$`. BaseKt reads
+  both as formulas, but only the lines form keeps a block.
+- **Pictures** that are already in the text show in the editor and keep their alt text. To add one, use the Markdown
+  tab: `![alt text](/files/images/photo.png)`. The editor has no picture picker yet, and its own image block is left out
+  because it saves the picture's ratio over the alt text.
+- The editor is a separate chunk, loaded only when a form has a Markdown field. A field with formulas also loads the
+  code editor that Milkdown uses for the formula box, which makes it larger.
 
 ## Your own formula check
 
@@ -150,7 +183,7 @@ Return a sentence that continues "Formula 2 ...", or `null` to accept.
 
 - The text of an action's input isn't checked, only the fields of records. Check it in the action, with `Markdown.check`.
 - Writes that trusted code makes through raw data access, such as a hook's `data`, aren't checked.
-- The admin panel edits Markdown as text. A visual editor is a separate piece of work.
+- The admin panel has no picture picker for Markdown yet: add pictures in its Markdown tab.
 - A picture named only in the text isn't tracked: keep it as a record with a file field (see above). The check doesn't yet confirm that a `/files/...` path exists.
 
 ## Related

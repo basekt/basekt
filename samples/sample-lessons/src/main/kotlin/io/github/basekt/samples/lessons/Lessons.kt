@@ -1,5 +1,7 @@
 package io.github.basekt.samples.lessons
 
+import io.github.basekt.admin.BaseKtAdmin
+import io.github.basekt.admin.ui.BaseKtAdminUi
 import io.github.basekt.data.DataSource
 import io.github.basekt.data.Query
 import io.github.basekt.data.memory.InMemoryDataSource
@@ -67,6 +69,7 @@ public val lessonsSchema: Schema = schema {
  * - BaseKt on the in-memory adapter, seeded with three lessons;
  * - `install(BaseKtRichText)`, which checks `summary` and `body` on every write;
  * - images in the `images` bucket, served under `/files`;
+ * - the admin panel at `/admin`, where `summary` and `body` are edited in a visual Markdown editor;
  * - `GET /` and `GET /lessons/{id}`, which render the Markdown to HTML, and load KaTeX only for a lesson that has a
  *   formula.
  *
@@ -85,6 +88,8 @@ public fun Application.lessonsModule() {
         }
     }
     install(BaseKtRichText)
+    install(BaseKtAdmin)
+    install(BaseKtAdminUi) { brand { name = "Lessons" } }
     install(BaseKtFiles) {
         store = images
         bucket("images") {
@@ -177,7 +182,9 @@ private suspend fun seed(data: DataSource, images: BlobStore) {
 
                 The solutions are given by the quadratic formula:
 
-                ${'$'}${'$'}x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}${'$'}${'$'}
+                ${'$'}${'$'}
+                x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+                ${'$'}${'$'}
 
                 Its graph is a parabola:
 
