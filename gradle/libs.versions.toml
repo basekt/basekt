@@ -8,6 +8,8 @@ exposed = "1.5.1"
 h2 = "2.3.232"
 postgresql = "42.7.14"
 testcontainers = "2.0.5"
+mongodb = "5.13.0"
+embed-mongo = "5.0.0"
 logback = "1.5.18"
 vanniktech-publish = "0.37.0"
 jetbrains-markdown = "0.7.14"
@@ -39,5 +41,8 @@ exposed-core = { module = "org.jetbrains.exposed:exposed-core", version.ref = "e
 exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "exposed" }
 h2 = { module = "com.h2database:h2", version.ref = "h2" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+mongodb-driver-kotlin-coroutine = { module = "org.mongodb:mongodb-driver-kotlin-coroutine", version.ref = "mongodb" }
+embed-mongo = { module = "de.flapdoodle.embed:de.flapdoodle.embed.mongo", version.ref = "embed-mongo" }
+testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
