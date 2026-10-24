@@ -1,5 +1,6 @@
 package io.github.basekt.schema
 
+import kotlinx.serialization.json.JsonElement
 /** Marks the schema DSL, so that an inner block can't call an outer block's functions by accident. */
 @DslMarker
 public annotation class SchemaDsl
@@ -92,13 +93,18 @@ public open class FieldsBuilder internal constructor() {
 
 /** Declares the fields, relations, permissions and actions of one resource. */
 @SchemaDsl
-public class ResourceBuilder internal constructor(private val name: String) : FieldsBuilder() {
+public class ResourceBuilder internal constructor(private val name: String) : FieldsBuilder(), Extensible {
     private val relations = mutableListOf<Relation>()
     private var permissions = Permissions()
     private val actions = mutableListOf<Action>()
     private var workflow: Workflow? = null
     private var group: String? = null
     private val reports = mutableListOf<Report>()
+    private val extensions = linkedMapOf<String, JsonElement>()
+
+    override fun extend(key: String, value: JsonElement) {
+        extensions[key] = value
+    }
 
     /** Lists this resource under the heading [name] in an admin panel's menu. Resources without one come first. */
     public fun group(name: String) {
@@ -154,7 +160,7 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
     }
 
     internal fun build(): Resource = Resource(
-        name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow, group, reports.toList(),
+        name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow, group, reports.toList(), extensions.toMap(),
     )
 }
 
