@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ExternalLink, Plus, Search, X } from "lucide-react"
 import { ActionButtons } from "@/components/action-button"
 import { BulkActions, BulkFailures, ExportButton } from "@/components/bulk-actions"
 import { FilePreview } from "@/forms/file-widget"
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatValue, humanize, ID, recordId } from "@/lib/fields"
+import { recordLinks } from "@/lib/links"
 import { useAsync } from "@/lib/use-async"
 import { can, usePanel } from "@/panel"
 import { Link, useRouter } from "@/router"
@@ -59,7 +60,8 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
       else next.delete(id)
       return next
     })
-  const columns = fields.length + (selectable ? 1 : 0)
+  const linked = resource.links.length > 0
+  const columns = fields.length + (selectable ? 1 : 0) + (linked ? 1 : 0)
   const afterBulkDelete = (failed: BulkFailure[]) => {
     setBulkFailed(failed)
     setSelected(new Set(failed.map((f) => f.id)))
@@ -115,6 +117,11 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
                     <SortHeader resource={resource} field={field.name} search={search} setSearch={setSearch} />
                   </TableHead>
                 ))}
+                {linked && (
+                  <TableHead className="w-10">
+                    <span className="sr-only">Links</span>
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -127,6 +134,7 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
                         <Skeleton className="h-4 w-20" />
                       </TableCell>
                     ))}
+                    {linked && <TableCell />}
                   </TableRow>
                 ))
               ) : items.length === 0 ? (
@@ -202,6 +210,25 @@ function RecordRow({ resource, record, selected, onSelect }: {
           <Cell field={field} record={record} />
         </TableCell>
       ))}
+      {resource.links.length > 0 && (
+        <TableCell className="text-right">
+          <span className="inline-flex gap-1">
+            {recordLinks(resource.links, record).map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${link.label}: ${id}`}
+                title={link.label}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ExternalLink className="size-4" />
+              </a>
+            ))}
+          </span>
+        </TableCell>
+      )}
     </TableRow>
   )
 }

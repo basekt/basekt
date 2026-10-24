@@ -95,11 +95,22 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
     /** The host app's login route, for signing in with a name and a password. Off until [LoginConfig.path] is set. */
     public val login: LoginConfig = LoginConfig(config)
 
+    internal var siteLink: SiteLink? = config.propertyOrNull("siteLink.url")?.getString()
+        ?.let { SiteLink(config.propertyOrNull("siteLink.label")?.getString() ?: "Open site", it) }
+
     internal val themeBuilder = ThemeBuilder()
 
     /** Sets the brand's name and logo. */
     public fun brand(block: BrandConfig.() -> Unit) {
         brand.block()
+    }
+
+    /**
+     * Adds a link to the host app's own site to the panel's top bar, such as `siteLink("Open site", "/")`. [url] is a
+     * path on this server or an `http` or `https` address. Also `basekt.adminUi.siteLink.label` and `.url`.
+     */
+    public fun siteLink(label: String = "Open site", url: String) {
+        siteLink = SiteLink(label, url)
     }
 
     /** Lets viewers sign in with a name and a password through the host app's login route. See [LoginConfig]. */
@@ -148,6 +159,12 @@ public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplica
         require(fields.all { it.isNotBlank() }) { "The login's field names can't be blank." }
         with(pluginConfig.login) { ShellLogin(loginPath, usernameField, usernameLabel, passwordField, tokenField) }
     }
+    val siteLink = pluginConfig.siteLink?.also { link ->
+        require(link.label.isNotBlank() && link.label.length <= 40) { "The site link needs a label of 1 to 40 characters." }
+        require(isSafeLinkUrl(link.url)) {
+            "The site link must be a path starting with '/' or an http or https address, with no spaces, not '${link.url}'."
+        }
+    }
     val shell = ShellConfig(
         path = path,
         apiPath = apiPath,
@@ -155,6 +172,7 @@ public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplica
         brand = ShellBrand(pluginConfig.brand.name, logo),
         defaultMode = pluginConfig.defaultMode,
         login = login,
+        siteLink = siteLink,
     )
     val entry = PanelAssets.load(application.environment.classLoader)
     val themeCss = ThemeCss.write(Theme.Default + pluginConfig.themeBuilder.build())

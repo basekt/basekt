@@ -1,6 +1,7 @@
 package io.github.basekt.samples.lessons
 
 import io.github.basekt.admin.BaseKtAdmin
+import io.github.basekt.admin.adminLink
 import io.github.basekt.admin.ui.BaseKtAdminUi
 import io.github.basekt.data.DataSource
 import io.github.basekt.data.Query
@@ -54,6 +55,8 @@ public val lessonsSchema: Schema = schema {
         // Markdown with TeX formulas ($x^2$, $$...$$) and images.
         string("body") { markdown { math(); images(); maxLength(20_000) } }
         hasMany("pictures", "pictures", foreignField = "lessonId")
+        // The admin panel shows this on a lesson's page and on its row: the page visitors see.
+        adminLink("View on site", "/lessons/{id}")
         permissions { read(everyone); write("editor") }
     }
     resource("pictures") {
@@ -89,7 +92,11 @@ public fun Application.lessonsModule() {
     }
     install(BaseKtRichText)
     install(BaseKtAdmin)
-    install(BaseKtAdminUi) { brand { name = "Lessons" } }
+    install(BaseKtAdminUi) {
+        brand { name = "Lessons" }
+        // A link in the panel's top bar to the site visitors see.
+        siteLink("Open site", "/")
+    }
     install(BaseKtFiles) {
         store = images
         bucket("images") {
@@ -122,7 +129,12 @@ public fun Application.lessonsModule() {
             val title = escape(lesson.text("title"))
             // KaTeX is only loaded when the rendered lesson holds a formula: a lesson without one costs nothing extra.
             call.respondText(
-                page(lesson.text("title"), """<p><a href="/">&larr; Lessons</a></p><h1>$title</h1><div class="lead">$summary</div>$body""", math = "class=\"math" in body),
+                page(
+                    lesson.text("title"),
+                    """<p><a href="/">&larr; Lessons</a> &middot; <a class="edit" href="/admin/r/lessons/${lesson.text(Resource.ID)}">Edit in admin</a></p>""" +
+                        """<h1>$title</h1><div class="lead">$summary</div>$body""",
+                    math = "class=\"math" in body,
+                ),
                 ContentType.Text.Html,
             )
         }

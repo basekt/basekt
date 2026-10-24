@@ -22,6 +22,12 @@ each module is. This file holds the rules every module follows.
 8. **Tests prove it's generic:** `testApplication` tests per plugin, the in-memory adapter for speed, and at least two
    made-up schemas that use a module differently.
 
+## Extending
+
+[docs/extending.md](docs/extending.md) is the developer guide: adding a module, writing its plugin, putting settings on
+a resource with extensions, taking part in writes, and adding to the admin panel. Read it before you add a module, a
+schema option or a panel feature.
+
 ## Skills to load
 
 These are from the `kmp-agent-skills` plugin (`claude plugin install kmp-agent-skills@kmp-agent-skills`):
@@ -44,4 +50,7 @@ These are from the `kmp-agent-skills` plugin (`claude plugin install kmp-agent-s
 - [ ] Ktor plugins with typed config and lifecycle hooks. No engine, environment reads or globals in a library.
 - [ ] Explicit API with KDoc, and serializable, validated definitions.
 - [ ] `testApplication` tests, with two made-up schemas.
+- [ ] A new module has a row in the module tables of `README.md` and `docs/modules.md`, a page in `docs/` listed in
+      `zensical.toml`, and a test or sample that uses it.
+- [ ] A change to the admin API's wire classes regenerates the TypeScript types and updates the panel's fixtures.
 - [ ] `./gradlew build` passes.

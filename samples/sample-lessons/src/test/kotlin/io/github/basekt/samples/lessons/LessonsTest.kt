@@ -88,4 +88,15 @@ class LessonsTest {
         assertEquals(HttpStatusCode.UnprocessableEntity, image.status)
         assertContains(image.bodyAsText(), "Images aren't allowed.")
     }
+
+    @Test
+    fun `the site and the admin link to each other`() = site {
+        // From the site to the admin: each lesson page has an edit link.
+        assertContains(client.get("/lessons/quadratics").bodyAsText(), "<a class=\"edit\" href=\"/admin/r/lessons/quadratics\">Edit in admin</a>")
+
+        // From the admin to the site: the schema it reads gives lessons a link, and the shell page gives the top bar one.
+        val schema = client.get("/admin/api/schema") { bearerAuth("demo-editor") }.bodyAsText()
+        assertContains(schema, "\"links\":[{\"label\":\"View on site\",\"url\":\"/lessons/{id}\"}]")
+        assertContains(client.get("/admin").bodyAsText(), "\"siteLink\":{\"label\":\"Open site\",\"url\":\"/\"}")
+    }
 }

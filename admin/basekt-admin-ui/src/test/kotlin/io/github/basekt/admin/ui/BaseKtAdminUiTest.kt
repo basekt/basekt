@@ -133,6 +133,42 @@ class BaseKtAdminUiTest {
     }
 
     @Test
+    fun `a site link goes to the panel's top bar, and is checked`() = testApplication {
+        application { install(BaseKtAdminUi) { siteLink("Open lessons", "/") } }
+        val link = shellConfig("/admin")["siteLink"]!!.jsonObject
+        assertEquals("Open lessons", link["label"]!!.jsonPrimitive.content)
+        assertEquals("/", link["url"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `the site link can come from configuration, and is absent otherwise`() = testApplication {
+        environment { config = MapApplicationConfig("basekt.adminUi.siteLink.url" to "https://example.test/", "basekt.adminUi.siteLink.label" to "Public site") }
+        application { install(BaseKtAdminUi) }
+        val link = shellConfig("/admin")["siteLink"]!!.jsonObject
+        assertEquals("Public site", link["label"]!!.jsonPrimitive.content)
+        assertEquals("https://example.test/", link["url"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `no site link means none in the config`() = testApplication {
+        application { install(BaseKtAdminUi) }
+        assertEquals(JsonNull, shellConfig("/admin")["siteLink"])
+    }
+
+    @Test
+    fun `a site link to anything but a path or an http address is refused`() {
+        for (bad in listOf("javascript:alert(1)", "//evil.test", "site", "/with space")) {
+            val error = assertFailsWith<Throwable> {
+                testApplication {
+                    application { install(BaseKtAdminUi) { siteLink("Open", bad) } }
+                    startApplication()
+                }
+            }
+            assertTrue(generateSequence(error) { it.cause }.any { "site link must be a path" in it.message.orEmpty() }, bad)
+        }
+    }
+
+    @Test
     fun `deep links get the shell, but the API and missing assets stay 404`() = testApplication {
         application {
             install(BaseKtAdminUi)

@@ -35,6 +35,46 @@ the answer's `token` property like one pasted, sending it as a bearer token. `us
 `basekt.adminUi.login`. The path must be on the panel's own server, so a password never goes anywhere else. A 401 or
 403 shows the route's own message on the form, and pasting a token stays one click away.
 
+## Links to your site
+
+A record often has a page on the host app's own site: a lesson, a product, a post. Give its resource a link, and the
+panel shows a **View on site** button on the record's page and an icon on its row in the list, each opening in a new
+tab:
+
+```kotlin
+resource("lessons") {
+    string("title") { required() }
+    string("slug")
+    adminLinks {
+        link("View on site", "/lessons/{id}")
+        link("Preview", "/preview?slug={slug}")
+    }
+}
+```
+
+`{id}` and `{field}` stand for the record's id and a field's value, written into the address percent-encoded, so a value
+can't change where the link goes. A link is left out of a record that has no value for one of its placeholders.
+`adminLink(label, url)` adds a single link. An address must be a path on the same server (`/lessons/{id}`) or an `http`
+or `https` address; the labels are 1 to 40 characters, and a placeholder may name the id or a field the panel can show
+(not a hidden one). `BaseKtAdmin` refuses a schema with a link that breaks these, listing every problem when the app
+starts.
+
+For a link in the panel's top bar to the whole site, set one on the panel:
+
+```kotlin
+install(BaseKtAdminUi) {
+    siteLink("Open site", "/")   // or basekt.adminUi.siteLink.label and .url
+}
+```
+
+The other direction, from a page of your site to the panel, is a plain link to `{path}/r/{resource}/{id}`, such as
+`/admin/r/lessons/quadratics`. The panel asks for sign-in if the visitor isn't, and only the app knows who may see the
+link.
+
+## Markdown fields
+
+A [Markdown field](rich-text.md#the-admin-panels-editor) is edited with a visual editor and a formula menu.
+
 ## Themes
 
 Its theme is typed Kotlin that becomes CSS variables at runtime, so changing it needs no rebuild:

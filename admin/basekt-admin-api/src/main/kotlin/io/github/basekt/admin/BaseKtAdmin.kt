@@ -57,6 +57,8 @@ public val BaseKtAdmin: ApplicationPlugin<BaseKtAdminConfig> = createApplication
 ) {
     checkNotNull(application.pluginOrNull(BaseKt)) { "Install BaseKt before BaseKtAdmin." }
     val runtime = application.baseKt
+    val linkProblems = runtime.schema.adminLinkProblems()
+    require(linkProblems.isEmpty()) { "The schema's admin links are not valid:\n" + linkProblems.joinToString("\n") { "- $it" } }
     val settings = AdminSettings(
         path = "/" + pluginConfig.path.trim('/'),
         defaultPageSize = pluginConfig.defaultPageSize,

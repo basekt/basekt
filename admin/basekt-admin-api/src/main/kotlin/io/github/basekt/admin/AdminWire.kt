@@ -73,6 +73,8 @@ public data class AdminResource(
     val group: String? = null,
     /** The charts of its records, when the caller may read them. Their numbers come from the aggregate route. */
     val reports: List<AdminReport> = emptyList(),
+    /** Links from a record to the host app's own pages. A panel fills `{id}` and `{field}` from the record. */
+    val links: List<AdminLink> = emptyList(),
 )
 
 /**

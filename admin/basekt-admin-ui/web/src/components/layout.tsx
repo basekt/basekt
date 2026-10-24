@@ -1,10 +1,11 @@
 import type { ReactNode } from "react"
-import { Database, LogIn, LogOut, Table2 } from "lucide-react"
+import { Database, ExternalLink, LogIn, LogOut, Table2 } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { humanize } from "@/lib/fields"
 import { cn } from "@/lib/utils"
+import { isSafeHref } from "@/lib/links"
 import { menuSections } from "@/lib/menu"
 import { usePanel } from "@/panel"
 import { Link, useRouter } from "@/router"
@@ -63,6 +64,13 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-end gap-1 border-b px-4 py-2">
+          {config.siteLink && isSafeHref(config.siteLink.url) && (
+            <Button variant="ghost" size="sm" className="mr-auto" asChild>
+              <a href={config.siteLink.url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink /> {config.siteLink.label}
+              </a>
+            </Button>
+          )}
           <ModeToggle mode={mode} setMode={setMode} />
           {signedIn ? (
             <Button variant="ghost" size="sm" onClick={signOut}>

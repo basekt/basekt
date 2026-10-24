@@ -18,6 +18,7 @@ export const books: AdminResource = {
   searchable: ["title"],
   sortable: ["id", "title", "pages", "fee", "lendable", "authorId"],
   group: null,
+  links: [],
   actions: [],
   reports: [],
 }
@@ -30,6 +31,7 @@ export const authors: AdminResource = {
   searchable: ["name"],
   sortable: ["id", "name"],
   group: null,
+  links: [],
   actions: [],
   reports: [],
 }
@@ -50,6 +52,7 @@ export const tickets: AdminResource = {
   searchable: ["subject", "state"],
   sortable: ["id", "subject", "state", "openedAt", "views", "screenshot"],
   group: null,
+  links: [],
   actions: [],
   reports: [
     { name: "ticketsByState", chart: "pie", groupBy: "state", function: "count", field: null, measure: "count", order: "valueDesc", limit: 12, bucket: null, timeZone: null, filters: [], range: null, compare: null },
@@ -59,7 +62,7 @@ export const tickets: AdminResource = {
 
 export const helpDeskSchema: AdminSchema = { version: 1, caller: { id: "viewer", roles: ["observer"] }, resources: [tickets] }
 
-export const config: PanelConfig = { path: "/admin", apiPath: "/admin/api", filesPath: "/files", brand: { name: "Test", logo: null }, defaultMode: "light", login: null }
+export const config: PanelConfig = { path: "/admin", apiPath: "/admin/api", filesPath: "/files", brand: { name: "Test", logo: null }, defaultMode: "light", login: null, siteLink: null }
 
 export function page(items: JsonObject[], total: number | null = items.length, nextCursor: string | null = null): AdminPage {
   return { items, nextCursor, hasNext: nextCursor != null, total }

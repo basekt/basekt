@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronLeft, Trash2 } from "lucide-react"
+import { ChevronLeft, ExternalLink, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import type { AdminResource, JsonObject } from "@wire"
 import { ActionButtons } from "@/components/action-button"
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RecordForm } from "@/forms/record-form"
 import { formatValue, humanize, recordId } from "@/lib/fields"
+import { recordLinks } from "@/lib/links"
 import { useAsync } from "@/lib/use-async"
 import { can, usePanel } from "@/panel"
 import { Link, useRouter } from "@/router"
@@ -39,6 +40,7 @@ export function RecordView({ resource, id }: { resource: AdminResource; id: stri
           <h1 className="text-2xl font-semibold tracking-tight">{id}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {record.data && <SiteLinks resource={resource} record={record.data} />}
           {record.data && <ActionButtons resource={resource} target="record" id={id} record={record.data} onDone={record.reload} />}
           {can(resource, "delete") && record.data && <DeleteButton resource={resource} id={id} />}
         </div>
@@ -98,6 +100,21 @@ export function CreateView({ resource }: { resource: AdminResource }) {
         }}
       />
     </div>
+  )
+}
+
+/** The resource's links to the host app's pages for this record, each opening in a new tab. */
+function SiteLinks({ resource, record }: { resource: AdminResource; record: JsonObject }) {
+  return (
+    <>
+      {recordLinks(resource.links, record).map((link) => (
+        <Button key={link.label} variant="outline" size="sm" asChild>
+          <a href={link.href} target="_blank" rel="noopener noreferrer">
+            <ExternalLink /> {link.label}
+          </a>
+        </Button>
+      ))}
+    </>
   )
 }
 
