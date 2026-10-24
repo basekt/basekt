@@ -91,6 +91,7 @@ The latest `main` is published as `0.2.0-SNAPSHOT` to Maven Central's snapshots 
 | `server:basekt-files` | ✓ works | `install(BaseKtFiles)`: buckets with limits and permissions, streamed uploads, downloads with ranges and safe headers, and `file` fields kept in step with their files |
 | `server:basekt-audit` | ✓ works | `install(BaseKtAudit)`: a log of every create, update, delete and action, with who, when and what changed, in the write's own transaction |
 | `server:basekt-storage-s3` | ✓ works | an S3 store for AWS, MinIO, R2 and other S3-compatible services: Signature V4 with no SDK, multipart uploads, ranges and presigned URLs |
+| `commerce:basekt-commerce`, `commerce:basekt-storefront` | planned | an optional group for selling online. The umbrella pulls in the rest; the storefront will generate listing and detail pages and a public API from `storefront { }` blocks in the schema. Payments, holds, idempotency and customers follow, each as its own module |
 | `client:basekt-client` | later | a typed multiplatform client SDK: auth, queries, realtime, storage |
 | `server:basekt-data-jdbc`, `-mongo` | later | more data adapters |
 | `server:basekt-auth-oidc`, `-firebase` | later | more auth providers |
