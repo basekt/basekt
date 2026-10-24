@@ -17,6 +17,13 @@ export interface LoginRoute {
   tokenField: string
 }
 
+/** A link from the panel to the host app's own site. Mirrors the plugin's `SiteLink`. */
+export interface SiteLink {
+  label: string
+  /** A path on the panel's server, or an http or https address. */
+  url: string
+}
+
 /**
  * What the Ktor plugin tells the panel, in the shell page's `basekt-admin-config` JSON script. The plugin's
  * `ShellConfig` writes it; keep the two in step.
@@ -32,6 +39,8 @@ export interface PanelConfig {
   defaultMode: ThemeMode
   /** Where viewers sign in with a name and a password, or null to paste a token only. */
   login: LoginRoute | null
+  /** A link to the host's site for the top bar, or null for none. */
+  siteLink: SiteLink | null
 }
 
 const fallback: PanelConfig = {
@@ -41,6 +50,7 @@ const fallback: PanelConfig = {
   brand: { name: "BaseKt", logo: null },
   defaultMode: "system",
   login: null,
+  siteLink: null,
 }
 
 /** Reads the config the shell page carries, or the defaults when there is none. */
@@ -55,6 +65,7 @@ export function readConfig(doc: Document = document): PanelConfig {
     brand: { ...fallback.brand, ...parsed.brand },
     defaultMode: parsed.defaultMode ?? fallback.defaultMode,
     login: parsed.login ?? null,
+    siteLink: parsed.siteLink ?? null,
   }
 }
 

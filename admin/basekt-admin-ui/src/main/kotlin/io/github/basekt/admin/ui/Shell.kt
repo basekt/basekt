@@ -27,7 +27,18 @@ internal data class ShellConfig(
     val brand: ShellBrand,
     val defaultMode: ThemeMode,
     val login: ShellLogin? = null,
+    val siteLink: SiteLink? = null,
 )
+
+/** A link from the panel to the host app's own site: its label and where it goes. */
+@Serializable
+internal data class SiteLink(val label: String, val url: String)
+
+/** Whether [url] is a path on this server or an `http` or `https` address, with no spaces or control characters. */
+internal fun isSafeLinkUrl(url: String): Boolean {
+    if (url.any { it <= ' ' || it.code == 127 }) return false
+    return (url.startsWith("/") && !url.startsWith("//")) || url.startsWith("https://") || url.startsWith("http://")
+}
 
 @Serializable
 internal data class ShellBrand(val name: String, val logo: String?)

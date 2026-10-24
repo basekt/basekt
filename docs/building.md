@@ -27,11 +27,30 @@ tables in:
 ./gradlew :server:basekt-data-exposed:test -Pbasekt.postgres.url=jdbc:postgresql://localhost/basekt -Pbasekt.postgres.user=basekt -Pbasekt.postgres.password=basekt
 ```
 
+### The samples
+
+Two small apps show BaseKt in use, and are what to run when changing the admin panel or a module:
+
+```bash
+./gradlew :samples:sample-shop:run      # products and orders, on Exposed and H2, with JWT sign-in
+./gradlew :samples:sample-lessons:run   # lessons with Markdown, formulas and pictures, and the visual editor
+```
+
+Both listen on 8080 (`PORT` changes it). Open `/admin` and sign in: the shop's demo tokens are in its
+`application.conf`, and the lessons sample takes the token `demo-editor`. The lessons' public pages are at `/`.
+
 ### The admin panel
 
 The admin panel's source is in `admin/basekt-admin-ui/web`. To work on it with hot reload against a running server
-(the sample shop on port 8080 by default, or `BASEKT_SERVER`), run `npm ci` and `npm run dev` there and open
-`http://localhost:5173/admin/`.
+(a sample on port 8080 by default, or `BASEKT_SERVER`), run `npm ci` and `npm run dev` there and open
+`http://localhost:5173/admin/`. Run `npm test` for its Vitest tests, and `npm run typecheck` for TypeScript.
+
+`./gradlew :admin:basekt-admin-ui:npmBuild` builds it into the jar, and the sample you run next picks it up.
+
+- **A slow machine** can make Vitest's 5 second default time out in full runs, on tests that pass alone. Run
+  `npx vitest run --testTimeout=60000` to tell load from a real failure.
+- **The Markdown editor** is its own chunk, loaded only on a form with a Markdown field. See
+  [Extending BaseKt](extending.md#the-markdown-editor) for how it is built and tested.
 
 ### Admin API TypeScript types
 
@@ -78,4 +97,5 @@ creates the GitHub release with generated notes. To try publishing locally, with
 ## Contributing
 
 Read [AGENTS.md](https://github.com/basekt/basekt/blob/main/AGENTS.md) for the design rules every module follows, and
-copy its checklist into each PR.
+copy its checklist into each PR. [Extending BaseKt](extending.md) shows how to add a module, put settings on a schema,
+take part in writes and add to the admin panel.

@@ -34,6 +34,7 @@ export interface AdminResource {
   actions: AdminAction[];
   group: string | null;
   reports: AdminReport[];
+  links: AdminLink[];
 }
 
 export interface AdminField {
@@ -187,6 +188,11 @@ export interface ReportRange {
 }
 
 export type ReportCompare = "previousPeriod" | "previousYear";
+
+export interface AdminLink {
+  label: string;
+  url: string;
+}
 
 export interface AdminPage {
   items: JsonObject[];

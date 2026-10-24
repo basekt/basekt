@@ -28,6 +28,7 @@ nav = [
   ] },
   { "Adapters" = "adapters.md" },
   { "Modules" = "modules.md" },
+  { "Extending BaseKt" = "extending.md" },
   { "Building and releasing" = "building.md" },
 ]
 
