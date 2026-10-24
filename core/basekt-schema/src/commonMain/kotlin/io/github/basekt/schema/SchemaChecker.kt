@@ -29,6 +29,8 @@ internal val SchemaJson: Json = Json {
 
 private val namePattern = Regex("[A-Za-z][A-Za-z0-9_]*")
 
+private val extensionKey = Regex("[A-Za-z][A-Za-z0-9_.-]*")
+
 /** A time zone region of the IANA database, such as `Asia/Manila` or `UTC`. Fixed offsets aren't regions. */
 private val timeZonePattern = Regex("[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*")
 
@@ -58,6 +60,7 @@ internal object SchemaChecker {
             if (resource.group != null && resource.group.isBlank()) problem("$at.group", "A menu group can't be blank.")
             duplicates(resource.reports.map { it.name }).forEach { problem("$at.reports.$it", "Report '$it' is declared twice.") }
             for (report in resource.reports) checkReport(resource, report, "$at.reports.${report.name}", ::problem)
+            for (key in resource.extensions.keys) if (!extensionKey.matches(key)) problem("$at.extensions.$key", "'$key' is not a valid extension key: use letters, digits, '.', '_' and '-', starting with a letter.")
             for (field in resource.fields) (field.auto as? Auto.Inherited)?.let { checkInherited(schema, resource, field, it, "$at.fields.${field.name}", ::problem) }
             resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
         }
