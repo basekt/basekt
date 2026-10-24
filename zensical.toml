@@ -19,6 +19,7 @@ nav = [
     { "Aggregates and reports" = "aggregates-reports.md" },
     { "Audit" = "audit.md" },
     { "Files and storage" = "files.md" },
+    { "Storefront" = "storefront.md" },
   ] },
   { "Admin" = [
     { "Admin API" = "admin-api.md" },
