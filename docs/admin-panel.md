@@ -7,7 +7,8 @@ panel change:
 - a sidebar of what the caller may see, and a home screen with the [reports](aggregates-reports.md#reports) they may
   read, as charts, with a [range picker](aggregates-reports.md#rolling-ranges) and a range menu on each card;
 - lists with search, filters, sort, cursor paging, bulk delete and CSV export;
-- forms with a widget per field type, including a searchable picker for references, and validation errors and hook
+- forms with a widget per field type, a [visual Markdown editor with a formula menu](rich-text.md#the-admin-panels-editor)
+  for Markdown fields, including a searchable picker for references, and validation errors and hook
   vetoes shown on their fields;
 - an error card that says when the server couldn't be reached, shows the [request id](schema.md#request-ids-and-server-errors),
   and copies a report or downloads the page's recent failed calls (kept in memory only) for whoever runs the panel.

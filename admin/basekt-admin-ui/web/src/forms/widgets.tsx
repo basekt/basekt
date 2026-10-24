@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { lazy, Suspense, useState, type ReactNode } from "react"
 import type { AdminField, FieldType, JsonValue } from "@wire"
 import { FileWidget } from "@/forms/file-widget"
 import { ReferencePicker } from "@/forms/reference-picker"
@@ -69,23 +69,65 @@ function ListWidget({ field, id, value, onChange, invalid, describedBy }: Widget
   )
 }
 
-/** Markdown text: a roomy box that shows the field's limit and what it accepts. A rich editor can replace it later. */
+/** The visual editor is a separate chunk: it is large, and most forms have no Markdown field. */
+const MarkdownEditor = lazy(() => import("@/forms/markdown-editor"))
+
+/**
+ * Markdown text, edited visually or as source. The visual editor draws headings, lists, tables and, where the field
+ * allows them, formulas as they are typed; the source box shows the Markdown that is saved. Both read and write the
+ * same text, so a person can switch at any time.
+ */
 function MarkdownWidget({ field, id, value, onChange, invalid, describedBy }: WidgetProps) {
   const options = field.markdown!
   const text = value == null ? "" : String(value)
+  const [mode, setMode] = useState<"visual" | "source">("visual")
+  // The visual editor keeps its own text once it starts, so it starts over after the source box changed the text.
+  const [revision, setRevision] = useState(0)
+  const set = (next: string) => onChange(next === "" && !field.required ? null : next)
   const formulas = options.math ? ", with formulas: $x^2$ inline or $$ ... $$ as a block" : ""
+  const tab = (name: "visual" | "source", label: string) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={mode === name}
+      onClick={() => {
+        if (name === "visual" && mode === "source") setRevision((n) => n + 1)
+        setMode(name)
+      }}
+      className={`rounded-md px-2.5 py-1 text-xs font-medium ${mode === name ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+    >
+      {label}
+    </button>
+  )
   return (
-    <div className="space-y-1">
-      <textarea
-        id={id}
-        rows={10}
-        value={text}
-        onChange={(e) => onChange(e.target.value === "" && !field.required ? null : e.target.value)}
-        aria-invalid={invalid}
-        aria-describedby={describedBy}
-        maxLength={options.maxLength}
-        className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-32 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-      />
+    <div className="space-y-1.5" id={id}>
+      <div role="tablist" aria-label="How to edit the text" className="flex gap-1">
+        {tab("visual", "Visual")}
+        {tab("source", "Markdown")}
+      </div>
+      {mode === "visual" ? (
+        <Suspense fallback={<p className="text-muted-foreground text-sm">Loading the editor...</p>}>
+          <MarkdownEditor
+            key={revision}
+            value={text}
+            math={options.math}
+            invalid={invalid}
+            describedBy={describedBy}
+            onChange={set}
+          />
+        </Suspense>
+      ) : (
+        <textarea
+          aria-label="Markdown source"
+          rows={12}
+          value={text}
+          onChange={(e) => set(e.target.value)}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          maxLength={options.maxLength}
+          className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-32 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+        />
+      )}
       <p className="text-muted-foreground text-xs">{`Markdown${formulas}. ${text.length} of ${options.maxLength} characters.`}</p>
     </div>
   )
