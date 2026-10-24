@@ -56,7 +56,30 @@ public class BaseKtStorefrontConfig internal constructor(config: ApplicationConf
 
     /** Says which variants can be sold now. Everything can, unless set. */
     public var availability: Availability = Availability.Always
+
+    /**
+     * Extra CSS appended after the default pages' styles, to restyle them: fonts, spacing, colours. The defaults use
+     * the variables `--bg`, `--fg`, `--muted`, `--line`, `--card` and `--accent`. Can't contain `</style`.
+     * `basekt.storefront.css`, none by default.
+     */
+    public var css: String = config.propertyOrNull("css")?.getString() ?: ""
+
+    /**
+     * Renders the pages. [DefaultPages] unless set; supply your own to change the markup. It is also used by the
+     * default pages' [css]: a custom renderer takes the styles with it unless it calls [DefaultPages.shell].
+     */
+    public var pages: StorefrontPages = DefaultPages
+
+    /**
+     * The `Content-Security-Policy` of every response. The default allows no scripts, no outside styles and only
+     * pictures from the web; a renderer that needs more, such as web fonts or a script, widens it here.
+     * `basekt.storefront.contentSecurityPolicy`.
+     */
+    public var contentSecurityPolicy: String = config.propertyOrNull("contentSecurityPolicy")?.getString() ?: DEFAULT_CSP
 }
+
+private const val DEFAULT_CSP: String =
+    "default-src 'none'; style-src 'unsafe-inline'; img-src http: https: data:; base-uri 'none'; form-action 'self'"
 
 /**
  * Serves a shop generated from the schema's `storefront { }` blocks, to anyone, under [BaseKtStorefrontConfig.path]:
@@ -93,24 +116,30 @@ public val BaseKtStorefront: ApplicationPlugin<BaseKtStorefrontConfig> = createA
     require(pluginConfig.rateRequests >= 0 && pluginConfig.rateWindowSeconds >= 1) {
         "The storefront's rate needs requests >= 0 and windowSeconds >= 1."
     }
+    require(!pluginConfig.css.contains("</style", ignoreCase = true)) { "The storefront's css can't contain '</style'." }
+    require('\n' !in pluginConfig.contentSecurityPolicy && '\r' !in pluginConfig.contentSecurityPolicy) {
+        "The storefront's contentSecurityPolicy must be on one line."
+    }
     val problems = runtime.schema.storefrontProblems()
     require(problems.isEmpty()) { "The schema's storefronts are not valid:\n" + problems.joinToString("\n") { "- $it" } }
 
     val shop = Shop(runtime.schema, runtime.dataSource, pluginConfig.availability, pluginConfig.defaultPageSize, pluginConfig.maxPageSize)
-    val theme = Theme(pluginConfig.siteName, pluginConfig.currency, pluginConfig.accent)
+    val context = StorefrontContext(base, pluginConfig.siteName, pluginConfig.currency, pluginConfig.accent, pluginConfig.css)
+    val pages = pluginConfig.pages
+    val headers = shopHeaders + ("Content-Security-Policy" to pluginConfig.contentSecurityPolicy)
     val limiter = RateLimiter(pluginConfig.rateRequests, pluginConfig.rateWindowSeconds * 1000L)
 
     application.routing {
         route(base) {
             get("api/{resource}") {
-                json(limiter) {
+                json(limiter, headers) {
                     val resource = shop.resource(call.parameters["resource"]!!) ?: throw ShopException(404, "Nothing is sold under that name.")
                     val page = shop.list(resource, call.listRequest(resource.storefront!!))
                     JsonObject(mapOf("items" to JsonArray(page.items.map { it.toJson() }), "nextCursor" to JsonPrimitive(page.nextCursor)))
                 }
             }
             get("api/{resource}/{slug}") {
-                json(limiter) {
+                json(limiter, headers) {
                     val resource = shop.resource(call.parameters["resource"]!!) ?: throw ShopException(404, "Nothing is sold under that name.")
                     val found = shop.detail(resource, call.parameters["slug"]!!) ?: throw ShopException(404, "No such record.")
                     val variants = JsonArray(
@@ -123,21 +152,22 @@ public val BaseKtStorefront: ApplicationPlugin<BaseKtStorefrontConfig> = createA
             }
 
             get {
-                html(limiter) { indexPage(theme, base, shop.resources) }
+                html(limiter, headers) { pages.index(context, shop.resources) }
             }
             get("{resource}") {
-                html(limiter) {
+                html(limiter, headers) {
                     val resource = shop.resource(call.parameters["resource"]!!) ?: throw ShopException(404, "Nothing is sold under that name.")
                     val shopDef = resource.storefront!!
                     val request = call.listRequest(shopDef)
-                    listingPage(theme, base, resource, shopDef, shop.list(resource, request), shop.filterOptions(resource), request)
+                    val page = shop.list(resource, request)
+                    pages.listing(context, Listing(resource, shopDef, page.items, page.nextCursor, shop.filterOptions(resource), request))
                 }
             }
             get("{resource}/{slug}") {
-                html(limiter) {
+                html(limiter, headers) {
                     val resource = shop.resource(call.parameters["resource"]!!) ?: throw ShopException(404, "Nothing is sold under that name.")
                     val found = shop.detail(resource, call.parameters["slug"]!!) ?: throw ShopException(404, "No such record.")
-                    detailPage(theme, base, resource, resource.storefront!!, found)
+                    pages.detail(context, Detail(resource, resource.storefront!!, found.item, found.variants))
                 }
             }
         }
@@ -148,9 +178,9 @@ public val BaseKtStorefront: ApplicationPlugin<BaseKtStorefrontConfig> = createA
     }
 }
 
-private fun ApplicationCall.listRequest(shop: Storefront): ListRequest {
+private fun ApplicationCall.listRequest(shop: Storefront): ListingRequest {
     val query = request.queryParameters
-    return ListRequest(
+    return ListingRequest(
         search = query["q"],
         filters = shop.filters.mapNotNull { field -> query[field]?.takeIf { it.isNotEmpty() }?.let { field to it } }.toMap(),
         sort = query["sort"],
@@ -160,7 +190,6 @@ private fun ApplicationCall.listRequest(shop: Storefront): ListRequest {
 }
 
 private val shopHeaders = mapOf(
-    "Content-Security-Policy" to "default-src 'none'; style-src 'unsafe-inline'; img-src http: https: data:; base-uri 'none'; form-action 'self'",
     "X-Content-Type-Options" to "nosniff",
     "Referrer-Policy" to "same-origin",
     "Cache-Control" to "public, max-age=30",
@@ -174,9 +203,9 @@ private suspend fun RoutingContext.withinRate(limiter: RateLimiter): Boolean {
     return false
 }
 
-private suspend fun RoutingContext.json(limiter: RateLimiter, block: suspend () -> JsonObject) {
+private suspend fun RoutingContext.json(limiter: RateLimiter, headers: Map<String, String>, block: suspend () -> JsonObject) {
     if (!withinRate(limiter)) return
-    shopHeaders.forEach { (k, v) -> call.response.header(k, v) }
+    headers.forEach { (k, v) -> call.response.header(k, v) }
     try {
         call.respondText(block().toString(), ContentType.Application.Json)
     } catch (e: ShopException) {
@@ -188,9 +217,9 @@ private suspend fun RoutingContext.json(limiter: RateLimiter, block: suspend () 
     }
 }
 
-private suspend fun RoutingContext.html(limiter: RateLimiter, block: suspend () -> String) {
+private suspend fun RoutingContext.html(limiter: RateLimiter, headers: Map<String, String>, block: suspend () -> String) {
     if (!withinRate(limiter)) return
-    shopHeaders.forEach { (k, v) -> call.response.header(k, v) }
+    headers.forEach { (k, v) -> call.response.header(k, v) }
     try {
         call.respondText(block(), ContentType.Text.Html)
     } catch (e: ShopException) {

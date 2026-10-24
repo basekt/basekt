@@ -40,22 +40,40 @@ public fun interface Availability {
 internal class ShopException(val status: Int, message: String) : RuntimeException(message)
 
 /** What a shopper asked a listing for. */
-internal class ListRequest(
-    val search: String?,
-    val filters: Map<String, String>,
-    val sort: String?,
-    val limit: Int?,
-    val cursor: String?,
+public class ListingRequest(
+    /** The text searched for in titles, or `null`. */
+    public val search: String?,
+    /** The chosen filters: field to value. */
+    public val filters: Map<String, String>,
+    /** The sort asked for: `title`, `-title`, `price` or `-price`, or `null` for the usual one. */
+    public val sort: String?,
+    /** The page size asked for, or `null` for the usual one. */
+    public val limit: Int?,
+    /** The cursor of the page asked for, or `null` for the first. */
+    public val cursor: String?,
 )
 
-/** One listed record, with only the fields the storefront shows. */
-internal class ShopItem(val slug: String, val values: Map<String, Value?>)
+/** One record of a shop, with only the fields its storefront shows, by field name; [Resource.ID] is among them. */
+public class StorefrontItem(
+    /** The text that names the record in its page's address. */
+    public val slug: String,
+    /** The shown fields' values. */
+    public val values: Map<String, Value?>,
+)
 
-internal class ShopPage(val items: List<ShopItem>, val nextCursor: String?)
+internal class ShopPage(val items: List<StorefrontItem>, val nextCursor: String?)
 
-internal class ShopVariant(val id: String, val label: Value?, val available: Boolean)
+/** One choice on a detail page, such as a size. */
+public class StorefrontVariant(
+    /** The variant record's id. */
+    public val id: String,
+    /** What tells it apart from the others, such as `US 9`. */
+    public val label: Value?,
+    /** Whether it can be sold now, as the shop's [Availability] says. */
+    public val available: Boolean,
+)
 
-internal class ShopDetail(val item: ShopItem, val variants: List<ShopVariant>)
+internal class ShopDetail(val item: StorefrontItem, val variants: List<StorefrontVariant>)
 
 /** Reads the records a storefront shows, and only the fields it names. */
 internal class Shop(
@@ -70,7 +88,7 @@ internal class Shop(
 
     fun resource(name: String): Resource? = resources.firstOrNull { it.name == name }
 
-    suspend fun list(resource: Resource, request: ListRequest): ShopPage {
+    suspend fun list(resource: Resource, request: ListingRequest): ShopPage {
         val shop = resource.storefront!!
         val conditions = mutableListOf<Filter>()
         conditions += shop.listWhen.map { Filter.Compare(it.field, Comparison.EQ, resource.parse(it.field, it.equals)) }
@@ -131,7 +149,7 @@ internal class Shop(
         return options
     }
 
-    private suspend fun variants(resource: Resource, shop: Storefront, record: Record): List<ShopVariant> {
+    private suspend fun variants(resource: Resource, shop: Storefront, record: Record): List<StorefrontVariant> {
         val variants = shop.variants ?: return emptyList()
         val relation = resource.relation(variants.relation) as io.github.basekt.schema.Relation.HasMany
         val target = schema.resource(relation.target) ?: return emptyList()
@@ -143,11 +161,11 @@ internal class Shop(
         val sellable = availability.available(target, rows)
         return rows.mapNotNull { row ->
             val rowId = (row[Resource.ID] as? Value.Text)?.value ?: return@mapNotNull null
-            ShopVariant(rowId, row[variants.by], rowId in sellable)
+            StorefrontVariant(rowId, row[variants.by], rowId in sellable)
         }
     }
 
-    private fun item(resource: Resource, shop: Storefront, record: Record): ShopItem {
+    private fun item(resource: Resource, shop: Storefront, record: Record): StorefrontItem {
         val shown = linkedSetOf(Resource.ID, shop.slug, shop.title)
         shop.price?.let(shown::add)
         shop.image?.let(shown::add)
@@ -155,7 +173,7 @@ internal class Shop(
         shown += shop.filters
         val values = shown.associateWith { record[it] }
         val slug = (record[shop.slug] as? Value)?.toString().orEmpty()
-        return ShopItem(slug, values)
+        return StorefrontItem(slug, values)
     }
 
     private fun sortOf(shop: Storefront, sort: String?): Sort = when (sort) {
@@ -186,5 +204,5 @@ internal fun Value?.toJson(): JsonElement = when (this) {
     is Value.Items -> JsonArray(values.map { it.toJson() })
 }
 
-internal fun ShopItem.toJson(): JsonObject =
+internal fun StorefrontItem.toJson(): JsonObject =
     JsonObject(linkedMapOf<String, JsonElement>("slug" to JsonPrimitive(slug)).also { map -> values.forEach { (k, v) -> map[k] = v.toJson() } })
