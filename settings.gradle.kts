@@ -36,4 +36,5 @@ include(
     ":admin:basekt-admin-ui",
     ":testing:basekt-testing",
     ":samples:sample-shop",
+    ":samples:sample-lessons",
 )
