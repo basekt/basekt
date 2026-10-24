@@ -193,7 +193,7 @@ private fun Report.toAdmin(): AdminReport = AdminReport(
 )
 
 private fun Field.toAdmin(scopedValues: Set<String>?): AdminField =
-    AdminField(name, type, required, values, target, rules, bucket, scopedValues?.sorted(), auto, list)
+    AdminField(name, type, required, values, target, rules, bucket, scopedValues?.sorted(), auto, list, markdown)
 
 /** The fields a panel may show: the ones that aren't [Field.hidden]. */
 private fun Resource.visibleFields(): List<Field> = fields.filterNot { it.hidden }

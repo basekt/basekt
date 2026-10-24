@@ -41,6 +41,7 @@ export const fallbackWidget: Widget = TextWidget
 /** The widget for [field]. */
 export function widgetFor(field: AdminField): Widget {
   if (field.list) return ListWidget
+  if (field.markdown) return MarkdownWidget
   return (widgets as Partial<Record<string, Widget>>)[field.type] ?? fallbackWidget
 }
 
@@ -65,6 +66,28 @@ function ListWidget({ field, id, value, onChange, invalid, describedBy }: Widget
       placeholder="One per line"
       className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-16 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
     />
+  )
+}
+
+/** Markdown text: a roomy box that shows the field's limit and what it accepts. A rich editor can replace it later. */
+function MarkdownWidget({ field, id, value, onChange, invalid, describedBy }: WidgetProps) {
+  const options = field.markdown!
+  const text = value == null ? "" : String(value)
+  const formulas = options.math ? ", with formulas: $x^2$ inline or $$ ... $$ as a block" : ""
+  return (
+    <div className="space-y-1">
+      <textarea
+        id={id}
+        rows={10}
+        value={text}
+        onChange={(e) => onChange(e.target.value === "" && !field.required ? null : e.target.value)}
+        aria-invalid={invalid}
+        aria-describedby={describedBy}
+        maxLength={options.maxLength}
+        className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-32 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+      />
+      <p className="text-muted-foreground text-xs">{`Markdown${formulas}. ${text.length} of ${options.maxLength} characters.`}</p>
+    </div>
   )
 }
 

@@ -29,6 +29,7 @@ include(
     ":server:basekt-storage-s3",
     ":server:basekt-files",
     ":server:basekt-audit",
+    ":server:basekt-richtext",
     ":commerce:basekt-commerce",
     ":commerce:basekt-storefront",
     ":admin:basekt-admin-api",

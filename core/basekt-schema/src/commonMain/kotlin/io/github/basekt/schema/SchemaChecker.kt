@@ -90,6 +90,14 @@ internal object SchemaChecker {
         if (field.type != FieldType.ENUM && field.values != null) problem(at, "Only an enum field has values.")
         if (field.type != FieldType.REFERENCE && field.target != null) problem(at, "Only a reference field has a target.")
         if (field.type != FieldType.FILE && field.bucket != null) problem(at, "Only a file field has a bucket.")
+        field.markdown?.let { options ->
+            if (field.type != FieldType.STRING) problem(at, "Only a string field can be Markdown, not ${field.type.name.lowercase()}.")
+            if (field.list) problem(at, "A Markdown field can't be a list.")
+            if (field.unique) problem(at, "A Markdown field can't be unique.")
+            if (options.maxLength !in 1..MarkdownOptions.LIMIT) {
+                problem(at, "A Markdown field's maxLength must be between 1 and ${MarkdownOptions.LIMIT}, not ${options.maxLength}.")
+            }
+        }
         if (field.hidden && field.required) problem(at, "A hidden field can't be required: no client could fill it in.")
         if (field.unique && field.auto != null && field.auto !is Auto.Sequence) {
             problem(at, "Only a sequence can be an automatic unique field.")

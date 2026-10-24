@@ -229,6 +229,7 @@ public class FieldBuilder internal constructor() {
     private var unique = false
     private var list = false
     private var hidden = false
+    private var markdown: MarkdownOptions? = null
 
     /** Makes the field required: a record must have a non-null value. */
     public fun required() {
@@ -280,6 +281,16 @@ public class FieldBuilder internal constructor() {
         rules += Rule.Pattern(regex, message)
     }
 
+    /**
+     * Makes the field Markdown: a string field that holds formatted text, with the options [block] sets. Its length is
+     * capped at the options' maximum. See [Field.markdown].
+     */
+    public fun markdown(block: MarkdownBuilder.() -> Unit = {}) {
+        val options = MarkdownBuilder().apply(block).build()
+        markdown = options
+        rules += Rule.Length(null, options.maxLength)
+    }
+
     /** The [FieldValidator] registered as [name] must accept the value. */
     public fun custom(name: String) {
         rules += Rule.Custom(name)
@@ -322,7 +333,32 @@ public class FieldBuilder internal constructor() {
         auto(Auto.Sequence(prefix, digits, start))
 
     internal fun build(name: String, type: FieldType, values: List<String>?, target: String?, bucket: String? = null): Field =
-        Field(name, type, required, values, target, rules.toList(), bucket, auto, unique, list, hidden)
+        Field(name, type, required, values, target, rules.toList(), bucket, auto, unique, list, hidden, markdown)
+}
+
+/** Sets the [MarkdownOptions] of a field. */
+@SchemaDsl
+public class MarkdownBuilder internal constructor() {
+    private var math = false
+    private var images = false
+    private var maxLength = MarkdownOptions.DEFAULT_MAX_LENGTH
+
+    /** Allows TeX formulas: `$x^2$` inline and `$$...$$` as a block. */
+    public fun math() {
+        math = true
+    }
+
+    /** Allows images that point at `http`, `https` or a path on the same site. */
+    public fun images() {
+        images = true
+    }
+
+    /** Caps the text at [characters] characters, [MarkdownOptions.DEFAULT_MAX_LENGTH] unless set. */
+    public fun maxLength(characters: Int) {
+        maxLength = characters
+    }
+
+    internal fun build(): MarkdownOptions = MarkdownOptions(math, images, maxLength)
 }
 
 /** Declares who may perform each [Operation]. */

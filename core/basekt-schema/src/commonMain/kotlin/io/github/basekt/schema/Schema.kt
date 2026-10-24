@@ -202,7 +202,36 @@ public data class Field(
      * holds what callers must never see, such as a password hash. A hidden field can't be required.
      */
     val hidden: Boolean = false,
+    /**
+     * Marks a string field as Markdown with the given options, or `null` for plain text. The schema keeps the text as
+     * it is and caps its length at [MarkdownOptions.maxLength]; `basekt-richtext` checks the Markdown itself, and an
+     * admin panel edits the field as rich text. Only a string field may be Markdown.
+     */
+    val markdown: MarkdownOptions? = null,
 )
+
+/**
+ * What a Markdown field may hold. The text is CommonMark with GitHub tables, strikethrough and task lists; raw HTML is
+ * never allowed. See [Field.markdown].
+ */
+@Serializable
+public data class MarkdownOptions(
+    /** Whether the text may hold TeX formulas: `$x^2$` inline and `$$...$$` as a block. */
+    val math: Boolean = false,
+    /** Whether the text may hold images. They must point at `http`, `https` or a path on the same site. */
+    val images: Boolean = false,
+    /** The most characters the text may have. */
+    val maxLength: Int = DEFAULT_MAX_LENGTH,
+) {
+    /** Constants for every Markdown field. */
+    public companion object {
+        /** The usual cap on a Markdown field's text: 50 000 characters. */
+        public const val DEFAULT_MAX_LENGTH: Int = 50_000
+
+        /** The largest cap a field may declare: a million characters. */
+        public const val LIMIT: Int = 1_000_000
+    }
+}
 
 /**
  * A value the server sets instead of the client. A client that sends one gets a `read_only` error, and a `null`
