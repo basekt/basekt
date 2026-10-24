@@ -7,7 +7,7 @@ plugin through the `basekt.publish` convention in `build-logic`.
 ## Snapshots
 
 Every push to `main` publishes the libraries as `basekt.version` from `gradle.properties` (always a `-SNAPSHOT`, such
-as `0.2.0-SNAPSHOT`) to Maven Central's snapshots repository, through the **Snapshot** workflow. Snapshots aren't
+as `0.3.0-SNAPSHOT`) to Maven Central's snapshots repository, through the **Snapshot** workflow. Snapshots aren't
 signed, are replaced by each push, and expire after a while, so they're for trying the latest `main`, not for pinning.
 To use one:
 
@@ -20,7 +20,7 @@ dependencyResolutionManagement {
     }
 }
 // build.gradle.kts
-dependencies { implementation("io.github.basekt:basekt-server:0.2.0-SNAPSHOT") }
+dependencies { implementation("io.github.basekt:basekt-server:0.3.0-SNAPSHOT") }
 ```
 
 Gradle re-checks a snapshot every 24 hours; `--refresh-dependencies` forces it. After a tagged release, bump

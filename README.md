@@ -66,7 +66,7 @@ dependencies {
 }
 ```
 
-The latest `main` is published as `0.2.0-SNAPSHOT` to Maven Central's snapshots repository
+The latest `main` is published as `0.3.0-SNAPSHOT` to Maven Central's snapshots repository
 (`https://central.sonatype.com/repository/maven-snapshots/`). Releases are cut by pushing a version tag; see
 [RELEASING.md](RELEASING.md).
 
