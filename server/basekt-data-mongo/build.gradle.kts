@@ -10,7 +10,7 @@ dependencies {
     api(project(":server:basekt-data"))
     api(libs.mongodb.driver.kotlin.coroutine)
     testImplementation(project(":testing:basekt-testing"))
-    testImplementation(libs.testcontainers.mongodb)
+    testImplementation(libs.testcontainers)
     testImplementation(libs.embed.mongo)
 }
 
@@ -19,6 +19,8 @@ dependencies {
 // that is downloaded once to ~/.embedmongo. -Pbasekt.mongo.required=true makes the tests fail instead of skipping when none
 // of those is possible, as in CI.
 tasks.test {
+    // A failure says why, in CI logs too.
+    testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     for (name in listOf("url", "embedded", "required")) {
         providers.gradleProperty("basekt.mongo.$name").orNull?.let { systemProperty("basekt.mongo.$name", it) }
     }

@@ -10,13 +10,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.bson.Document
 import org.testcontainers.DockerClientFactory
-import org.testcontainers.mongodb.MongoDBContainer
+import org.testcontainers.containers.GenericContainer
+import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.utility.DockerImageName
 import java.util.UUID
 
 /*
  * The MongoDB the tests run against, in the order they look:
  *  1. the server `basekt.mongo.url` names (a replica set, for transactions);
- *  2. a Testcontainers container, when Docker is available;
+ *  2. a Testcontainers container of the official image, when Docker is available;
  *  3. with `basekt.mongo.embedded`, an embedded mongod run as a single-node replica set, downloaded once to ~/.embedmongo.
  * Without one, the tests are skipped, except with `basekt.mongo.required`, as in CI, where they fail.
  */
@@ -34,15 +36,43 @@ private const val REPLICA_SET = "rs0"
 private val connectionString: String by lazy {
     when {
         externalUrl != null -> externalUrl
-        runCatching { DockerClientFactory.instance().isDockerAvailable }.getOrDefault(false) -> {
-            // Testcontainers' reaper removes the container when the test JVM exits. The image starts as a replica set.
-            val container = MongoDBContainer("mongo:8.0").also { it.start() }
-            // The replica set names the container by its own hostname, which the test JVM can't reach, so the client is
-            // told to talk to the mapped port directly instead of discovering the members. A direct connection to a
-            // replica set member still supports transactions.
-            "mongodb://${container.host}:${container.firstMappedPort}/?directConnection=true"
-        }
+        runCatching { DockerClientFactory.instance().isDockerAvailable }.getOrDefault(false) -> containerReplicaSet()
         else -> embeddedReplicaSet()
+    }
+}
+
+/**
+ * The official image as a single-node replica set: started with `--replSet`, then initiated from inside, where the node
+ * is `localhost:27017`. The tests reach it by its mapped port with a direct connection, so the member's own name, which
+ * the host can't reach, never matters. Testcontainers' reaper removes the container when the test JVM exits.
+ */
+private fun containerReplicaSet(): String {
+    val container = GenericContainer(DockerImageName.parse("mongo:8.0"))
+        .withExposedPorts(27017)
+        .withCommand("--replSet", REPLICA_SET, "--bind_ip_all")
+        .waitingFor(Wait.forLogMessage(".*[Ww]aiting for connections.*", 1))
+    container.start()
+    val initiated = container.execInContainer(
+        "mongosh", "--quiet", "--eval", "rs.initiate({_id: '$REPLICA_SET', members: [{_id: 0, host: 'localhost:27017'}]})",
+    )
+    check(initiated.exitCode == 0) { "rs.initiate failed: ${initiated.stdout} ${initiated.stderr}" }
+    val url = "mongodb://${container.host}:${container.getMappedPort(27017)}/?directConnection=true"
+    awaitPrimary(url)
+    return url
+}
+
+/** Waits until the server at [url] has elected itself, which transactions need. */
+private fun awaitPrimary(url: String) = runBlocking {
+    val direct = MongoClient.create(url)
+    try {
+        val admin = direct.getDatabase("admin")
+        repeat(300) {
+            if (runCatching { admin.runCommand(Document("hello", 1)).getBoolean("isWritablePrimary") }.getOrNull() == true) return@runBlocking
+            delay(100)
+        }
+        error("the MongoDB server did not become primary")
+    } finally {
+        direct.close()
     }
 }
 
