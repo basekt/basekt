@@ -5,19 +5,10 @@ import io.github.basekt.schema.Value
 import io.ktor.http.encodeURLParameter
 import io.ktor.http.encodeURLPathPart
 
-/** The look of the generated pages: a name, a currency symbol and an accent colour. Apps may override all three. */
-internal class Theme(val siteName: String, val currency: String, val accent: String)
+/** The look of the default pages: a name, a currency symbol, an accent colour and extra CSS. */
+internal class Theme(val siteName: String, val currency: String, val accent: String, val css: String = "")
 
-internal fun escape(text: String): String = buildString(text.length) {
-    for (c in text) when (c) {
-        '&' -> append("&amp;")
-        '<' -> append("&lt;")
-        '>' -> append("&gt;")
-        '"' -> append("&quot;")
-        '\'' -> append("&#39;")
-        else -> append(c)
-    }
-}
+internal fun escape(text: String): String = escapeHtml(text)
 
 private fun Value?.text(): String = this?.toString().orEmpty()
 
@@ -29,7 +20,7 @@ private fun imageUrl(value: Value?): String? = value.text().takeIf { it.startsWi
 private fun label(name: String): String =
     name.removeSuffix("Id").ifEmpty { name }.replace(Regex("([a-z])([A-Z])"), "$1 $2").replaceFirstChar { it.uppercase() }
 
-private fun page(theme: Theme, title: String, base: String, body: String): String = """<!doctype html>
+internal fun page(theme: Theme, title: String, base: String, body: String): String = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escape(title)}</title>
 <style>
@@ -54,6 +45,7 @@ button.go{background:var(--accent);color:var(--accent-fg);border-color:var(--acc
 .size{border:1px solid var(--line);border-radius:.4rem;padding:.4rem .8rem}
 .size.out{color:var(--muted);text-decoration:line-through;background:var(--card)}
 .pager{margin:1.5rem 0}.empty{padding:3rem 0;text-align:center}
+${theme.css}
 </style></head><body>
 <header><div class="bar"><a href="${escape(base)}">${escape(theme.siteName)}</a></div></header>
 <main>$body</main></body></html>"""
@@ -72,7 +64,7 @@ internal fun listingPage(
     shop: Storefront,
     page: ShopPage,
     options: Map<String, List<Pair<String, String>>>,
-    request: ListRequest,
+    request: ListingRequest,
 ): String {
     val here = "${escape(base)}/${escape(resource.name.encodeURLPathPart())}"
     val form = buildString {

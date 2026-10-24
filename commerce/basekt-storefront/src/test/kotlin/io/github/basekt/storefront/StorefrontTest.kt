@@ -213,6 +213,50 @@ class StorefrontTest {
     }
 
     @Test
+    fun `css is appended to the default styles, and can't close them`() = shop(nursery, {}, configure = { css = ".card{border-radius:0}\nh1{color:var(--accent)}" }) {
+        val html = client.get("/shop/plants").bodyAsText()
+        assertTrue(html.contains(".card{border-radius:0}\nh1{color:var(--accent)}\n</style>"), "the app's css comes last, so it wins")
+        assertTrue(html.indexOf(".card{border-radius:0}") > html.indexOf("--accent-fg"))
+        val refused = runCatching {
+            testApplication {
+                application {
+                    install(BaseKt) { dataSource = InMemoryDataSource(); this.schema = nursery }
+                    install(BaseKtStorefront) { css = "a{}</STYLE><script>x</script>" }
+                }
+                startApplication()
+            }
+        }.exceptionOrNull()
+        assertTrue(generateSequence(refused) { it.cause }.any { "can't contain '</style'" in it.message.orEmpty() })
+    }
+
+    @Test
+    fun `an app's own pages replace the default ones, and can reuse the frame`() {
+        class Mine : StorefrontPages {
+            override fun index(context: StorefrontContext, resources: List<Resource>) = "index of ${resources.size} at ${context.base}"
+
+            override fun listing(context: StorefrontContext, listing: Listing) =
+                "<ol>" + listing.items.joinToString("") { "<li>${escapeHtml(it.values["name"].toString())}</li>" } + "</ol>"
+
+            override fun detail(context: StorefrontContext, detail: Detail) =
+                DefaultPages.shell(context, "Mine", "<h1 class=\"mine\">${escapeHtml(detail.item.values["name"].toString())}</h1>")
+        }
+        var plant = ""
+        shop(
+            nursery,
+            { plant = (create(nursery.resource("plants")!!, mapOf("name" to text("<Fern>"), "pots" to Value.Integer(12)))[Resource.ID] as Value.Text).value },
+            configure = { pages = Mine(); contentSecurityPolicy = "default-src 'self'" },
+        ) {
+            assertEquals("index of 1 at /shop", client.get("/shop").bodyAsText())
+            val listing = client.get("/shop/plants")
+            assertEquals("<ol><li>&lt;Fern&gt;</li></ol>", listing.bodyAsText())
+            assertEquals("default-src 'self'", listing.headers["Content-Security-Policy"])
+            val detail = client.get("/shop/plants/$plant").bodyAsText()
+            assertTrue(detail.contains("<h1 class=\"mine\">&lt;Fern&gt;</h1>") && detail.contains("--accent"), "the shell brings the default frame")
+            assertEquals("<Fern>", client.get("/shop/api/plants").bodyAsText().json()["items"]!!.jsonArray.single().jsonObject["name"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
     fun `a record is named by its id when no slug is set`() {
         var plant = ""
         shop(nursery, { plant = (create(nursery.resource("plants")!!, mapOf("name" to text("Fern"), "pots" to Value.Integer(12)))[Resource.ID] as Value.Text).value }) {
