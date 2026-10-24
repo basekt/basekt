@@ -12,7 +12,7 @@ describe("record forms", () => {
       ...librarySchema,
       resources: librarySchema.resources.map((r) => r.name !== "books" ? r : {
         ...r,
-        fields: [...r.fields, { name: "createdAt", type: "instant" as const, required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: { kind: "createdAt" as const }, list: false }],
+        fields: [...r.fields, { name: "createdAt", type: "instant" as const, required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: { kind: "createdAt" as const }, list: false, markdown: null }],
       }),
     }
     const fetch = fakeFetch(({ url }) => {
@@ -90,7 +90,7 @@ describe("record forms", () => {
       ...librarySchema,
       resources: librarySchema.resources.map((r) => r.name !== "books" ? r : {
         ...r,
-        fields: [...r.fields, { name: "version", type: "long" as const, required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: { kind: "version" as const }, list: false }],
+        fields: [...r.fields, { name: "version", type: "long" as const, required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: { kind: "version" as const }, list: false, markdown: null }],
       }),
     }
     const fetch = fakeFetch(({ url, method }) => {

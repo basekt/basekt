@@ -10,6 +10,7 @@ postgresql = "42.7.14"
 testcontainers = "2.0.5"
 logback = "1.5.18"
 vanniktech-publish = "0.37.0"
+jetbrains-markdown = "0.7.14"
 
 [libraries]
 # build-logic
@@ -21,6 +22,7 @@ vanniktech-maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publis
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
+markdown = { module = "org.jetbrains:markdown", version.ref = "jetbrains-markdown" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }

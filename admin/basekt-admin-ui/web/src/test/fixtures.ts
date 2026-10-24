@@ -7,11 +7,11 @@ import type { PanelConfig } from "@/config"
 export const books: AdminResource = {
   name: "books",
   fields: [
-    { name: "title", type: "string", required: true, values: null, target: null, rules: [{ kind: "length", min: 1, max: 200 }], bucket: null, scopedValues: null, auto: null, list: false },
-    { name: "pages", type: "int", required: false, values: null, target: null, rules: [{ kind: "min", value: "1" }], bucket: null, scopedValues: null, auto: null, list: false },
-    { name: "fee", type: "decimal", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false },
-    { name: "lendable", type: "bool", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false },
-    { name: "authorId", type: "reference", required: false, values: null, target: "authors", rules: [], bucket: null, scopedValues: null, auto: null, list: false },
+    { name: "title", type: "string", required: true, values: null, target: null, rules: [{ kind: "length", min: 1, max: 200 }], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "pages", type: "int", required: false, values: null, target: null, rules: [{ kind: "min", value: "1" }], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "fee", type: "decimal", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "lendable", type: "bool", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "authorId", type: "reference", required: false, values: null, target: "authors", rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
   ],
   relations: [{ name: "author", kind: "belongsTo", target: "authors", field: "authorId" }],
   operations: ["read", "create", "update", "delete"],
@@ -24,7 +24,7 @@ export const books: AdminResource = {
 
 export const authors: AdminResource = {
   name: "authors",
-  fields: [{ name: "name", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false }],
+  fields: [{ name: "name", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null }],
   relations: [{ name: "books", kind: "hasMany", target: "books", field: "authorId" }],
   operations: ["read", "create", "update", "delete"],
   searchable: ["name"],
@@ -39,11 +39,11 @@ export const librarySchema: AdminSchema = { version: 1, caller: { id: "librarian
 export const tickets: AdminResource = {
   name: "tickets",
   fields: [
-    { name: "subject", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false },
-    { name: "state", type: "enum", required: true, values: ["open", "waiting", "closed"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false },
-    { name: "openedAt", type: "instant", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false },
-    { name: "views", type: "long", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false },
-    { name: "screenshot", type: "file", required: false, values: null, target: null, rules: [], bucket: "screens", scopedValues: null, auto: null, list: false },
+    { name: "subject", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "state", type: "enum", required: true, values: ["open", "waiting", "closed"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "openedAt", type: "instant", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "views", type: "long", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "screenshot", type: "file", required: false, values: null, target: null, rules: [], bucket: "screens", scopedValues: null, auto: null, list: false, markdown: null },
   ],
   relations: [],
   operations: ["read"],

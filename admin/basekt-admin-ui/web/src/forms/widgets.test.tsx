@@ -26,6 +26,35 @@ function renderWidget(field: AdminField, initial: JsonValue = null, fetch = fake
   return { fetch, value: () => seen.value }
 }
 
+describe("a Markdown field", () => {
+  const body: AdminField = {
+    name: "body", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false,
+    markdown: { math: true, images: false, maxLength: 500 },
+  }
+
+  it("is a roomy text box that keeps the text as typed and shows its limit", async () => {
+    const { value } = renderWidget(body, "Solve $x$")
+    const box = screen.getByLabelText("body") as HTMLTextAreaElement
+    expect(box.tagName).toBe("TEXTAREA")
+    expect(box.maxLength).toBe(500)
+    expect(screen.getByText(/Markdown, with formulas/)).toBeTruthy()
+    expect(screen.getByText(/9 of 500 characters/)).toBeTruthy()
+    await userEvent.type(box, "!")
+    expect(value()).toBe("Solve $x$!")
+  })
+
+  it("sends null when an optional field is emptied", async () => {
+    const { value } = renderWidget(body, "a")
+    await userEvent.clear(screen.getByLabelText("body"))
+    expect(value()).toBeNull()
+  })
+
+  it("says nothing of formulas when they are off", () => {
+    renderWidget({ ...body, markdown: { math: false, images: false, maxLength: 100 } }, "")
+    expect(screen.queryByText(/formulas/)).toBeNull()
+  })
+})
+
 describe("the widget registry", () => {
   it("has a widget for every field type, and a fallback for new ones", () => {
     const types: FieldType[] = ["string", "int", "long", "decimal", "bool", "instant", "enum", "reference", "file"]

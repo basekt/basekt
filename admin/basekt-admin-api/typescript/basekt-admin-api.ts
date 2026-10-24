@@ -47,6 +47,7 @@ export interface AdminField {
   scopedValues: string[] | null;
   auto: Auto | null;
   list: boolean;
+  markdown: MarkdownOptions | null;
 }
 
 export type FieldType = "string" | "int" | "long" | "decimal" | "bool" | "instant" | "enum" | "reference" | "file";
@@ -117,6 +118,12 @@ export interface AutoUpdatedBy {
 
 export interface AutoVersion {
   kind: "version";
+}
+
+export interface MarkdownOptions {
+  math: boolean;
+  images: boolean;
+  maxLength: number;
 }
 
 export interface AdminRelation {

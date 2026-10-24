@@ -4,6 +4,7 @@ import io.github.basekt.schema.ActionTarget
 import io.github.basekt.schema.Auto
 import io.github.basekt.schema.Chart
 import io.github.basekt.schema.FieldType
+import io.github.basekt.schema.MarkdownOptions
 import io.github.basekt.schema.Operation
 import io.github.basekt.schema.ReportCompare
 import io.github.basekt.schema.ReportFilter
@@ -153,6 +154,8 @@ public data class AdminField(
     val auto: Auto? = null,
     /** Whether the field is a list of values, as an action's input can be. A panel asks for one item per line. */
     val list: Boolean = false,
+    /** The options of a Markdown field, or `null` for plain text. A panel edits the field as Markdown. */
+    val markdown: MarkdownOptions? = null,
 )
 
 /** A relation as an admin panel sees it. */
