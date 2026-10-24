@@ -29,6 +29,8 @@ include(
     ":server:basekt-storage-s3",
     ":server:basekt-files",
     ":server:basekt-audit",
+    ":commerce:basekt-commerce",
+    ":commerce:basekt-storefront",
     ":admin:basekt-admin-api",
     ":admin:basekt-admin-ui",
     ":testing:basekt-testing",
