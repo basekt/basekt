@@ -22,13 +22,19 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      # Node builds and tests the admin panel (admin/basekt-admin-ui/web) into its jar.
+      # Node builds and tests the admin panel (admin/basekt-admin-ui/web) into its jar, and type-checks the TypeScript
+      # client generated from the sample shop's OpenAPI document.
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: admin/basekt-admin-ui/web/package-lock.json
+          cache-dependency-path: |
+            admin/basekt-admin-ui/web/package-lock.json
+            samples/sample-shop/openapi/package-lock.json
       - uses: gradle/actions/setup-gradle@v4
       # The runner has Docker, so the Exposed adapter's contract suite also runs on Postgres in a container, the MongoDB
       # adapter's on MongoDB in one, and the Firestore adapter's on the Cloud SDK's Firestore emulator in one.
       - run: ./gradlew build --no-daemon -Pbasekt.postgres.required=true -Pbasekt.mongo.required=true -Pbasekt.firestore.required=true
+      # The build checked that openapi.json matches what the shop serves; a client generated from it must compile.
+      - run: npm ci && npm run check
+        working-directory: samples/sample-shop/openapi

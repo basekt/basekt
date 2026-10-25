@@ -1,0 +1,5839 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sample shop",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "basekt"
+    },
+    {
+      "name": "categories"
+    },
+    {
+      "name": "products"
+    },
+    {
+      "name": "customers"
+    },
+    {
+      "name": "orders"
+    },
+    {
+      "name": "shop"
+    }
+  ],
+  "paths": {
+    "/api/schema": {
+      "get": {
+        "operationId": "basekt.schema",
+        "tags": [
+          "basekt"
+        ],
+        "summary": "The schema",
+        "description": "The whole schema as JSON, as `Schema.toJson` writes it. Open to everyone.",
+        "responses": {
+          "200": {
+            "description": "The schema.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        }
+      }
+    },
+    "/api/categories": {
+      "get": {
+        "operationId": "categories.list",
+        "tags": [
+          "categories"
+        ],
+        "summary": "List categories",
+        "description": "Open to everyone.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/categories.id"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.ne"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.gt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.gte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.lt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.lte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.in"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.contains"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.null"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.ne"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.gt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.gte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.lt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.lte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.in"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.contains"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.null"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "The fields to sort by, in turn, such as `-slug,id`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^-?(id|name|slug)(,-?(id|name|slug))*$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/basekt.limit"
+          },
+          {
+            "$ref": "#/components/parameters/basekt.cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of records.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/categories.page"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {},
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "categories.create",
+        "tags": [
+          "categories"
+        ],
+        "summary": "Create a record of categories",
+        "description": "Needs one of the roles: staff.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/categories.create"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              },
+              "Location": {
+                "description": "The new record's path.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/categories"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/basekt.conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/categories/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/basekt.id"
+        }
+      ],
+      "get": {
+        "operationId": "categories.get",
+        "tags": [
+          "categories"
+        ],
+        "summary": "Get a record of categories",
+        "description": "Open to everyone.",
+        "responses": {
+          "200": {
+            "description": "The record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/categories"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {},
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "categories.update",
+        "tags": [
+          "categories"
+        ],
+        "summary": "Patch a record of categories",
+        "description": "Needs one of the roles: staff.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/categories.patch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The record as it is now.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/categories"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/basekt.conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "categories.delete",
+        "tags": [
+          "categories"
+        ],
+        "summary": "Delete a record of categories",
+        "description": "Needs one of the roles: staff.",
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/aggregate/categories": {
+      "get": {
+        "operationId": "categories.aggregate",
+        "tags": [
+          "categories"
+        ],
+        "summary": "Aggregate categories",
+        "description": "Open to everyone.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/categories.id"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/categories.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.ne"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.gt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.gte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.lt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.lte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.in"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.contains"
+          },
+          {
+            "$ref": "#/components/parameters/categories.name.null"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.ne"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.gt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.gte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.lt"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.lte"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.in"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.contains"
+          },
+          {
+            "$ref": "#/components/parameters/categories.slug.null"
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "description": "The fields to group by, comma-separated. An instant field may name a bucket: `placedAt:month` (`day`, `week`, `month` or `year`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "description": "The time zone region the buckets follow, such as `Europe/Paris`. UTC by default.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "`*` counts records, a field counts the records that have it set: `*,field` asks for both.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sum",
+            "in": "query",
+            "description": "The fields to sum, comma-separated, each a measure named `sum_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "avg",
+            "in": "query",
+            "description": "The fields to average, comma-separated, each a measure named `avg_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "min",
+            "in": "query",
+            "description": "The fields to take the least of, comma-separated, each a measure named `min_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "max",
+            "in": "query",
+            "description": "The fields to take the greatest of, comma-separated, each a measure named `max_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Measures and group fields to sort by, such as `-count,kind`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "The most groups to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The groups.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/basekt.AggregatePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          },
+          "501": {
+            "$ref": "#/components/responses/basekt.notImplemented"
+          }
+        },
+        "security": [
+          {},
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/categories/{id}/products": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/basekt.id"
+        }
+      ],
+      "get": {
+        "operationId": "categories.relation.products",
+        "tags": [
+          "categories"
+        ],
+        "summary": "The products records that belong to a record of categories",
+        "description": "Open to everyone.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/products.id"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.name"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.price"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.published"
+          },
+          {
+            "$ref": "#/components/parameters/products.published.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.published.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.published.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.image"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.null"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "The fields to sort by, in turn, such as `-image,id`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^-?(id|name|sku|price|cost|stock|published|categoryId|image)(,-?(id|name|sku|price|cost|stock|published|categoryId|image))*$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/basekt.limit"
+          },
+          {
+            "$ref": "#/components/parameters/basekt.cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of related records.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/products.page"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {},
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/products": {
+      "get": {
+        "operationId": "products.list",
+        "tags": [
+          "products"
+        ],
+        "summary": "List products",
+        "description": "Open to everyone.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/products.id"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.name"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.price"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.published"
+          },
+          {
+            "$ref": "#/components/parameters/products.published.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.published.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.published.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.image"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.null"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "The fields to sort by, in turn, such as `-image,id`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^-?(id|name|sku|price|cost|stock|published|categoryId|image)(,-?(id|name|sku|price|cost|stock|published|categoryId|image))*$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/basekt.limit"
+          },
+          {
+            "$ref": "#/components/parameters/basekt.cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of records.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/products.page"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {},
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "products.create",
+        "tags": [
+          "products"
+        ],
+        "summary": "Create a record of products",
+        "description": "Needs one of the roles: staff.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/products.create"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              },
+              "Location": {
+                "description": "The new record's path.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/products"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/basekt.conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/products/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/basekt.id"
+        }
+      ],
+      "get": {
+        "operationId": "products.get",
+        "tags": [
+          "products"
+        ],
+        "summary": "Get a record of products",
+        "description": "Open to everyone.",
+        "responses": {
+          "200": {
+            "description": "The record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/products"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {},
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "products.update",
+        "tags": [
+          "products"
+        ],
+        "summary": "Patch a record of products",
+        "description": "Needs one of the roles: staff.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/products.patch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The record as it is now.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/products"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/basekt.conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "products.delete",
+        "tags": [
+          "products"
+        ],
+        "summary": "Delete a record of products",
+        "description": "Needs one of the roles: staff.",
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/aggregate/products": {
+      "get": {
+        "operationId": "products.aggregate",
+        "tags": [
+          "products"
+        ],
+        "summary": "Aggregate products",
+        "description": "Open to everyone.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/products.id"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.name"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.name.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.sku.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.price"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.price.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.cost.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.stock.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.published"
+          },
+          {
+            "$ref": "#/components/parameters/products.published.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.published.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.published.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.contains"
+          },
+          {
+            "$ref": "#/components/parameters/products.categoryId.null"
+          },
+          {
+            "$ref": "#/components/parameters/products.image"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.ne"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.gt"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.gte"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.lt"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.lte"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.in"
+          },
+          {
+            "$ref": "#/components/parameters/products.image.null"
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "description": "The fields to group by, comma-separated. An instant field may name a bucket: `placedAt:month` (`day`, `week`, `month` or `year`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "description": "The time zone region the buckets follow, such as `Europe/Paris`. UTC by default.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "`*` counts records, a field counts the records that have it set: `*,field` asks for both.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sum",
+            "in": "query",
+            "description": "The fields to sum, comma-separated, each a measure named `sum_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "avg",
+            "in": "query",
+            "description": "The fields to average, comma-separated, each a measure named `avg_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "min",
+            "in": "query",
+            "description": "The fields to take the least of, comma-separated, each a measure named `min_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "max",
+            "in": "query",
+            "description": "The fields to take the greatest of, comma-separated, each a measure named `max_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Measures and group fields to sort by, such as `-count,kind`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "The most groups to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The groups.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/basekt.AggregatePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          },
+          "501": {
+            "$ref": "#/components/responses/basekt.notImplemented"
+          }
+        },
+        "security": [
+          {},
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/products/{id}/category": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/basekt.id"
+        }
+      ],
+      "get": {
+        "operationId": "products.relation.category",
+        "tags": [
+          "products"
+        ],
+        "summary": "The categories record a record of products belongs to",
+        "description": "Open to everyone.",
+        "responses": {
+          "200": {
+            "description": "The related record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/categories"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {},
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/customers": {
+      "get": {
+        "operationId": "customers.list",
+        "tags": [
+          "customers"
+        ],
+        "summary": "List customers",
+        "description": "Needs one of the roles: staff.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/customers.id"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.ne"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.gt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.gte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.lt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.lte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.in"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.contains"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.null"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.ne"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.gt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.gte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.lt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.lte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.in"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.contains"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.null"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "The fields to sort by, in turn, such as `-name,id`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^-?(id|email|name)(,-?(id|email|name))*$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/basekt.limit"
+          },
+          {
+            "$ref": "#/components/parameters/basekt.cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of records.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/customers.page"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "customers.create",
+        "tags": [
+          "customers"
+        ],
+        "summary": "Create a record of customers",
+        "description": "Needs one of the roles: staff.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/customers.create"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              },
+              "Location": {
+                "description": "The new record's path.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/customers"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/basekt.conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/customers/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/basekt.id"
+        }
+      ],
+      "get": {
+        "operationId": "customers.get",
+        "tags": [
+          "customers"
+        ],
+        "summary": "Get a record of customers",
+        "description": "Needs one of the roles: staff.",
+        "responses": {
+          "200": {
+            "description": "The record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/customers"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "customers.update",
+        "tags": [
+          "customers"
+        ],
+        "summary": "Patch a record of customers",
+        "description": "Needs one of the roles: staff.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/customers.patch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The record as it is now.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/customers"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/basekt.conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "customers.delete",
+        "tags": [
+          "customers"
+        ],
+        "summary": "Delete a record of customers",
+        "description": "Needs one of the roles: staff.",
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/aggregate/customers": {
+      "get": {
+        "operationId": "customers.aggregate",
+        "tags": [
+          "customers"
+        ],
+        "summary": "Aggregate customers",
+        "description": "Needs one of the roles: staff.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/customers.id"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/customers.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.ne"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.gt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.gte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.lt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.lte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.in"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.contains"
+          },
+          {
+            "$ref": "#/components/parameters/customers.email.null"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.ne"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.gt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.gte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.lt"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.lte"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.in"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.contains"
+          },
+          {
+            "$ref": "#/components/parameters/customers.name.null"
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "description": "The fields to group by, comma-separated. An instant field may name a bucket: `placedAt:month` (`day`, `week`, `month` or `year`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "description": "The time zone region the buckets follow, such as `Europe/Paris`. UTC by default.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "`*` counts records, a field counts the records that have it set: `*,field` asks for both.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sum",
+            "in": "query",
+            "description": "The fields to sum, comma-separated, each a measure named `sum_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "avg",
+            "in": "query",
+            "description": "The fields to average, comma-separated, each a measure named `avg_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "min",
+            "in": "query",
+            "description": "The fields to take the least of, comma-separated, each a measure named `min_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "max",
+            "in": "query",
+            "description": "The fields to take the greatest of, comma-separated, each a measure named `max_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Measures and group fields to sort by, such as `-count,kind`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "The most groups to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The groups.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/basekt.AggregatePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          },
+          "501": {
+            "$ref": "#/components/responses/basekt.notImplemented"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/customers/{id}/orders": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/basekt.id"
+        }
+      ],
+      "get": {
+        "operationId": "customers.relation.orders",
+        "tags": [
+          "customers"
+        ],
+        "summary": "The orders records that belong to a record of customers",
+        "description": "Needs one of the roles: staff. Needs one of the roles: customer, staff.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/orders.id"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.null"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "The fields to sort by, in turn, such as `-placedAt,id`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^-?(id|customerId|productId|quantity|status|placedAt)(,-?(id|customerId|productId|quantity|status|placedAt))*$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/basekt.limit"
+          },
+          {
+            "$ref": "#/components/parameters/basekt.cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of related records.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/orders.page"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/orders": {
+      "get": {
+        "operationId": "orders.list",
+        "tags": [
+          "orders"
+        ],
+        "summary": "List orders",
+        "description": "Needs one of the roles: customer, staff.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/orders.id"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.null"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "The fields to sort by, in turn, such as `-placedAt,id`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^-?(id|customerId|productId|quantity|status|placedAt)(,-?(id|customerId|productId|quantity|status|placedAt))*$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/basekt.limit"
+          },
+          {
+            "$ref": "#/components/parameters/basekt.cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of records.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/orders.page"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "orders.create",
+        "tags": [
+          "orders"
+        ],
+        "summary": "Create a record of orders",
+        "description": "Needs one of the roles: customer, staff.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/orders.create"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              },
+              "Location": {
+                "description": "The new record's path.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/orders"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/basekt.conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/orders/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/basekt.id"
+        }
+      ],
+      "get": {
+        "operationId": "orders.get",
+        "tags": [
+          "orders"
+        ],
+        "summary": "Get a record of orders",
+        "description": "Needs one of the roles: customer, staff.",
+        "responses": {
+          "200": {
+            "description": "The record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/orders"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "orders.update",
+        "tags": [
+          "orders"
+        ],
+        "summary": "Patch a record of orders",
+        "description": "Needs one of the roles: staff.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/orders.patch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The record as it is now.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/orders"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/basekt.conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "orders.delete",
+        "tags": [
+          "orders"
+        ],
+        "summary": "Delete a record of orders",
+        "description": "Needs one of the roles: staff.",
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/basekt.unprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/aggregate/orders": {
+      "get": {
+        "operationId": "orders.aggregate",
+        "tags": [
+          "orders"
+        ],
+        "summary": "Aggregate orders",
+        "description": "Needs one of the roles: customer, staff.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/orders.id"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.id.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.customerId.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.productId.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.quantity.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.contains"
+          },
+          {
+            "$ref": "#/components/parameters/orders.status.null"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.ne"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.gt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.gte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.lt"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.lte"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.in"
+          },
+          {
+            "$ref": "#/components/parameters/orders.placedAt.null"
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "description": "The fields to group by, comma-separated. An instant field may name a bucket: `placedAt:month` (`day`, `week`, `month` or `year`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "description": "The time zone region the buckets follow, such as `Europe/Paris`. UTC by default.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "`*` counts records, a field counts the records that have it set: `*,field` asks for both.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sum",
+            "in": "query",
+            "description": "The fields to sum, comma-separated, each a measure named `sum_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "avg",
+            "in": "query",
+            "description": "The fields to average, comma-separated, each a measure named `avg_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "min",
+            "in": "query",
+            "description": "The fields to take the least of, comma-separated, each a measure named `min_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "max",
+            "in": "query",
+            "description": "The fields to take the greatest of, comma-separated, each a measure named `max_<field>`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Measures and group fields to sort by, such as `-count,kind`: descending when prefixed with `-`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "The most groups to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The groups.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/basekt.AggregatePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          },
+          "501": {
+            "$ref": "#/components/responses/basekt.notImplemented"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/orders/{id}/customer": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/basekt.id"
+        }
+      ],
+      "get": {
+        "operationId": "orders.relation.customer",
+        "tags": [
+          "orders"
+        ],
+        "summary": "The customers record a record of orders belongs to",
+        "description": "Needs one of the roles: customer, staff. Needs one of the roles: staff.",
+        "responses": {
+          "200": {
+            "description": "The related record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/customers"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/api/orders/{id}/product": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/basekt.id"
+        }
+      ],
+      "get": {
+        "operationId": "orders.relation.product",
+        "tags": [
+          "orders"
+        ],
+        "summary": "The products record a record of orders belongs to",
+        "description": "Needs one of the roles: customer, staff. Open to everyone.",
+        "responses": {
+          "200": {
+            "description": "The related record.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/basekt.requestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/products"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/basekt.badRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/basekt.unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/basekt.forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/basekt.notFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/basekt.internalError"
+          }
+        },
+        "security": [
+          {
+            "basekt.auth": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "shop.health",
+        "tags": [
+          "shop"
+        ],
+        "summary": "Whether the shop is up",
+        "responses": {
+          "200": {
+            "description": "Up.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "const": "ok"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/low-stock": {
+      "get": {
+        "operationId": "shop.lowStock",
+        "tags": [
+          "shop"
+        ],
+        "summary": "Published products with fewer than five in stock",
+        "responses": {
+          "200": {
+            "description": "One `sku stock` line per product.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "basekt.ApiError": {
+        "type": "object",
+        "description": "The body of every error.",
+        "required": [
+          "error",
+          "message",
+          "fields",
+          "requestId"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/basekt.ErrorCode"
+          },
+          "message": {
+            "type": "string",
+            "description": "What went wrong, in a sentence."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/basekt.FieldError"
+            },
+            "description": "The rejected fields, for `validation_failed`."
+          },
+          "requestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The id of the call, which the server's logs name too."
+          }
+        }
+      },
+      "basekt.ErrorCode": {
+        "type": "string",
+        "enum": [
+          "bad_request",
+          "invalid_query",
+          "unauthorized",
+          "forbidden",
+          "not_found",
+          "conflict",
+          "payload_too_large",
+          "unsupported_type",
+          "validation_failed",
+          "rejected",
+          "not_implemented",
+          "internal_error"
+        ]
+      },
+      "basekt.FieldError": {
+        "type": "object",
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/basekt.FieldErrorCode"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "basekt.FieldErrorCode": {
+        "type": "string",
+        "enum": [
+          "required",
+          "type",
+          "min",
+          "max",
+          "length",
+          "pattern",
+          "enum",
+          "custom",
+          "unknown_field",
+          "read_only",
+          "missing_reference",
+          "rejected",
+          "unique"
+        ]
+      },
+      "basekt.AggregatePage": {
+        "type": "object",
+        "required": [
+          "groups",
+          "hasMore"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "values"
+              ],
+              "properties": {
+                "key": {
+                  "type": "object",
+                  "description": "The group's value of each `groupBy` field."
+                },
+                "values": {
+                  "type": "object",
+                  "description": "Each measure's value, such as `count` or `sum_quantity`."
+                }
+              }
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "Whether `limit` cut groups off."
+          }
+        }
+      },
+      "categories": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The record's id."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^(?:[a-z0-9]+(-[a-z0-9]+)*)$",
+            "description": "Use lowercase words joined by dashes."
+          }
+        }
+      },
+      "categories.page": {
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor",
+          "hasNext"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/categories"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The cursor of the next page, or null on the last one."
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
+      },
+      "categories.create": {
+        "type": "object",
+        "required": [
+          "name",
+          "slug"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new record's id. The data source generates one when it is left out."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^(?:[a-z0-9]+(-[a-z0-9]+)*)$",
+            "description": "Use lowercase words joined by dashes."
+          }
+        },
+        "additionalProperties": false
+      },
+      "categories.patch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^(?:[a-z0-9]+(-[a-z0-9]+)*)$",
+            "description": "Use lowercase words joined by dashes."
+          }
+        },
+        "additionalProperties": false
+      },
+      "products.page": {
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor",
+          "hasNext"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/products"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The cursor of the next page, or null on the last one."
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
+      },
+      "products": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "sku",
+          "price",
+          "cost",
+          "stock"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The record's id."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "sku": {
+            "type": "string",
+            "pattern": "^(?:[A-Z]{3}-[0-9]{4})$"
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "description": "A decimal number, as a string. At least 0.01."
+          },
+          "cost": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "description": "A decimal number, as a string. At least 0."
+          },
+          "stock": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "published": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The id of a 'categories' record."
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "pattern": "^images(/[A-Za-z0-9][A-Za-z0-9._-]*)+$",
+            "description": "The key of a file in the 'images' bucket."
+          }
+        }
+      },
+      "products.create": {
+        "type": "object",
+        "required": [
+          "name",
+          "sku",
+          "price",
+          "cost",
+          "stock"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new record's id. The data source generates one when it is left out."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "sku": {
+            "type": "string",
+            "pattern": "^(?:[A-Z]{3}-[0-9]{4})$"
+          },
+          "price": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "minimum": 0.01,
+            "description": "A decimal number, as a number or a string. At least 0.01."
+          },
+          "cost": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "minimum": 0,
+            "description": "A decimal number, as a number or a string. At least 0."
+          },
+          "stock": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "published": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The id of a 'categories' record."
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "pattern": "^images(/[A-Za-z0-9][A-Za-z0-9._-]*)+$",
+            "description": "The key of a file in the 'images' bucket."
+          }
+        },
+        "additionalProperties": false
+      },
+      "products.patch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "sku": {
+            "type": "string",
+            "pattern": "^(?:[A-Z]{3}-[0-9]{4})$"
+          },
+          "price": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "minimum": 0.01,
+            "description": "A decimal number, as a number or a string. At least 0.01."
+          },
+          "cost": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "minimum": 0,
+            "description": "A decimal number, as a number or a string. At least 0."
+          },
+          "stock": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "published": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The id of a 'categories' record."
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "pattern": "^images(/[A-Za-z0-9][A-Za-z0-9._-]*)+$",
+            "description": "The key of a file in the 'images' bucket."
+          }
+        },
+        "additionalProperties": false
+      },
+      "customers": {
+        "type": "object",
+        "required": [
+          "id",
+          "email"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The record's id."
+          },
+          "email": {
+            "type": "string",
+            "pattern": "^(?:[^@\\s]+@[^@\\s]+)$",
+            "description": "Must be an email address."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "customers.page": {
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor",
+          "hasNext"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/customers"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The cursor of the next page, or null on the last one."
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
+      },
+      "customers.create": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new record's id. The data source generates one when it is left out."
+          },
+          "email": {
+            "type": "string",
+            "pattern": "^(?:[^@\\s]+@[^@\\s]+)$",
+            "description": "Must be an email address."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "customers.patch": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "pattern": "^(?:[^@\\s]+@[^@\\s]+)$",
+            "description": "Must be an email address."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "orders.page": {
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor",
+          "hasNext"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/orders"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The cursor of the next page, or null on the last one."
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
+      },
+      "orders": {
+        "type": "object",
+        "required": [
+          "id",
+          "customerId",
+          "productId",
+          "quantity",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The record's id."
+          },
+          "customerId": {
+            "type": "string",
+            "description": "The id of a 'customers' record."
+          },
+          "productId": {
+            "type": "string",
+            "description": "The id of a 'products' record."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 99
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "placed",
+              "paid",
+              "shipped",
+              "cancelled"
+            ]
+          },
+          "placedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "orders.create": {
+        "type": "object",
+        "required": [
+          "customerId",
+          "productId",
+          "quantity",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new record's id. The data source generates one when it is left out."
+          },
+          "customerId": {
+            "type": "string",
+            "description": "The id of a 'customers' record."
+          },
+          "productId": {
+            "type": "string",
+            "description": "The id of a 'products' record."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 99
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "placed",
+              "paid",
+              "shipped",
+              "cancelled"
+            ]
+          },
+          "placedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "orders.patch": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "description": "The id of a 'customers' record."
+          },
+          "productId": {
+            "type": "string",
+            "description": "The id of a 'products' record."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 99
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "placed",
+              "paid",
+              "shipped",
+              "cancelled"
+            ]
+          },
+          "placedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "responses": {
+      "basekt.badRequest": {
+        "description": "The body isn't a JSON object (`bad_request`), or a filter, sort, limit or cursor is invalid (`invalid_query`).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/basekt.requestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/basekt.ApiError"
+            }
+          }
+        }
+      },
+      "basekt.unauthorized": {
+        "description": "The operation needs a signed-in caller (`unauthorized`).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/basekt.requestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/basekt.ApiError"
+            }
+          }
+        }
+      },
+      "basekt.forbidden": {
+        "description": "The caller's roles or record scope don't allow it (`forbidden`).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/basekt.requestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/basekt.ApiError"
+            }
+          }
+        }
+      },
+      "basekt.notFound": {
+        "description": "The record or relation doesn't exist, or is outside the caller's scope (`not_found`).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/basekt.requestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/basekt.ApiError"
+            }
+          }
+        }
+      },
+      "basekt.conflict": {
+        "description": "The id is taken, the record changed since the version sent, or the transition can't start from the record's state (`conflict`).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/basekt.requestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/basekt.ApiError"
+            }
+          }
+        }
+      },
+      "basekt.unprocessable": {
+        "description": "A field was rejected (`validation_failed`, see `fields`) or a hook refused the write (`rejected`).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/basekt.requestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/basekt.ApiError"
+            }
+          }
+        }
+      },
+      "basekt.internalError": {
+        "description": "Something failed on the server (`internal_error`). The message names the request id the server logged it with.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/basekt.requestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/basekt.ApiError"
+            }
+          }
+        }
+      },
+      "basekt.notImplemented": {
+        "description": "The data source can't do what the request needs, such as aggregates (`not_implemented`).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/basekt.requestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/basekt.ApiError"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "categories.id": {
+        "name": "id",
+        "in": "query",
+        "description": "Keeps records whose `id` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.id.ne": {
+        "name": "id[ne]",
+        "in": "query",
+        "description": "Keeps records whose `id` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.id.gt": {
+        "name": "id[gt]",
+        "in": "query",
+        "description": "Keeps records whose `id` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.id.gte": {
+        "name": "id[gte]",
+        "in": "query",
+        "description": "Keeps records whose `id` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.id.lt": {
+        "name": "id[lt]",
+        "in": "query",
+        "description": "Keeps records whose `id` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.id.lte": {
+        "name": "id[lte]",
+        "in": "query",
+        "description": "Keeps records whose `id` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.id.in": {
+        "name": "id[in]",
+        "in": "query",
+        "description": "Keeps records whose `id` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "categories.id.contains": {
+        "name": "id[contains]",
+        "in": "query",
+        "description": "Keeps records whose `id` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.id.null": {
+        "name": "id[null]",
+        "in": "query",
+        "description": "Keeps records whose `id` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "categories.name": {
+        "name": "name",
+        "in": "query",
+        "description": "Keeps records whose `name` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.name.ne": {
+        "name": "name[ne]",
+        "in": "query",
+        "description": "Keeps records whose `name` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.name.gt": {
+        "name": "name[gt]",
+        "in": "query",
+        "description": "Keeps records whose `name` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.name.gte": {
+        "name": "name[gte]",
+        "in": "query",
+        "description": "Keeps records whose `name` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.name.lt": {
+        "name": "name[lt]",
+        "in": "query",
+        "description": "Keeps records whose `name` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.name.lte": {
+        "name": "name[lte]",
+        "in": "query",
+        "description": "Keeps records whose `name` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.name.in": {
+        "name": "name[in]",
+        "in": "query",
+        "description": "Keeps records whose `name` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "categories.name.contains": {
+        "name": "name[contains]",
+        "in": "query",
+        "description": "Keeps records whose `name` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.name.null": {
+        "name": "name[null]",
+        "in": "query",
+        "description": "Keeps records whose `name` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "categories.slug": {
+        "name": "slug",
+        "in": "query",
+        "description": "Keeps records whose `slug` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.slug.ne": {
+        "name": "slug[ne]",
+        "in": "query",
+        "description": "Keeps records whose `slug` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.slug.gt": {
+        "name": "slug[gt]",
+        "in": "query",
+        "description": "Keeps records whose `slug` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.slug.gte": {
+        "name": "slug[gte]",
+        "in": "query",
+        "description": "Keeps records whose `slug` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.slug.lt": {
+        "name": "slug[lt]",
+        "in": "query",
+        "description": "Keeps records whose `slug` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.slug.lte": {
+        "name": "slug[lte]",
+        "in": "query",
+        "description": "Keeps records whose `slug` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.slug.in": {
+        "name": "slug[in]",
+        "in": "query",
+        "description": "Keeps records whose `slug` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "categories.slug.contains": {
+        "name": "slug[contains]",
+        "in": "query",
+        "description": "Keeps records whose `slug` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "categories.slug.null": {
+        "name": "slug[null]",
+        "in": "query",
+        "description": "Keeps records whose `slug` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.id": {
+        "name": "id",
+        "in": "query",
+        "description": "Keeps records whose `id` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.id.ne": {
+        "name": "id[ne]",
+        "in": "query",
+        "description": "Keeps records whose `id` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.id.gt": {
+        "name": "id[gt]",
+        "in": "query",
+        "description": "Keeps records whose `id` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.id.gte": {
+        "name": "id[gte]",
+        "in": "query",
+        "description": "Keeps records whose `id` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.id.lt": {
+        "name": "id[lt]",
+        "in": "query",
+        "description": "Keeps records whose `id` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.id.lte": {
+        "name": "id[lte]",
+        "in": "query",
+        "description": "Keeps records whose `id` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.id.in": {
+        "name": "id[in]",
+        "in": "query",
+        "description": "Keeps records whose `id` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "products.id.contains": {
+        "name": "id[contains]",
+        "in": "query",
+        "description": "Keeps records whose `id` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.id.null": {
+        "name": "id[null]",
+        "in": "query",
+        "description": "Keeps records whose `id` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.name": {
+        "name": "name",
+        "in": "query",
+        "description": "Keeps records whose `name` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.name.ne": {
+        "name": "name[ne]",
+        "in": "query",
+        "description": "Keeps records whose `name` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.name.gt": {
+        "name": "name[gt]",
+        "in": "query",
+        "description": "Keeps records whose `name` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.name.gte": {
+        "name": "name[gte]",
+        "in": "query",
+        "description": "Keeps records whose `name` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.name.lt": {
+        "name": "name[lt]",
+        "in": "query",
+        "description": "Keeps records whose `name` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.name.lte": {
+        "name": "name[lte]",
+        "in": "query",
+        "description": "Keeps records whose `name` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.name.in": {
+        "name": "name[in]",
+        "in": "query",
+        "description": "Keeps records whose `name` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "products.name.contains": {
+        "name": "name[contains]",
+        "in": "query",
+        "description": "Keeps records whose `name` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.name.null": {
+        "name": "name[null]",
+        "in": "query",
+        "description": "Keeps records whose `name` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.sku": {
+        "name": "sku",
+        "in": "query",
+        "description": "Keeps records whose `sku` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.sku.ne": {
+        "name": "sku[ne]",
+        "in": "query",
+        "description": "Keeps records whose `sku` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.sku.gt": {
+        "name": "sku[gt]",
+        "in": "query",
+        "description": "Keeps records whose `sku` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.sku.gte": {
+        "name": "sku[gte]",
+        "in": "query",
+        "description": "Keeps records whose `sku` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.sku.lt": {
+        "name": "sku[lt]",
+        "in": "query",
+        "description": "Keeps records whose `sku` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.sku.lte": {
+        "name": "sku[lte]",
+        "in": "query",
+        "description": "Keeps records whose `sku` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.sku.in": {
+        "name": "sku[in]",
+        "in": "query",
+        "description": "Keeps records whose `sku` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "products.sku.contains": {
+        "name": "sku[contains]",
+        "in": "query",
+        "description": "Keeps records whose `sku` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.sku.null": {
+        "name": "sku[null]",
+        "in": "query",
+        "description": "Keeps records whose `sku` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.price": {
+        "name": "price",
+        "in": "query",
+        "description": "Keeps records whose `price` equals the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.price.ne": {
+        "name": "price[ne]",
+        "in": "query",
+        "description": "Keeps records whose `price` differs from the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.price.gt": {
+        "name": "price[gt]",
+        "in": "query",
+        "description": "Keeps records whose `price` is greater than the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.price.gte": {
+        "name": "price[gte]",
+        "in": "query",
+        "description": "Keeps records whose `price` is at least the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.price.lt": {
+        "name": "price[lt]",
+        "in": "query",
+        "description": "Keeps records whose `price` is less than the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.price.lte": {
+        "name": "price[lte]",
+        "in": "query",
+        "description": "Keeps records whose `price` is at most the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.price.in": {
+        "name": "price[in]",
+        "in": "query",
+        "description": "Keeps records whose `price` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "products.price.null": {
+        "name": "price[null]",
+        "in": "query",
+        "description": "Keeps records whose `price` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.cost": {
+        "name": "cost",
+        "in": "query",
+        "description": "Keeps records whose `cost` equals the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.cost.ne": {
+        "name": "cost[ne]",
+        "in": "query",
+        "description": "Keeps records whose `cost` differs from the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.cost.gt": {
+        "name": "cost[gt]",
+        "in": "query",
+        "description": "Keeps records whose `cost` is greater than the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.cost.gte": {
+        "name": "cost[gte]",
+        "in": "query",
+        "description": "Keeps records whose `cost` is at least the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.cost.lt": {
+        "name": "cost[lt]",
+        "in": "query",
+        "description": "Keeps records whose `cost` is less than the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.cost.lte": {
+        "name": "cost[lte]",
+        "in": "query",
+        "description": "Keeps records whose `cost` is at most the value.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?\\d+(\\.\\d+)?$"
+        }
+      },
+      "products.cost.in": {
+        "name": "cost[in]",
+        "in": "query",
+        "description": "Keeps records whose `cost` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^-?\\d+(\\.\\d+)?$"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "products.cost.null": {
+        "name": "cost[null]",
+        "in": "query",
+        "description": "Keeps records whose `cost` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.stock": {
+        "name": "stock",
+        "in": "query",
+        "description": "Keeps records whose `stock` equals the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "products.stock.ne": {
+        "name": "stock[ne]",
+        "in": "query",
+        "description": "Keeps records whose `stock` differs from the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "products.stock.gt": {
+        "name": "stock[gt]",
+        "in": "query",
+        "description": "Keeps records whose `stock` is greater than the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "products.stock.gte": {
+        "name": "stock[gte]",
+        "in": "query",
+        "description": "Keeps records whose `stock` is at least the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "products.stock.lt": {
+        "name": "stock[lt]",
+        "in": "query",
+        "description": "Keeps records whose `stock` is less than the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "products.stock.lte": {
+        "name": "stock[lte]",
+        "in": "query",
+        "description": "Keeps records whose `stock` is at most the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "products.stock.in": {
+        "name": "stock[in]",
+        "in": "query",
+        "description": "Keeps records whose `stock` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "products.stock.null": {
+        "name": "stock[null]",
+        "in": "query",
+        "description": "Keeps records whose `stock` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.published": {
+        "name": "published",
+        "in": "query",
+        "description": "Keeps records whose `published` equals the value.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.published.ne": {
+        "name": "published[ne]",
+        "in": "query",
+        "description": "Keeps records whose `published` differs from the value.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.published.in": {
+        "name": "published[in]",
+        "in": "query",
+        "description": "Keeps records whose `published` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "boolean"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "products.published.null": {
+        "name": "published[null]",
+        "in": "query",
+        "description": "Keeps records whose `published` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.categoryId": {
+        "name": "categoryId",
+        "in": "query",
+        "description": "Keeps records whose `categoryId` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.categoryId.ne": {
+        "name": "categoryId[ne]",
+        "in": "query",
+        "description": "Keeps records whose `categoryId` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.categoryId.gt": {
+        "name": "categoryId[gt]",
+        "in": "query",
+        "description": "Keeps records whose `categoryId` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.categoryId.gte": {
+        "name": "categoryId[gte]",
+        "in": "query",
+        "description": "Keeps records whose `categoryId` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.categoryId.lt": {
+        "name": "categoryId[lt]",
+        "in": "query",
+        "description": "Keeps records whose `categoryId` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.categoryId.lte": {
+        "name": "categoryId[lte]",
+        "in": "query",
+        "description": "Keeps records whose `categoryId` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.categoryId.in": {
+        "name": "categoryId[in]",
+        "in": "query",
+        "description": "Keeps records whose `categoryId` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "products.categoryId.contains": {
+        "name": "categoryId[contains]",
+        "in": "query",
+        "description": "Keeps records whose `categoryId` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.categoryId.null": {
+        "name": "categoryId[null]",
+        "in": "query",
+        "description": "Keeps records whose `categoryId` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "products.image": {
+        "name": "image",
+        "in": "query",
+        "description": "Keeps records whose `image` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.image.ne": {
+        "name": "image[ne]",
+        "in": "query",
+        "description": "Keeps records whose `image` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.image.gt": {
+        "name": "image[gt]",
+        "in": "query",
+        "description": "Keeps records whose `image` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.image.gte": {
+        "name": "image[gte]",
+        "in": "query",
+        "description": "Keeps records whose `image` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.image.lt": {
+        "name": "image[lt]",
+        "in": "query",
+        "description": "Keeps records whose `image` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.image.lte": {
+        "name": "image[lte]",
+        "in": "query",
+        "description": "Keeps records whose `image` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "products.image.in": {
+        "name": "image[in]",
+        "in": "query",
+        "description": "Keeps records whose `image` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "products.image.null": {
+        "name": "image[null]",
+        "in": "query",
+        "description": "Keeps records whose `image` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "customers.id": {
+        "name": "id",
+        "in": "query",
+        "description": "Keeps records whose `id` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.id.ne": {
+        "name": "id[ne]",
+        "in": "query",
+        "description": "Keeps records whose `id` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.id.gt": {
+        "name": "id[gt]",
+        "in": "query",
+        "description": "Keeps records whose `id` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.id.gte": {
+        "name": "id[gte]",
+        "in": "query",
+        "description": "Keeps records whose `id` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.id.lt": {
+        "name": "id[lt]",
+        "in": "query",
+        "description": "Keeps records whose `id` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.id.lte": {
+        "name": "id[lte]",
+        "in": "query",
+        "description": "Keeps records whose `id` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.id.in": {
+        "name": "id[in]",
+        "in": "query",
+        "description": "Keeps records whose `id` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "customers.id.contains": {
+        "name": "id[contains]",
+        "in": "query",
+        "description": "Keeps records whose `id` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.id.null": {
+        "name": "id[null]",
+        "in": "query",
+        "description": "Keeps records whose `id` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "customers.email": {
+        "name": "email",
+        "in": "query",
+        "description": "Keeps records whose `email` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.email.ne": {
+        "name": "email[ne]",
+        "in": "query",
+        "description": "Keeps records whose `email` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.email.gt": {
+        "name": "email[gt]",
+        "in": "query",
+        "description": "Keeps records whose `email` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.email.gte": {
+        "name": "email[gte]",
+        "in": "query",
+        "description": "Keeps records whose `email` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.email.lt": {
+        "name": "email[lt]",
+        "in": "query",
+        "description": "Keeps records whose `email` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.email.lte": {
+        "name": "email[lte]",
+        "in": "query",
+        "description": "Keeps records whose `email` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.email.in": {
+        "name": "email[in]",
+        "in": "query",
+        "description": "Keeps records whose `email` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "customers.email.contains": {
+        "name": "email[contains]",
+        "in": "query",
+        "description": "Keeps records whose `email` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.email.null": {
+        "name": "email[null]",
+        "in": "query",
+        "description": "Keeps records whose `email` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "customers.name": {
+        "name": "name",
+        "in": "query",
+        "description": "Keeps records whose `name` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.name.ne": {
+        "name": "name[ne]",
+        "in": "query",
+        "description": "Keeps records whose `name` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.name.gt": {
+        "name": "name[gt]",
+        "in": "query",
+        "description": "Keeps records whose `name` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.name.gte": {
+        "name": "name[gte]",
+        "in": "query",
+        "description": "Keeps records whose `name` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.name.lt": {
+        "name": "name[lt]",
+        "in": "query",
+        "description": "Keeps records whose `name` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.name.lte": {
+        "name": "name[lte]",
+        "in": "query",
+        "description": "Keeps records whose `name` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.name.in": {
+        "name": "name[in]",
+        "in": "query",
+        "description": "Keeps records whose `name` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "customers.name.contains": {
+        "name": "name[contains]",
+        "in": "query",
+        "description": "Keeps records whose `name` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "customers.name.null": {
+        "name": "name[null]",
+        "in": "query",
+        "description": "Keeps records whose `name` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "orders.id": {
+        "name": "id",
+        "in": "query",
+        "description": "Keeps records whose `id` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.id.ne": {
+        "name": "id[ne]",
+        "in": "query",
+        "description": "Keeps records whose `id` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.id.gt": {
+        "name": "id[gt]",
+        "in": "query",
+        "description": "Keeps records whose `id` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.id.gte": {
+        "name": "id[gte]",
+        "in": "query",
+        "description": "Keeps records whose `id` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.id.lt": {
+        "name": "id[lt]",
+        "in": "query",
+        "description": "Keeps records whose `id` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.id.lte": {
+        "name": "id[lte]",
+        "in": "query",
+        "description": "Keeps records whose `id` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.id.in": {
+        "name": "id[in]",
+        "in": "query",
+        "description": "Keeps records whose `id` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "orders.id.contains": {
+        "name": "id[contains]",
+        "in": "query",
+        "description": "Keeps records whose `id` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.id.null": {
+        "name": "id[null]",
+        "in": "query",
+        "description": "Keeps records whose `id` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "orders.customerId": {
+        "name": "customerId",
+        "in": "query",
+        "description": "Keeps records whose `customerId` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.customerId.ne": {
+        "name": "customerId[ne]",
+        "in": "query",
+        "description": "Keeps records whose `customerId` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.customerId.gt": {
+        "name": "customerId[gt]",
+        "in": "query",
+        "description": "Keeps records whose `customerId` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.customerId.gte": {
+        "name": "customerId[gte]",
+        "in": "query",
+        "description": "Keeps records whose `customerId` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.customerId.lt": {
+        "name": "customerId[lt]",
+        "in": "query",
+        "description": "Keeps records whose `customerId` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.customerId.lte": {
+        "name": "customerId[lte]",
+        "in": "query",
+        "description": "Keeps records whose `customerId` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.customerId.in": {
+        "name": "customerId[in]",
+        "in": "query",
+        "description": "Keeps records whose `customerId` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "orders.customerId.contains": {
+        "name": "customerId[contains]",
+        "in": "query",
+        "description": "Keeps records whose `customerId` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.customerId.null": {
+        "name": "customerId[null]",
+        "in": "query",
+        "description": "Keeps records whose `customerId` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "orders.productId": {
+        "name": "productId",
+        "in": "query",
+        "description": "Keeps records whose `productId` equals the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.productId.ne": {
+        "name": "productId[ne]",
+        "in": "query",
+        "description": "Keeps records whose `productId` differs from the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.productId.gt": {
+        "name": "productId[gt]",
+        "in": "query",
+        "description": "Keeps records whose `productId` is greater than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.productId.gte": {
+        "name": "productId[gte]",
+        "in": "query",
+        "description": "Keeps records whose `productId` is at least the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.productId.lt": {
+        "name": "productId[lt]",
+        "in": "query",
+        "description": "Keeps records whose `productId` is less than the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.productId.lte": {
+        "name": "productId[lte]",
+        "in": "query",
+        "description": "Keeps records whose `productId` is at most the value.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.productId.in": {
+        "name": "productId[in]",
+        "in": "query",
+        "description": "Keeps records whose `productId` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "orders.productId.contains": {
+        "name": "productId[contains]",
+        "in": "query",
+        "description": "Keeps records whose `productId` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.productId.null": {
+        "name": "productId[null]",
+        "in": "query",
+        "description": "Keeps records whose `productId` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "orders.quantity": {
+        "name": "quantity",
+        "in": "query",
+        "description": "Keeps records whose `quantity` equals the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "orders.quantity.ne": {
+        "name": "quantity[ne]",
+        "in": "query",
+        "description": "Keeps records whose `quantity` differs from the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "orders.quantity.gt": {
+        "name": "quantity[gt]",
+        "in": "query",
+        "description": "Keeps records whose `quantity` is greater than the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "orders.quantity.gte": {
+        "name": "quantity[gte]",
+        "in": "query",
+        "description": "Keeps records whose `quantity` is at least the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "orders.quantity.lt": {
+        "name": "quantity[lt]",
+        "in": "query",
+        "description": "Keeps records whose `quantity` is less than the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "orders.quantity.lte": {
+        "name": "quantity[lte]",
+        "in": "query",
+        "description": "Keeps records whose `quantity` is at most the value.",
+        "schema": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "orders.quantity.in": {
+        "name": "quantity[in]",
+        "in": "query",
+        "description": "Keeps records whose `quantity` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "orders.quantity.null": {
+        "name": "quantity[null]",
+        "in": "query",
+        "description": "Keeps records whose `quantity` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "orders.status": {
+        "name": "status",
+        "in": "query",
+        "description": "Keeps records whose `status` equals the value.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "placed",
+            "paid",
+            "shipped",
+            "cancelled"
+          ]
+        }
+      },
+      "orders.status.ne": {
+        "name": "status[ne]",
+        "in": "query",
+        "description": "Keeps records whose `status` differs from the value.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "placed",
+            "paid",
+            "shipped",
+            "cancelled"
+          ]
+        }
+      },
+      "orders.status.gt": {
+        "name": "status[gt]",
+        "in": "query",
+        "description": "Keeps records whose `status` is greater than the value.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "placed",
+            "paid",
+            "shipped",
+            "cancelled"
+          ]
+        }
+      },
+      "orders.status.gte": {
+        "name": "status[gte]",
+        "in": "query",
+        "description": "Keeps records whose `status` is at least the value.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "placed",
+            "paid",
+            "shipped",
+            "cancelled"
+          ]
+        }
+      },
+      "orders.status.lt": {
+        "name": "status[lt]",
+        "in": "query",
+        "description": "Keeps records whose `status` is less than the value.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "placed",
+            "paid",
+            "shipped",
+            "cancelled"
+          ]
+        }
+      },
+      "orders.status.lte": {
+        "name": "status[lte]",
+        "in": "query",
+        "description": "Keeps records whose `status` is at most the value.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "placed",
+            "paid",
+            "shipped",
+            "cancelled"
+          ]
+        }
+      },
+      "orders.status.in": {
+        "name": "status[in]",
+        "in": "query",
+        "description": "Keeps records whose `status` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "placed",
+              "paid",
+              "shipped",
+              "cancelled"
+            ]
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "orders.status.contains": {
+        "name": "status[contains]",
+        "in": "query",
+        "description": "Keeps records whose `status` contains the text.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "orders.status.null": {
+        "name": "status[null]",
+        "in": "query",
+        "description": "Keeps records whose `status` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "orders.placedAt": {
+        "name": "placedAt",
+        "in": "query",
+        "description": "Keeps records whose `placedAt` equals the value.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "orders.placedAt.ne": {
+        "name": "placedAt[ne]",
+        "in": "query",
+        "description": "Keeps records whose `placedAt` differs from the value.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "orders.placedAt.gt": {
+        "name": "placedAt[gt]",
+        "in": "query",
+        "description": "Keeps records whose `placedAt` is greater than the value.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "orders.placedAt.gte": {
+        "name": "placedAt[gte]",
+        "in": "query",
+        "description": "Keeps records whose `placedAt` is at least the value.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "orders.placedAt.lt": {
+        "name": "placedAt[lt]",
+        "in": "query",
+        "description": "Keeps records whose `placedAt` is less than the value.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "orders.placedAt.lte": {
+        "name": "placedAt[lte]",
+        "in": "query",
+        "description": "Keeps records whose `placedAt` is at most the value.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "orders.placedAt.in": {
+        "name": "placedAt[in]",
+        "in": "query",
+        "description": "Keeps records whose `placedAt` is one of the comma-separated values.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "style": "form",
+        "explode": false
+      },
+      "orders.placedAt.null": {
+        "name": "placedAt[null]",
+        "in": "query",
+        "description": "Keeps records whose `placedAt` is (`true`) or isn't (`false`) null.",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "basekt.id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "The record's id.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "basekt.cursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "The previous page's `nextCursor`.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "basekt.limit": {
+        "name": "limit",
+        "in": "query",
+        "description": "The page size.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      }
+    },
+    "headers": {
+      "basekt.requestId": {
+        "description": "The call's request id, also in every error body and in the server's log lines about the call.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "securitySchemes": {
+      "basekt.auth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

@@ -121,6 +121,12 @@ public class BaseKtRuntime internal constructor(
     public val clock: Clock = Clock.System,
     /** The most groups an aggregate request may return. */
     public val maxAggregateGroups: Int = 1000,
+    /** The page size of a list request that gives no `limit`. */
+    public val defaultPageSize: Int = 20,
+    /** The largest `limit` a list request may ask for. */
+    public val maxPageSize: Int = 100,
+    /** The header that carries each call's [requestId]. */
+    public val requestIdHeader: String = "X-Request-Id",
 )
 
 private val RuntimeKey = AttributeKey<BaseKtRuntime>("BaseKtRuntime")
@@ -167,7 +173,7 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     require(requestIdHeader.isNotBlank()) { "requestIdHeader can't be blank." }
 
     val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock, pluginConfig.builtActions())
-    val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList(), pluginConfig.clock, pluginConfig.maxAggregateGroups)
+    val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList(), pluginConfig.clock, pluginConfig.maxAggregateGroups, defaultPageSize, maxPageSize, requestIdHeader)
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }
 

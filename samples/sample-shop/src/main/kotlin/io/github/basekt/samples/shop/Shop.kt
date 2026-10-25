@@ -9,6 +9,8 @@ import io.github.basekt.admin.ui.Token
 import io.github.basekt.admin.ui.theme
 import io.github.basekt.files.BaseKtFiles
 import io.github.basekt.files.MEGABYTE
+import io.github.basekt.openapi.BaseKtOpenApi
+import io.github.basekt.openapi.OpenApiSecurity
 import io.github.basekt.storage.BlobKey
 import io.github.basekt.storage.BlobStore
 import io.github.basekt.storage.local.LocalBlobStore
@@ -178,6 +180,7 @@ public val shopSchema: Schema = schema {
  * - a hook that keeps every product's price at or above its cost;
  * - product images in the `images` bucket, stored under `shop.files.dir` and served under `basekt.files.path`;
  * - the JSON admin API under `basekt.admin.path`, and the admin panel under `basekt.adminUi.path`, themed with [shopTheme];
+ * - an OpenAPI document of the REST API at `basekt.openapi.path`, with the shop's own routes merged in;
  * - `GET /low-stock`, a typed query in app code.
  */
 public suspend fun Application.shopModule() {
@@ -221,6 +224,11 @@ public suspend fun Application.shopModule() {
         }
     }
     install(BaseKtAdmin)
+    install(BaseKtOpenApi) {
+        // Both the JWTs and the demo tokens are bearer tokens.
+        security = OpenApiSecurity.Bearer()
+        merge(shopRoutesOpenApi)
+    }
     install(BaseKtAdminUi) {
         brand { name = "Sample shop" }
         theme { use(shopTheme) }
@@ -238,6 +246,27 @@ public suspend fun Application.shopModule() {
         }
     }
 }
+
+/** The routes the shop adds next to BaseKt's, as OpenAPI, for [BaseKtOpenApi] to merge into its document. */
+private val shopRoutesOpenApi: String = """
+    {
+      "paths": {
+        "/health": {
+          "get": {
+            "operationId": "shop.health", "tags": ["shop"], "summary": "Whether the shop is up",
+            "responses": { "200": { "description": "Up.", "content": { "text/plain": { "schema": { "type": "string", "const": "ok" } } } } }
+          }
+        },
+        "/low-stock": {
+          "get": {
+            "operationId": "shop.lowStock", "tags": ["shop"], "summary": "Published products with fewer than five in stock",
+            "responses": { "200": { "description": "One `sku stock` line per product.", "content": { "text/plain": { "schema": { "type": "string" } } } } }
+          }
+        }
+      },
+      "tags": [{ "name": "shop" }]
+    }
+""".trimIndent()
 
 /** The admin panel's look: shadcn's neutral theme with an indigo accent and slightly tighter corners. */
 public val shopTheme: Theme = theme {

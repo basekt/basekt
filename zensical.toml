@@ -21,6 +21,7 @@ nav = [
     { "Files and storage" = "files.md" },
     { "Storefront" = "storefront.md" },
     { "Rich text and formulas" = "rich-text.md" },
+    { "OpenAPI" = "openapi.md" },
   ] },
   { "Admin" = [
     { "Admin API" = "admin-api.md" },

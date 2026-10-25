@@ -87,6 +87,21 @@ against them, so a change it doesn't handle fails its build:
 ./gradlew :admin:basekt-admin-api:generateTypeScript
 ```
 
+### The sample shop's OpenAPI document
+
+The sample shop checks in `samples/sample-shop/openapi/openapi.json`, and a test fails the build when it no longer
+matches what the shop serves. After changing the REST API, the shop's schema or `basekt-openapi`, regenerate and commit
+it. CI then generates a TypeScript client from it and type-checks code that uses it; run the same check locally with
+Node:
+
+```bash
+./gradlew :samples:sample-shop:generateOpenApi
+```
+
+```bash
+cd samples/sample-shop/openapi && npm ci && npm run check
+```
+
 ### This site
 
 The docs are built with [Zensical](https://zensical.org) from `zensical.toml` and the `docs/` folder. To preview them:
