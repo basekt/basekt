@@ -36,8 +36,9 @@ Two small apps show BaseKt in use, and are what to run when changing the admin p
 ./gradlew :samples:sample-lessons:run   # lessons with Markdown, formulas and pictures, and the visual editor
 ```
 
-Both listen on 8080 (`PORT` changes it). Open `/admin` and sign in: the shop's demo tokens are in its
-`application.conf`, and the lessons sample takes the token `demo-editor`. The lessons' public pages are at `/`.
+Both listen on 8080 (`PORT` changes it). Open `/admin` and sign in: the shop signs staff in as `sam@shop.test` with
+`staff-password` through its login route, which also answers a refresh token, and its demo tokens are in its
+`application.conf`; the lessons sample takes the token `demo-editor`. The lessons' public pages are at `/`.
 
 ### The admin panel
 

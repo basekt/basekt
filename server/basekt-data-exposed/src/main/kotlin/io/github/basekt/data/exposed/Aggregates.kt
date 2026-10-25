@@ -45,12 +45,13 @@ private val WideSum = DecimalColumnType(65, 30)
 internal fun aggregate(table: ResourceTable, query: AggregateQuery): AggregatePage {
     val resource = table.resource
     val groupColumns: List<Expression<*>> = query.groupBy.map { field ->
-        query.buckets[field]?.let { BucketStart(table.column(field), it, query.timeZone) } ?: table.column(field)
+        query.buckets[field]?.let { BucketStart(table.column(field), it, query.timeZone, table.stored(field).sql == SqlType.TIMESTAMP) }
+            ?: table.column(field)
     }
     val parts = query.measures.associateWith { measure ->
         val column = measure.field?.let { table.column(it) }
         when (measure.function) {
-            AggregateFunction.COUNT -> listOf(Count(column ?: table.id))
+            AggregateFunction.COUNT -> listOf(Count(column ?: table.keyColumns.first()))
             AggregateFunction.SUM -> listOf(Sum(column!! as Expression<BigDecimal?>, WideSum))
             AggregateFunction.AVG -> listOf(Sum(column!! as Expression<BigDecimal?>, WideSum), Count(column))
             AggregateFunction.MIN -> listOf(Min(column!! as Expression<Comparable<Any>?>, column.columnType as IColumnType<Comparable<Any>>))
@@ -76,9 +77,11 @@ internal fun aggregate(table: ResourceTable, query: AggregateQuery): AggregatePa
     var groups = select.map { row ->
         AggregateGroup(
             key = query.groupBy.zip(groupColumns).associate { (field, column) ->
-                field to row[column as Expression<Any?>]?.let { fromColumn(resource.fieldType(field), it) }
+                field to row[column as Expression<Any?>]?.let { table.stored(field).fromColumn(it) }
             },
-            values = query.measures.associate { measure -> measure.name to value(row, measure, parts.getValue(measure), resource.fieldType(measure.field)) },
+            values = query.measures.associate { measure ->
+                measure.name to value(row, measure, parts.getValue(measure), resource.fieldType(measure.field), measure.field?.let(table::stored))
+            },
         )
     }
     if (sortsByAverage) groups = groups.sortedWith(averageOrder(query))
@@ -88,9 +91,15 @@ internal fun aggregate(table: ResourceTable, query: AggregateQuery): AggregatePa
 /**
  * The start of the [bucket] that holds [column]'s instant on [timeZone]'s calendar, as [io.github.basekt.data.startOf]
  * defines it. The zone is written into the SQL rather than bound, so `GROUP BY` and `ORDER BY` repeat the very same
- * expression; [zoneName] keeps it to a region's name.
+ * expression; [zoneName] keeps it to a region's name. With [utc], the column is a `TIMESTAMP` without a time zone that
+ * holds UTC times.
  */
-private class BucketStart(private val column: Expression<*>, private val bucket: TimeBucket, timeZone: ZoneId) : ExpressionWithColumnType<Instant>() {
+private class BucketStart(
+    private val column: Expression<*>,
+    private val bucket: TimeBucket,
+    timeZone: ZoneId,
+    private val utc: Boolean,
+) : ExpressionWithColumnType<Instant>() {
     override val columnType: InstantColumnType = InstantColumnType()
     private val zone = zoneName(timeZone)
 
@@ -99,16 +108,33 @@ private class BucketStart(private val column: Expression<*>, private val bucket:
             // H2 truncates a value in its own offset, so it is moved to the zone first. ISO_WEEK starts on Monday.
             is H2Dialect -> queryBuilder {
                 append("DATE_TRUNC(" + (if (bucket == TimeBucket.WEEK) "ISO_WEEK" else bucket.name) + ", ")
-                append(column)
+                instant()
                 append(" AT TIME ZONE '$zone')")
             }
             // Truncate the zone's local time, then read the result as that zone's: date_trunc's weeks start on Monday.
             is PostgreSQLDialect -> queryBuilder {
                 append("(date_trunc('" + bucket.name.lowercase() + "', ")
-                append(column)
+                instant()
                 append(" AT TIME ZONE '$zone') AT TIME ZONE '$zone')")
             }
             else -> throw InvalidQueryException("This database can't group by time buckets: use H2 or Postgres.")
+        }
+    }
+
+    /** Appends the column as a time with a zone: a UTC `TIMESTAMP` is read as UTC's. */
+    private fun QueryBuilder.instant() {
+        when {
+            !utc -> append(column)
+            currentDialect is H2Dialect -> {
+                append("CAST(CAST(")
+                append(column)
+                append(" AS VARCHAR) || '+00:00' AS TIMESTAMP WITH TIME ZONE)")
+            }
+            else -> {
+                append("(")
+                append(column)
+                append(" AT TIME ZONE 'UTC')")
+            }
         }
     }
 }
@@ -123,7 +149,7 @@ private fun zoneName(timeZone: ZoneId): String {
 private fun io.github.basekt.schema.Resource.fieldType(field: String?): FieldType? = field?.let { fieldType(it) }
 
 @Suppress("UNCHECKED_CAST")
-private fun value(row: ResultRow, measure: Measure, parts: List<Expression<*>>, type: FieldType?): Value? {
+private fun value(row: ResultRow, measure: Measure, parts: List<Expression<*>>, type: FieldType?, stored: Stored?): Value? {
     fun count(expression: Expression<*>) = (row[expression as Expression<Long>]).toLong()
     fun sum(expression: Expression<*>): Value? = row[expression as Expression<BigDecimal?>]?.let { total ->
         if (type == FieldType.DECIMAL) Value.Decimal.of(total.stripTrailingZeros().toPlainString()) else Value.Integer(total.longValueExact())
@@ -132,7 +158,7 @@ private fun value(row: ResultRow, measure: Measure, parts: List<Expression<*>>, 
         AggregateFunction.COUNT -> Value.Integer(count(parts.single()))
         AggregateFunction.SUM -> sum(parts.single())
         AggregateFunction.AVG -> averageOf(sum(parts[0]), count(parts[1]))
-        AggregateFunction.MIN, AggregateFunction.MAX -> row[parts.single() as Expression<Any?>]?.let { fromColumn(type!!, it) }
+        AggregateFunction.MIN, AggregateFunction.MAX -> row[parts.single() as Expression<Any?>]?.let { stored!!.fromColumn(it) }
     }
 }
 

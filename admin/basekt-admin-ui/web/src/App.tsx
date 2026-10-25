@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ADMIN_SCHEMA_VERSION, type AdminSchema } from "@wire"
 import { AdminApi, ApiFailure } from "@/api/client"
 import { FilesApi } from "@/api/files"
-import { TokenStore, useToken } from "@/auth"
+import { oidcCallbackPath, providerClient, SignInCancelled, type ProviderClient } from "@/api/providers"
+import { pastedSession, TokenStore, useSession, type Clock, type Refresh, type Session } from "@/auth"
 import { Home } from "@/components/home"
 import { Layout } from "@/components/layout"
 import { ListView } from "@/components/list-view"
@@ -11,7 +12,7 @@ import { SignIn } from "@/components/sign-in"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Toaster } from "@/components/ui/sonner"
-import { passwordLogin } from "@/api/login"
+import { passwordLogin, refreshLogin } from "@/api/login"
 import type { PanelConfig } from "@/config"
 import { humanize } from "@/lib/fields"
 import { useAsync } from "@/lib/use-async"
@@ -21,27 +22,46 @@ import { useThemeMode } from "@/theme-mode"
 
 /**
  * The panel: loads the caller's schema, asks for a token when the API wants one, and renders the screen the URL
- * names. Every screen is built from the schema.
+ * names. Every screen is built from the schema. A session from the host's login route or an identity provider is
+ * refreshed before it expires, and ends with a clean sign-out when it can't be.
  */
-export function App({ config, tokens: givenTokens, fetchImpl }: {
+export function App({ config, tokens: givenTokens, fetchImpl, provider: givenProvider, clock }: {
   config: PanelConfig
   tokens?: TokenStore
   fetchImpl?: typeof fetch
+  /** The identity provider's client; by default one for `config.provider`. */
+  provider?: ProviderClient | null
+  clock?: Clock
 }) {
   const [tokens] = useState(() => givenTokens ?? new TokenStore())
+  const [provider] = useState(() => (givenProvider !== undefined ? givenProvider : config.provider ? providerClient(config.provider, config.path) : null))
   const [mode, setMode] = useThemeMode(config.defaultMode)
-  const [token, signIn, signOut] = useToken(tokens)
+  const login = config.login
+  const now = () => (clock ? clock.now() : Date.now())
+  // A refresh token goes back only to the route that gave it, and a provider's session only to the provider.
+  const refreshFor = (session: Session): Refresh | null => {
+    if (session.source === "login" && login?.refreshPath && session.refreshToken) return (s) => refreshLogin(login, s, fetchImpl, now)
+    if (session.source === "provider" && provider) return (s) => provider.refresh(s)
+    return null
+  }
+  const providerSignOut = (session: Session) => {
+    if (session.source === "provider") provider?.signOut().catch(() => {})
+  }
+  const { session, renewing, signIn, signOut, ended } = useSession(tokens, refreshFor, providerSignOut, clock)
+  const token = session?.token ?? null
+  const [completing, setCompleting] = useState(() => provider !== null && config.provider?.type === "oidc" && location.pathname === oidcCallbackPath(config.path))
   const [signInReason, setSignInReason] = useState<string | null>(null)
+  const waiting = renewing || completing
   const api = useMemo(() => new AdminApi(config.apiPath, () => tokens.get(), fetchImpl), [config.apiPath, tokens, fetchImpl])
   const files = useMemo(() => new FilesApi(config.filesPath, () => tokens.get(), fetchImpl, undefined, api.failures), [config.filesPath, tokens, fetchImpl, api])
-  const schema = useAsync(() => api.schema(), [api, token])
+  const schema = useAsync(() => (waiting ? new Promise<never>(() => {}) : api.schema()), [api, token, waiting])
 
-  const trySignIn = async (value: string, remember: boolean): Promise<string | null> => {
+  const trySession = async (value: Session, remember: boolean, refused: string): Promise<string | null> => {
     try {
-      const candidate = new AdminApi(config.apiPath, () => value, fetchImpl)
+      const candidate = new AdminApi(config.apiPath, () => value.token, fetchImpl)
       await candidate.schema()
     } catch (error) {
-      if (error instanceof ApiFailure && (error.unauthorized || error.forbidden)) return "That token was refused."
+      if (error instanceof ApiFailure && (error.unauthorized || error.forbidden)) return refused
       return error instanceof Error ? error.message : String(error)
     }
     signIn(value, remember)
@@ -49,28 +69,78 @@ export function App({ config, tokens: givenTokens, fetchImpl }: {
     return null
   }
 
+  const trySignIn = (value: string, remember: boolean) => trySession(pastedSession(value), remember, "That token was refused.")
+
   const tryPasswordSignIn = async (username: string, password: string, remember: boolean): Promise<string | null> => {
-    if (!config.login) return null
-    let value: string
+    if (!login) return null
+    let value: Session
     try {
-      value = await passwordLogin(config.login, username, password, fetchImpl)
+      value = await passwordLogin(login, username, password, fetchImpl, now)
     } catch (error) {
       if (error instanceof ApiFailure && error.network) return "Couldn't reach the server. Check the connection and try again."
       if (error instanceof ApiFailure && (error.unauthorized || error.forbidden)) return error.error?.message ?? "That name or password was refused."
       return error instanceof Error ? error.message : String(error)
     }
-    return trySignIn(value, remember)
+    return trySession(value, remember, "The admin API refused that account.")
   }
 
+  const tryProviderSignIn = async (method: string, remember: boolean, credentials?: { username: string; password: string }): Promise<string | null> => {
+    if (!provider) return null
+    let value: Session | null
+    try {
+      value = await provider.signIn(method, remember, credentials)
+    } catch (error) {
+      if (error instanceof SignInCancelled) return null
+      return error instanceof Error ? error.message : String(error)
+    }
+    if (value === null) return null // The browser is on its way to the provider.
+    const refused = await trySession(value, remember, "The admin API refused that account.")
+    if (refused !== null) provider.signOut().catch(() => {})
+    return refused
+  }
+
+  useEffect(() => {
+    if (!completing || !provider) return
+    let current = true
+    provider.complete().then(
+      async (done) => {
+        if (!current) return
+        if (done) {
+          history.replaceState(null, "", done.returnTo)
+          const refused = await trySession(done.session, done.remember, "The admin API refused that account.")
+          if (refused !== null) {
+            provider.signOut().catch(() => {})
+            setSignInReason(refused)
+          }
+        }
+        setCompleting(false)
+      },
+      (error: unknown) => {
+        if (!current) return
+        history.replaceState(null, "", `${config.path}/`)
+        setSignInReason(error instanceof Error ? `Sign-in didn't finish: ${error.message}` : "Sign-in didn't finish.")
+        setCompleting(false)
+      },
+    )
+    return () => {
+      current = false
+    }
+    // Runs once, for the redirect the page was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completing, provider])
+
+  if (waiting) return <Loading />
   const unauthorized = schema.error instanceof ApiFailure && schema.error.unauthorized
   if (signInReason !== null || unauthorized) {
     return (
       <SignIn
         brand={config.brand}
-        reason={signInReason || (unauthorized ? (token ? "Your token was refused. Sign in again." : "The admin API needs you to sign in.") : undefined)}
-        login={config.login}
+        reason={signInReason || (unauthorized ? (token ? "Your token was refused. Sign in again." : (ended ?? "The admin API needs you to sign in.")) : undefined)}
+        login={login}
+        methods={provider?.methods}
         onSignIn={trySignIn}
         onPasswordSignIn={tryPasswordSignIn}
+        onProviderSignIn={provider ? tryProviderSignIn : undefined}
         onCancel={unauthorized ? undefined : () => setSignInReason(null)}
       />
     )

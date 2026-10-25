@@ -15,7 +15,7 @@ dataSource = ExposedDataSource(database, schema)  // or InMemoryDataSource(), or
 | Module | What it is |
 |---|---|
 | `basekt-data-memory` | in-memory adapter, for tests, samples and prototypes |
-| `basekt-data-exposed` | Exposed/JDBC adapter: Postgres, MySQL, H2. Keyset cursors, one-query `getMany`, savepoints |
+| `basekt-data-exposed` | Exposed/JDBC adapter: Postgres, MySQL, H2. Keyset cursors, one-query `getMany`, savepoints, and [existing tables](#existing-tables-in-exposed) mapped as they are |
 | `basekt-data-mongo` | MongoDB adapter: a collection per resource, ObjectId ids and references, transactions, indexes, and existing collections read as they are |
 | `basekt-data-firestore` | Cloud Firestore adapter: a collection per resource, document ids as record ids, Firestore transactions, aggregation counts, and existing collections read as they are |
 
@@ -162,6 +162,82 @@ its data and named in `notes`. A renamed field is a new column, so copy the old 
 
 On Postgres a failed migration changes nothing. H2 and MySQL commit each schema change as it runs, so a failure there
 can leave the changes made before it, and running `migrate()` again carries on from there.
+
+### Existing tables in Exposed
+
+A resource can live in a table that already exists, such as one from a schema the application had before BaseKt, or
+one another program owns. Name it in `TableMapping.tables`, with its own table name, column names, key and column
+types:
+
+```kotlin
+val mapping = TableMapping(
+    tables = mapOf(
+        "members" to MappedTable(
+            table = "member",                                       // used as is: the prefix isn't added
+            columns = mapOf("name" to "full_name", "joinedAt" to "joined_on"),
+            types = mapOf("joinedAt" to SqlType.TIMESTAMP),          // a timestamp without a zone, holding UTC
+            key = MappedKey.Column("member_no", SqlType.BIGINT, generated = true),   // a bigserial
+        ),
+        "visits" to MappedTable(                                    // keyedBy("memberId", "day") in the schema
+            table = "visit",
+            columns = mapOf("memberId" to "member_no"),
+            types = mapOf("memberId" to SqlType.BIGINT),             // a reference to a number key
+        ),
+        "entries" to MappedTable("other_app.entry", key = MappedKey.Column(type = SqlType.UUID), readOnly = true),
+    ),
+)
+val data = ExposedDataSource(database, schema, mapping)
+```
+
+**The key** is one column, `id` of type `TEXT` unless `MappedKey.Column` names another, of type `TEXT`, `INTEGER`,
+`BIGINT` or `UUID`. Its values, read as text, are the record ids, so a key of `42` is the id `"42"`. With
+`generated = true` the database makes each new row's key, as a `bigserial`, an `AUTO_INCREMENT` or an identity column
+does. The resource's ids must then be generated ones, and a create that gives an id is refused.
+
+For a resource that is `keyedBy` some fields, the key is by default the columns of those fields, as a primary key of
+several columns (`MappedKey.Fields`). The id is made from their values the way `keyedBy` makes it, such as `7~2026-05`,
+and a list without a sort comes in the key columns' order.
+
+**Column types.** A field is read and written as its own type, from any column of a type it can be kept in. `types`
+gives the type when it isn't the one BaseKt would have made:
+
+| Field | Column types |
+|---|---|
+| string, enum, file | `TEXT`: any text column, `TEXT`, `VARCHAR(n)` or `CHAR(n)` |
+| reference | `TEXT`, `INTEGER`, `BIGINT`, `UUID`: the type of the key it points to |
+| int | `INTEGER`, `BIGINT` |
+| long | `BIGINT` |
+| decimal | `DECIMAL` |
+| bool | `BOOLEAN` |
+| instant | `TIMESTAMPTZ`, or `TIMESTAMP` holding UTC times |
+
+Any other pairing, such as a long field in an `INTEGER` column, stops the data source from being made, with a message
+that lists it and every other problem of the mapping. So does a column or field the resource doesn't have, two fields
+in one column, two resources in one table, a generated key that isn't a number, or an index on a mapped table.
+
+An id or reference kept in a number or UUID column is text holding a number or a UUID. A value that isn't one, like
+`"abc"` for a `BIGINT` key, finds no record, matches no `eq` filter, and can't be written. Such columns sort in their
+own order, so number keys in numeric order, and can't be searched with `contains`.
+
+**Columns the schema doesn't name** are never read, and a create leaves them to their defaults.
+
+**Read-only.** With `readOnly = true` every create, update and delete of the resource throws
+`ReadOnlyTableException`. Give the resource permissions that don't allow writes too, so a client is refused with
+`403` before the write reaches the table.
+
+**`migrate()` never changes a mapped table**, and `createTables()` never creates one. Instead, `migrate()` compares each
+with the schema and lists what doesn't match in `notes`:
+
+- a table or column that doesn't exist;
+- a primary key on other columns than the mapping's key;
+- a column of a type the mapping can't read as the field's, such as a `BOOLEAN` column for a long field;
+- a nullable column for a `required()` field, whose rows may be read without the field;
+- a column that can't be null and has no default, for an optional field, so a create without it fails. A read-only
+  table isn't checked for this.
+
+```kotlin
+data.migrate().notes.forEach { log.warn("Mapping: $it") }
+```
 
 ## Auth
 

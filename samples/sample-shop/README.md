@@ -10,7 +10,9 @@ It is a sample and is not published.
 ./gradlew :samples:sample-shop:run
 ```
 
-Open `http://localhost:8080/admin` and sign in with `staff-token` (everything) or `customer-token` (browse, place orders).
+Open `http://localhost:8080/admin` and sign in as `sam@shop.test` with `staff-password`. The login route answers a
+15-minute JWT and a refresh token, and the panel refreshes the JWT through `/auth/refresh` before it expires. You can
+also paste `staff-token` (everything) or `customer-token` (browse, place orders).
 
 ## OpenAPI
 

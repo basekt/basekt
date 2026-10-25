@@ -1,6 +1,6 @@
 # basekt-admin-ui
 
-`install(BaseKtAdminUi)`: a schema-driven admin panel (React, shadcn/ui and Tailwind) prebuilt into the jar, so the host needs no Node. It has a typed Kotlin theme, sign-in by password or token, charts, a visual Markdown editor and links to your site.
+`install(BaseKtAdminUi)`: a schema-driven admin panel (React, shadcn/ui and Tailwind) prebuilt into the jar, so the host needs no Node. It has a typed Kotlin theme, sign-in by password, identity provider (Firebase or OpenID Connect) or token with refresh before expiry, charts, a visual Markdown editor and links to your site.
 
 ```kotlin
 dependencies { implementation("io.github.basekt:basekt-admin-ui:0.2.0") }
@@ -12,7 +12,7 @@ dependencies { implementation("io.github.basekt:basekt-admin-ui:0.2.0") }
 install(BaseKtAdmin)
 install(BaseKtAdminUi) {
     brand { name = "Shop" }
-    login { path = "/auth/login" }
+    login { path = "/auth/login"; refreshPath = "/auth/refresh" }
     siteLink("Open site", "/")
     theme { radius = Radius.rem(0.5) }
 }

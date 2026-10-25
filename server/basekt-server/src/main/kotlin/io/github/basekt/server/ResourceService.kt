@@ -34,6 +34,8 @@ import io.github.basekt.schema.WriteMode
 import io.github.basekt.schema.decodeRecord
 import io.github.basekt.schema.encodeRecord
 import io.github.basekt.schema.validateRecord
+import io.ktor.util.logging.KtorSimpleLogger
+import io.ktor.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -72,6 +74,8 @@ public class ResourceService(
     private val clock: Clock = Clock.System,
     /** The code of the schema's [io.github.basekt.schema.Action]s. */
     private val actions: Actions = Actions.None,
+    /** Where the failures of after-commit hooks are logged. */
+    private val log: Logger = KtorSimpleLogger("io.github.basekt.server.ResourceService"),
     /** The code that serves each [Resource.provided] resource's records, by resource name. */
     private val providers: Map<String, RecordProvider> = emptyMap(),
 ) {
@@ -185,7 +189,7 @@ public class ResourceService(
         val origin = Origin.of(caller)
         return dataSource.transaction { tx ->
             createIn(tx, resource, origin, decoded).also { checkInheritedScope(resource, caller, it) }
-        }.also { committed(Change.Created(resource, it)) }
+        }.also { committed(Change.Created(resource, it), origin) }
     }
 
     /** Validates [body] and applies it to the record of [resource] with [id], if [caller] may. */
@@ -199,7 +203,7 @@ public class ResourceService(
                 writable(tx, resource, Operation.UPDATE, caller, id).also { staysInScope(resource, caller, it, input) }
             }
         }.let { (before, after) ->
-            committed(Change.Updated(resource, before, after))
+            committed(Change.Updated(resource, before, after), origin)
             after
         }
     }
@@ -216,7 +220,7 @@ public class ResourceService(
         val changes = dataSource.transaction { tx ->
             deleteIn(tx, resource, origin, id) { writable(tx, resource, Operation.DELETE, caller, id) }
         }
-        changes.forEach { committed(it) }
+        changes.forEach { committed(it, origin) }
     }
 
     /**
@@ -264,7 +268,7 @@ public class ResourceService(
             for (extension in extensions) extension.ran(run, origin.context(tx))
             answer
         }
-        changes.forEach { committed(it) }
+        changes.forEach { committed(it, origin) }
         if (answer != null || id == null) return answer
         val provider = provider(resource)
         val after = if (provider == null) dataSource.get(resource, id) else providedGet(resource, provider, id)
@@ -760,7 +764,6 @@ public class ResourceService(
         if (errors.isNotEmpty()) throw invalid(errors)
     }
 
-    /** Tells every extension of a committed write. An extension's failure doesn't undo or fail the write. */
     /** Tells every extension of [change], inside its transaction [tx]. */
     private suspend fun written(change: Change, origin: Origin, tx: DataSource) {
         if (extensions.isEmpty()) return
@@ -768,7 +771,11 @@ public class ResourceService(
         for (extension in extensions) extension.written(change, context)
     }
 
-    private suspend fun committed(change: Change) {
+    /**
+     * Tells every extension, then every after-commit hook, of a committed write. A failure doesn't undo or fail the
+     * write: an extension reports its own, and a hook's is logged with the request id.
+     */
+    private suspend fun committed(change: Change, origin: Origin) {
         for (extension in extensions) {
             try {
                 extension.committed(change)
@@ -776,6 +783,19 @@ public class ResourceService(
                 throw e
             } catch (_: Exception) {
                 // The write has happened; the extension reports its own failures.
+            }
+        }
+        val afterCommit = hooks.afterCommit[change.resource.name] ?: return
+        val requestId = currentRequestId()
+        val context = CommitContext(change.resource, origin.caller, requestId)
+        val committed = change.committed()
+        for (hook in afterCommit) {
+            try {
+                context.hook(committed)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.error("BaseKt request $requestId: an after-commit hook of '${change.resource.name}' failed on '${committed.id}'; the write stands.", e)
             }
         }
     }

@@ -6,7 +6,7 @@ import { renderPanel } from "@/test/render"
 
 const withLogin = {
   ...config,
-  login: { path: "/auth/login", usernameField: "email", usernameLabel: "Email", passwordField: "password", tokenField: "token" },
+  login: { path: "/auth/login", usernameField: "email", usernameLabel: "Email", passwordField: "password", tokenField: "token", refreshPath: null, refreshTokenField: "refreshToken", expiresInField: "expiresIn" },
 }
 
 describe("signing in with a password", () => {

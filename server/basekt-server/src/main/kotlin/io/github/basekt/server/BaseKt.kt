@@ -8,6 +8,7 @@ import io.github.basekt.schema.SchemaBuilder
 import io.github.basekt.schema.missingValidators
 import io.ktor.events.EventDefinition
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.ApplicationStarted
 import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.createApplicationPlugin
@@ -16,6 +17,7 @@ import io.ktor.server.application.hooks.MonitoringEvent
 import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
+import kotlinx.coroutines.withContext
 import kotlin.time.Clock
 
 /**
@@ -187,12 +189,14 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     val requestIdHeader = pluginConfig.requestIdHeader
     require(requestIdHeader.isNotBlank()) { "requestIdHeader can't be blank." }
 
-    val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock, pluginConfig.builtActions(), pluginConfig.builtProviders())
+    val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock, pluginConfig.builtActions(), application.log, pluginConfig.builtProviders())
     val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList(), pluginConfig.clock, pluginConfig.maxAggregateGroups, defaultPageSize, maxPageSize, requestIdHeader)
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }
 
     onCall { call -> call.assignRequestId(requestIdHeader) }
+    // The service has no Ktor types, so the call travels in the coroutine context for after-commit hooks' logs.
+    application.intercept(ApplicationCallPipeline.Setup) { withContext(CallElement(context)) { proceed() } }
 
     on(MonitoringEvent(ApplicationStarted)) { app ->
         app.log.info("BaseKt serves ${schema.resources.size} resources under $basePath")

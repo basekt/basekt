@@ -82,7 +82,10 @@ class ExposedDataSourceTest {
         val error = assertFailsWith<IllegalArgumentException> {
             ExposedDataSource(h2(), boardsSchema, TableMapping(indexes = listOf(IndexSpec("cards", "colour"))))
         }
-        assertEquals("An index on 'cards' names the field 'colour', which it doesn't have.", error.message)
+        assertEquals(
+            "The table mapping doesn't fit the schema:\n- An index on 'cards' names the field 'colour', which it doesn't have.",
+            error.message,
+        )
     }
 
     @Test

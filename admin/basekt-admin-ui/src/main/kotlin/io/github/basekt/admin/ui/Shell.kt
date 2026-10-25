@@ -12,6 +12,7 @@ import kotlinx.html.meta
 import kotlinx.html.script
 import kotlinx.html.title
 import kotlinx.html.unsafe
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -27,6 +28,7 @@ internal data class ShellConfig(
     val brand: ShellBrand,
     val defaultMode: ThemeMode,
     val login: ShellLogin? = null,
+    val provider: ShellProvider? = null,
     val siteLink: SiteLink? = null,
 )
 
@@ -43,6 +45,7 @@ internal fun isSafeLinkUrl(url: String): Boolean {
 @Serializable
 internal data class ShellBrand(val name: String, val logo: String?)
 
+/** The host's login route and, optionally, its refresh route. The panel's `LoginRoute` mirrors it. */
 @Serializable
 internal data class ShellLogin(
     val path: String,
@@ -50,7 +53,34 @@ internal data class ShellLogin(
     val usernameLabel: String,
     val passwordField: String,
     val tokenField: String,
+    val refreshPath: String? = null,
+    val refreshTokenField: String = "refreshToken",
+    val expiresInField: String = "expiresIn",
 )
+
+/** An identity provider the panel signs in with, written with a `type` of `firebase` or `oidc`. */
+@Serializable
+internal sealed interface ShellProvider
+
+/** Firebase Authentication's Web config, and the provider ids to offer. The panel's `FirebaseProvider` mirrors it. */
+@Serializable
+@SerialName("firebase")
+internal data class ShellFirebase(
+    val apiKey: String,
+    val authDomain: String,
+    val projectId: String?,
+    val providers: List<String>,
+) : ShellProvider
+
+/** An OpenID Connect issuer and the panel's client there. The panel's `OidcProvider` mirrors it. */
+@Serializable
+@SerialName("oidc")
+internal data class ShellOidc(
+    val issuer: String,
+    val clientId: String,
+    val scopes: List<String>,
+    val label: String,
+) : ShellProvider
 
 private val json = Json { encodeDefaults = true }
 
