@@ -124,7 +124,11 @@ fun HttpRequestBuilder.asUser(vararg roles: String) {
 
 suspend fun HttpClient.document(path: String = "/openapi.json"): JsonObject = Json.parseToJsonElement(get(path).bodyAsText()).jsonObject
 
-/** Checks documents against the OpenAPI 3.1 schema, and bodies against a document's component schemas. */
+/**
+ * Checks documents against the OpenAPI 3.1 schema, and bodies against a document's component schemas. The schema in
+ * `oas-3.1-schema.json` is the OpenAPI Initiative's own, from https://spec.openapis.org/oas/3.1/schema/2022-10-07
+ * (Apache-2.0).
+ */
 object OpenApiValidation {
     private val factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
     private val config = SchemaValidatorsConfig.builder().formatAssertionsEnabled(true).build()
