@@ -11,7 +11,10 @@ import io.ktor.server.request.path
 import io.ktor.server.response.header
 import io.ktor.server.response.respondText
 import io.ktor.util.AttributeKey
+import kotlinx.coroutines.currentCoroutineContext
 import java.util.UUID
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.cancellation.CancellationException
 
 private val RequestIdKey = AttributeKey<String>("BaseKtRequestId")
@@ -26,6 +29,14 @@ private val passedOn = Regex("[A-Za-z0-9._:-]{1,128}")
  */
 public val ApplicationCall.requestId: String?
     get() = attributes.getOrNull(RequestIdKey)
+
+/** The call a coroutine works for, so code with no Ktor types, such as [ResourceService], can name its [requestId]. */
+internal class CallElement(val call: ApplicationCall) : AbstractCoroutineContextElement(CallElement) {
+    companion object Key : CoroutineContext.Key<CallElement>
+}
+
+/** The [requestId] of the call this coroutine works for, or `null` outside a call. */
+internal suspend fun currentRequestId(): String? = currentCoroutineContext()[CallElement]?.call?.requestId
 
 /** Gives this call its [requestId] and sends it back in [header]. */
 internal fun ApplicationCall.assignRequestId(header: String) {
