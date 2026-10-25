@@ -80,3 +80,4 @@ is data access for trusted server code: it doesn't check permissions or run hook
 - [Permissions and record scopes](permissions.md)
 - [Automatic fields](automatic-fields.md) and [concurrent writes](concurrent-writes.md)
 - [File fields](files.md#file-fields)
+- [OpenAPI](openapi.md): this API as an OpenAPI 3.1 document, for typed clients

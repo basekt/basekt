@@ -1,0 +1,3 @@
+node_modules/
+# Generated from openapi.json by `npm run generate`.
+src/api.d.ts

@@ -16,7 +16,7 @@ Every module is its own artifact and its own Ktor plugin, published as `io.githu
 | `admin:basekt-admin-api` | ✓ works | `install(BaseKtAdmin)`: a JSON admin API from the schema (per-caller schema, list and search, CRUD, bulk delete, CSV export) and its TypeScript types |
 | `testing:basekt-testing` | ✓ works | the `DataSourceContract` and `BlobStoreContract` suites every adapter runs, plus test fixtures |
 | `admin:basekt-admin-ui` | ✓ works | `install(BaseKtAdminUi)`: a schema-driven admin panel (React, shadcn/ui and Tailwind, prebuilt into the jar) with a typed Kotlin theme |
-| `samples:sample-shop` | ✓ works | a small shop backend: Exposed on H2, JWT and bearer auth, a pricing hook, the admin API and the admin panel |
+| `samples:sample-shop` | ✓ works | a small shop backend: Exposed on H2, JWT and bearer auth, a pricing hook, the admin API, the admin panel, and an OpenAPI document with a TypeScript client checked in CI |
 | `samples:sample-lessons` | ✓ works | a lessons site: Markdown fields where only one allows formulas, pictures kept in storage through file fields, and pages that load KaTeX only for a lesson that has a formula |
 | `server:basekt-graphql` | later | a GraphQL API generated at runtime from the same schema, on the same `DataSource` and service layer |
 | `server:basekt-realtime` | later | change feeds over WebSockets |
@@ -25,6 +25,7 @@ Every module is its own artifact and its own Ktor plugin, published as `io.githu
 | `server:basekt-files` | ✓ works | `install(BaseKtFiles)`: buckets with limits and permissions, streamed uploads, downloads with ranges and safe headers, and `file` fields kept in step with their files |
 | `server:basekt-audit` | ✓ works | `install(BaseKtAudit)`: a log of every create, update, delete and action, with who, when and what changed, in the write's own transaction |
 | `server:basekt-storage-s3` | ✓ works | an S3 store for AWS, MinIO, R2 and other S3-compatible services: Signature V4 with no SDK, multipart uploads, ranges and presigned URLs |
+| `server:basekt-openapi` | ✓ works | `install(BaseKtOpenApi)`: an OpenAPI 3.1 document of the REST API generated from the schema, with JSON Schema for every field and the typed errors, served at `/openapi.json` and writable to a file at build time for typed clients |
 | `server:basekt-richtext` | ✓ works | `install(BaseKtRichText)`: Markdown fields (`string("body") { markdown { math(); images() } }`) checked on every write for raw HTML, unsafe links and images, bad formulas and size, plus `Markdown.toHtml` and `toPlainText` that render them safely. Formulas are drawn by the client with KaTeX or MathJax |
 | `commerce:basekt-commerce`, `commerce:basekt-storefront` | ✓ works | an optional group for selling online. `basekt-storefront` is `install(BaseKtStorefront)`: listing and detail pages and a public JSON API generated from `storefront { }` blocks in the schema, with an availability hook for stock, CSS and page-renderer hooks for the layout, and a per-client rate limit. `basekt-commerce` is an umbrella that pulls in the commerce modules. Payments, holds, idempotency and customers are planned, each as its own module |
 | `client:basekt-client` | later | a typed multiplatform client SDK: auth, queries, realtime, storage |

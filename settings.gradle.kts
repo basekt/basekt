@@ -33,6 +33,7 @@ include(
     ":server:basekt-files",
     ":server:basekt-audit",
     ":server:basekt-richtext",
+    ":server:basekt-openapi",
     ":commerce:basekt-commerce",
     ":commerce:basekt-storefront",
     ":admin:basekt-admin-api",
