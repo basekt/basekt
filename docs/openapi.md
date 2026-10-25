@@ -35,7 +35,8 @@ field is `contentMediaType: text/markdown`.
 
 Every response carries the request id header. Errors are `basekt.ApiError`, with `basekt.ErrorCode` and
 `basekt.FieldError`, and each operation lists the statuses it can answer: `401` and `403` only where its access needs
-them, `404` where a record is named, `409` where an id, a version or a workflow state can conflict, `422` for writes.
+them, `404` where a record is named, `409` where an id, a version or a workflow state can conflict, `422` for writes, and `503` on every resource route,
+for a signed-in caller whose [server roles](permissions.md#roles-from-the-server) couldn't be looked up.
 
 Names can't clash with yours: a resource's own schemas are `{resource}`, `{resource}.create` and so on, BaseKt's are
 `basekt.*`, and operation ids are `{resource}.{operation}`.

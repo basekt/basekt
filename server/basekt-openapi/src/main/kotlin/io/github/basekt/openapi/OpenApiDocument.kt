@@ -94,6 +94,7 @@ private val errorResponses = linkedMapOf(
     422 to ("basekt.unprocessable" to "A field was rejected (`validation_failed`, see `fields`) or a hook refused the write (`rejected`)."),
     500 to ("basekt.internalError" to "Something failed on the server (`internal_error`). The message names the request id the server logged it with."),
     501 to ("basekt.notImplemented" to "The data source can't do what the request needs, such as aggregates (`not_implemented`)."),
+    503 to ("basekt.unavailable" to "The signed-in caller's roles from the server couldn't be looked up; try again later (`unavailable`)."),
 )
 
 private class OpenApiWriter(private val schema: Schema, private val options: OpenApiOptions) {
@@ -245,7 +246,8 @@ private class OpenApiWriter(private val schema: Schema, private val options: Ope
         val gates = access.map { it.gate() }
         val scoped = scopedBy != null && resource.permissions.scopes.any { scopedBy in it.operations }
         val needsCaller = gates.any { it != Gate.OPEN }
-        val statuses = errors + setOfNotNull(401.takeIf { needsCaller }, 403.takeIf { Gate.ROLES in gates || scoped }, 500)
+        // Any call that resolves its caller may answer 503 when the server's own roles for them can't be looked up.
+        val statuses = errors + setOfNotNull(401.takeIf { needsCaller }, 403.takeIf { Gate.ROLES in gates || scoped }, 500, 503)
         val description = (access.distinct().map { it.sentence() } + listOfNotNull("Narrowed to the caller's record scope.".takeIf { scoped }) + about).joinToString(" ")
         return obj(
             "operationId" to str("${resource.name}.$id"),

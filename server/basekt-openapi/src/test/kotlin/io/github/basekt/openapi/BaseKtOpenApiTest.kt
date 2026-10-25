@@ -195,6 +195,9 @@ class BaseKtOpenApiTest {
         assertTrue(loans.has("responses", "401"))
         assertTrue(loans.has("responses", "403"), "the owner scope can refuse")
         assertEquals("bearer", document.at("components", "securitySchemes", "basekt.auth", "scheme").jsonPrimitive.content)
+        // A failed lookup of the server's roles answers any resource route with 503, even an open one.
+        assertTrue(list.has("responses", "503"))
+        assertTrue("unavailable" in document.at("components", "schemas", "basekt.ErrorCode", "enum").strings())
     }
 
     @Test

@@ -182,6 +182,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -247,6 +250,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -290,6 +296,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -352,6 +361,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -390,6 +402,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -589,6 +604,9 @@
           },
           "501": {
             "$ref": "#/components/responses/basekt.notImplemented"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -869,6 +887,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1141,6 +1162,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1206,6 +1230,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1249,6 +1276,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1311,6 +1341,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1349,6 +1382,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1683,6 +1719,9 @@
           },
           "501": {
             "$ref": "#/components/responses/basekt.notImplemented"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1730,6 +1769,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1873,6 +1915,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1937,6 +1982,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -1986,6 +2034,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -2047,6 +2098,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -2085,6 +2139,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -2290,6 +2347,9 @@
           },
           "501": {
             "$ref": "#/components/responses/basekt.notImplemented"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -2515,6 +2575,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -2732,6 +2795,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -2796,6 +2862,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -2845,6 +2914,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -2906,6 +2978,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -2944,6 +3019,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -3224,6 +3302,9 @@
           },
           "501": {
             "$ref": "#/components/responses/basekt.notImplemented"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -3276,6 +3357,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -3328,6 +3412,9 @@
           },
           "500": {
             "$ref": "#/components/responses/basekt.internalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/basekt.unavailable"
           }
         },
         "security": [
@@ -3430,7 +3517,8 @@
           "validation_failed",
           "rejected",
           "not_implemented",
-          "internal_error"
+          "internal_error",
+          "unavailable"
         ]
       },
       "basekt.FieldError": {
@@ -4171,6 +4259,21 @@
       },
       "basekt.notImplemented": {
         "description": "The data source can't do what the request needs, such as aggregates (`not_implemented`).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/basekt.requestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/basekt.ApiError"
+            }
+          }
+        }
+      },
+      "basekt.unavailable": {
+        "description": "The signed-in caller's roles from the server couldn't be looked up; try again later (`unavailable`).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/basekt.requestId"
