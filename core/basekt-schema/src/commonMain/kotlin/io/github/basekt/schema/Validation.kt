@@ -104,6 +104,8 @@ public fun Resource.decodeRecord(
         if (name == Resource.ID) {
             when {
                 mode == WriteMode.UPDATE -> errors += FieldError(name, FieldErrorCode.READ_ONLY, "The id can't be changed.")
+                id.source == IdSource.KEY ->
+                    errors += FieldError(name, FieldErrorCode.READ_ONLY, "The id is made from ${id.key.joinToString(" and ")}.")
                 element !is JsonPrimitive || !element.isString || element.content.isEmpty() ->
                     errors += FieldError(name, FieldErrorCode.TYPE, "The id must be a non-empty string.")
                 else -> record[name] = Value.Text(element.content)
@@ -138,6 +140,18 @@ public fun Resource.decodeRecord(
     return if (errors.isEmpty()) DecodeResult.Valid(record) else DecodeResult.Invalid(errors)
 }
 
+/** Checks the id a create gives, or the lack of one, against this resource's [IdSpec]. */
+private fun Resource.checkId(given: Value?, validators: Map<String, FieldValidator>): FieldError? {
+    fun error(code: FieldErrorCode, message: String) = FieldError(Resource.ID, code, message)
+    return when {
+        given == null -> if (id.source == IdSource.NATURAL) error(FieldErrorCode.REQUIRED, "A '$name' record needs an id.") else null
+        id.source == IdSource.KEY -> error(FieldErrorCode.READ_ONLY, "The id is made from ${id.key.joinToString(" and ")}.")
+        given !is Value.Text -> error(FieldErrorCode.TYPE, "The id must be a non-empty string.")
+        else -> IdSpec.problemWith(given.value)?.let { error(FieldErrorCode.TYPE, it) }
+            ?: Field(Resource.ID, FieldType.STRING, rules = id.rules).check(given, validators)
+    }
+}
+
 /**
  * Checks an already typed [record] of this resource: required fields (in [WriteMode.CREATE], or any field set to
  * null), enum values, [Rule]s and [Rule.Custom] [validators]. Returns every error, or an empty list.
@@ -148,6 +162,7 @@ public fun Resource.validateRecord(
     validators: Map<String, FieldValidator> = emptyMap(),
 ): List<FieldError> {
     val errors = mutableListOf<FieldError>()
+    if (mode == WriteMode.CREATE) checkId(record[Resource.ID], validators)?.let { errors += it }
     for (field in fields) {
         val present = field.name in record
         val value = record[field.name]
@@ -222,7 +237,7 @@ public fun Field.parse(text: String): Value? = when (type) {
 
 /** Returns the [Rule.Custom] validator names this schema uses that [validators] don't provide. */
 public fun Schema.missingValidators(validators: Map<String, FieldValidator>): Set<String> =
-    resources.flatMap { it.fields }.flatMap { it.rules }.filterIsInstance<Rule.Custom>()
+    resources.flatMap { r -> r.fields.flatMap { it.rules } + r.id.rules }.filterIsInstance<Rule.Custom>()
         .map { it.name }.filterNot { it in validators }.toSet()
 
 private fun Field.check(value: Value, validators: Map<String, FieldValidator>): FieldError? {

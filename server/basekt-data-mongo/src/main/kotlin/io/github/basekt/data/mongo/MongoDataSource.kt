@@ -338,6 +338,8 @@ public class MongoDataSource(
             val mapping = mappingOf(resource)
             val collection = collection(mapping)
             val filter = idFilter(mapping, id)
+            // MongoDB blocks a findOneAndDelete of a document its own transaction already deleted, so look first.
+            if (session != null && findOne(collection, filter) == null) return false
             val deleted = session?.let { collection.findOneAndDelete(it, filter) } ?: collection.findOneAndDelete(filter)
             if (deleted != null) undo?.add { restore(collection, filter, deleted) }
             return deleted != null
@@ -395,6 +397,8 @@ public class MongoDataSource(
             val byId = idFilter(mapping, id)
             val matching = if (condition == null) byId else BsonDocument("\$and", BsonArray(listOf(byId, mapping.predicate(condition))))
             val before = undo?.let { findOne(collection, byId) }
+            // As in delete: MongoDB blocks a findOneAndUpdate of a document its own transaction deleted.
+            if (session != null && before == null) return ConditionalUpdate.NotFound
 
             val set = BsonDocument()
             for (field in resource.fields) {

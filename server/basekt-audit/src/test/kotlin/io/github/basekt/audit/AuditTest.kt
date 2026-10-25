@@ -1,6 +1,7 @@
 package io.github.basekt.audit
 
 import io.github.basekt.data.memory.InMemoryDataSource
+import io.github.basekt.schema.OnDelete
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.Value
@@ -67,6 +68,25 @@ private val librarySchema: Schema = schema {
         reference("copyId", "copies") { required() }
         string("borrower") { required() }
         permissions { read("librarian") }
+    }
+}
+
+/** A made-up allotment: plantings go with their bed, and notes about a bed stay when it goes. */
+private val allotmentSchema: Schema = schema {
+    auditLog(readers = setOf("manager"))
+    resource("beds") {
+        string("name") { required() }
+        permissions { read(authenticated); write("gardener") }
+    }
+    resource("plantings") {
+        string("crop") { required() }
+        belongsTo("bed", "beds", onDelete = OnDelete.CASCADE) { required() }
+        permissions { read(authenticated); write("gardener") }
+    }
+    resource("notes") {
+        string("text")
+        belongsTo("bed", "beds", onDelete = OnDelete.SET_NULL)
+        permissions { read(authenticated); write("gardener") }
     }
 }
 
@@ -192,6 +212,23 @@ class AuditTest {
             // The copy's create, plus the three entries of the one action that went through; the failed one left none.
             assertEquals(4, entries().size)
         }
+    }
+
+    @Test
+    fun `a delete's cascades are logged record by record, as one operation`() = app(allotmentSchema) {
+        client.post("/api/beds") { caller("ana", "gardener"); json("""{"id": "b1", "name": "North"}""") }
+        client.post("/api/plantings") { caller("ana", "gardener"); json("""{"id": "p1", "crop": "Kale", "bedId": "b1"}""") }
+        client.post("/api/plantings") { caller("ana", "gardener"); json("""{"id": "p2", "crop": "Leek", "bedId": "b1"}""") }
+        client.post("/api/notes") { caller("ana", "gardener"); json("""{"id": "n1", "text": "Sunny", "bedId": "b1"}""") }
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/beds/b1") { caller("ben", "gardener") }.status)
+
+        val removal = entries().filter { it.text("actor") == "ben" }
+        assertEquals(
+            setOf("update notes/n1", "delete beds/b1", "delete plantings/p1", "delete plantings/p2"),
+            removal.map { "${it.text("operation")} ${it.text("resource")}/${it.text("recordId")}" }.toSet(),
+        )
+        assertEquals(1, removal.map { it.text("operationId") }.toSet().size)
+        assertEquals("""{"bedId":{"from":"b1","to":null}}""", removal.single { it.text("operation") == "update" }.text("changes"))
     }
 
     @Test

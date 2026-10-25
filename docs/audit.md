@@ -14,7 +14,8 @@ install(BaseKtAudit) { redact("users.pin"); skip("sessions") }
 
 Each entry has when it happened, the actor, the operation, the resource and record, and what changed: a create's
 fields, an update's `from` and `to` for each changed field, or what a delete removed. An action's entry holds its
-input, and shares an `operationId` with the writes it made.
+input, and shares an `operationId` with the writes it made. A delete's [cascades](schema.md#deleting-records) log one
+entry per record removed or cleared, under the delete's `operationId`.
 
 Entries are written in the same transaction as the write, so a write that rolls back leaves no entry. Because the log
 is an ordinary resource, `GET /api/audit?recordId=p1` gives one record's history, and the admin panel lists it.

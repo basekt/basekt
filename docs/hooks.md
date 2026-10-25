@@ -22,4 +22,6 @@ hooks { beforeUpdate { old: Product, new: Product -> if (new.price < old.price) 
 ```
 
 A veto reaches the client as a typed error on its field, and the [admin panel](admin-panel.md) shows it on that field.
-[Automatic fields](automatic-fields.md) are filled before the before-hooks, so hooks see them.
+[Automatic fields](automatic-fields.md) are filled before the before-hooks, so hooks see them. A delete's
+[cascades](schema.md#deleting-records) run each removed record's delete hooks, and each cleared reference's update
+hooks, in the same transaction, so a veto from any of them refuses the whole delete.

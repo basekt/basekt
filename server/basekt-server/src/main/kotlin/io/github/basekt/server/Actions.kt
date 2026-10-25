@@ -1,6 +1,7 @@
 package io.github.basekt.server
 
 import io.github.basekt.data.DataSource
+import io.github.basekt.data.Filter
 import io.github.basekt.schema.FieldError
 import io.github.basekt.schema.FieldErrorCode
 import io.github.basekt.schema.Record
@@ -50,9 +51,27 @@ public class ActionContext internal constructor(
         return after
     }
 
-    /** Deletes the record of [resource] with [id], with the same steps as a delete through the API. */
+    /**
+     * Deletes the record of [resource] with [id], with the same steps as a delete through the API, including what
+     * the [io.github.basekt.schema.OnDelete] rules of the records that belong to it call for.
+     */
     public suspend fun delete(resource: Resource, id: String) {
-        changes += Change.Deleted(resource, service.trustedDelete(data, resource, origin, id))
+        changes += service.trustedDelete(data, resource, origin, id)
+    }
+
+    /**
+     * Deletes every record of [resource] that matches [filter], each like [delete], and returns how many it deleted.
+     * A record that an earlier one's cascade already removed isn't counted. One action can erase what a caller owns
+     * across many resources this way, such as every record whose `createdBy` is theirs, in one transaction.
+     */
+    public suspend fun deleteWhere(resource: Resource, filter: Filter): Int {
+        var deleted = 0
+        for (id in service.idsWhere(data, resource, filter)) {
+            if (data.get(resource, id) == null) continue
+            changes += service.trustedDelete(data, resource, origin, id)
+            deleted++
+        }
+        return deleted
     }
 
     /** Stops the action and rolls back what it wrote, refusing it with [reason]. */

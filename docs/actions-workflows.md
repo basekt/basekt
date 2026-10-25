@@ -33,7 +33,9 @@ install(BaseKt) {
 The action is served at `POST /api/copies/{id}/actions/lend`, or `POST /api/{resource}/actions/{name}` for a
 resource action. Everything it writes is one transaction, and `fail` rolls it all back. `create`, `update` and
 `delete` in an action go through the same steps as the REST API ([automatic fields](automatic-fields.md), validation,
-[hooks](hooks.md), [versions](concurrent-writes.md#versions)), with the action's permission in place of the caller's.
+[hooks](hooks.md), [versions](concurrent-writes.md#versions), [delete rules](schema.md#deleting-records)), with the
+action's permission in place of the caller's. `deleteWhere(resource, filter)` deletes every record that matches, the
+same way, as an [erasure](schema.md#erasing-what-a-principal-owns) does.
 A record action needs the record in the caller's update [scope](permissions.md#record-scopes). The admin API lists
 the actions each caller may run, and the panel shows them as buttons, with a form for their input.
 

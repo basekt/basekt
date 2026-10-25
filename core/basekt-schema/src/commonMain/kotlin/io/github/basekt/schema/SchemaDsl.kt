@@ -101,9 +101,27 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
     private var group: String? = null
     private val reports = mutableListOf<Report>()
     private val extensions = linkedMapOf<String, JsonElement>()
+    private var id = IdSpec()
 
     override fun extend(key: String, value: JsonElement) {
         extensions[key] = value
+    }
+
+    /**
+     * Makes the client choose every record's id, such as a username or a slug, checked by the rules [block] sets.
+     * See [IdSource.NATURAL].
+     */
+    public fun naturalId(block: IdBuilder.() -> Unit = {}) {
+        id = IdSpec(IdSource.NATURAL, IdBuilder().apply(block).rules.toList())
+    }
+
+    /**
+     * Makes each record's id out of the [fields] declared in this resource, so a record is unique per their values
+     * together and is addressed by them: `keyedBy("accountId", "itemId")` gives ids such as `alice~item-7`. See
+     * [IdSource.KEY].
+     */
+    public fun keyedBy(vararg fields: String) {
+        id = IdSpec(IdSource.KEY, key = fields.toList())
     }
 
     /** Lists this resource under the heading [name] in an admin panel's menu. Resources without one come first. */
@@ -113,16 +131,17 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
 
     /**
      * Declares that this resource belongs to a [target] record: adds the reference field [field] (by default
-     * `<name>Id`) and the relation [name].
+     * `<name>Id`) and the relation [name]. [onDelete] says what deleting the target does to this record.
      */
     public fun belongsTo(
         name: String,
         target: String,
         field: String = "${name}Id",
+        onDelete: OnDelete = OnDelete.RESTRICT,
         block: FieldBuilder.() -> Unit = {},
     ) {
         reference(field, target, block)
-        relations += Relation.BelongsTo(name, target, field)
+        relations += Relation.BelongsTo(name, target, field, onDelete)
     }
 
     /** Declares that many [target] records point to this one through their reference field [foreignField]. */
@@ -160,8 +179,29 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
     }
 
     internal fun build(): Resource = Resource(
-        name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow, group, reports.toList(), extensions.toMap(),
+        name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow, group, reports.toList(), extensions.toMap(), id,
     )
+}
+
+/** Declares the checks on the ids a client chooses. See [IdSpec.rules]. */
+@SchemaDsl
+public class IdBuilder internal constructor() {
+    internal val rules: MutableList<Rule> = mutableListOf()
+
+    /** The id must be between [min] and [max] characters long; either bound may be `null`. */
+    public fun length(min: Int? = null, max: Int? = null) {
+        rules += Rule.Length(min, max)
+    }
+
+    /** The whole id must match [regex]; [message] replaces the default error message. */
+    public fun pattern(regex: String, message: String? = null) {
+        rules += Rule.Pattern(regex, message)
+    }
+
+    /** The [FieldValidator] registered as [name] must accept the id. */
+    public fun custom(name: String) {
+        rules += Rule.Custom(name)
+    }
 }
 
 /** Marks the field of [workflow] as its [Auto.State]. */
