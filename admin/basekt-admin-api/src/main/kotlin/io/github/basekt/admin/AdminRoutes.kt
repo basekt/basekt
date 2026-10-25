@@ -169,6 +169,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
             group = resource.group,
             reports = if (Operation.READ in operations) resource.reports.map { it.toAdmin() } else emptyList(),
             links = if (Operation.READ in operations) resource.adminLinks else emptyList(),
+            id = AdminId(resource.id.source, resource.id.rules, resource.id.key),
             actions = actions.map { action ->
                 val transition = resource.transition(action.name)
                 AdminAction(

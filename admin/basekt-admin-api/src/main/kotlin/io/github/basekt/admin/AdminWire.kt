@@ -4,6 +4,7 @@ import io.github.basekt.schema.ActionTarget
 import io.github.basekt.schema.Auto
 import io.github.basekt.schema.Chart
 import io.github.basekt.schema.FieldType
+import io.github.basekt.schema.IdSource
 import io.github.basekt.schema.MarkdownOptions
 import io.github.basekt.schema.Operation
 import io.github.basekt.schema.ReportCompare
@@ -75,6 +76,22 @@ public data class AdminResource(
     val reports: List<AdminReport> = emptyList(),
     /** Links from a record to the host app's own pages. A panel fills `{id}` and `{field}` from the record. */
     val links: List<AdminLink> = emptyList(),
+    /** Where record ids come from: a panel asks for one on create when the client chooses it. */
+    val id: AdminId = AdminId(),
+)
+
+/**
+ * How a resource's record ids are made, as an admin panel sees it. With [IdSource.NATURAL] a create form asks for the
+ * id, checked by [rules]; with [IdSource.KEY] the server makes it from [key], whose fields can't change once created.
+ */
+@Serializable
+public data class AdminId(
+    /** Who chooses a new record's id. */
+    val source: IdSource = IdSource.GENERATED,
+    /** The checks on an id the client chooses. */
+    val rules: List<Rule> = emptyList(),
+    /** For [IdSource.KEY]: the fields whose values make the id, in order. */
+    val key: List<String> = emptyList(),
 )
 
 /**

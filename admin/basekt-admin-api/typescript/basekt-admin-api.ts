@@ -35,6 +35,7 @@ export interface AdminResource {
   group: string | null;
   reports: AdminReport[];
   links: AdminLink[];
+  id: AdminId;
 }
 
 export interface AdminField {
@@ -193,6 +194,14 @@ export interface AdminLink {
   label: string;
   url: string;
 }
+
+export interface AdminId {
+  source: IdSource;
+  rules: Rule[];
+  key: string[];
+}
+
+export type IdSource = "generated" | "natural" | "key";
 
 export interface AdminPage {
   items: JsonObject[];
