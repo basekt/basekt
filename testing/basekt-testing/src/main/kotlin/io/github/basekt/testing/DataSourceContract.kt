@@ -680,6 +680,83 @@ public abstract class DataSourceContract {
         assertEquals(100, source.list(entries, Query(limit = 1000)).items.size)
     }
 
+    /**
+     * Ids a client chooses, such as usernames, reverse-DNS names, emails and key ids with escapes, are stored as given
+     * and found by get, getMany, an id filter, update and delete.
+     */
+    @Test
+    public fun naturalIdsRoundTrip(): Unit = runTest {
+        val source = createDataSource()
+        val ids = listOf("alice", "com.example.tools", "someone@example.com", "alice~item-7", "a%7Eb~c%2Fd", "Ünïcode-名前", "x".repeat(64))
+        for (id in ids) source.create(entries, mapOf(Resource.ID to text(id), "title" to text(id)))
+        for (id in ids) assertEquals(text(id), source.get(entries, id)!!["title"], id)
+        assertEquals(ids.toSet(), source.getMany(entries, ids).keys)
+        assertEquals(ids.toSet(), source.list(entries, Query(Filter.In(Resource.ID, ids.map(::text)), limit = 100)).items.ids().toSet())
+        for (id in ids) {
+            assertEquals(listOf(id), source.list(entries, Query(Filter.Compare(Resource.ID, Comparison.EQ, text(id)))).items.ids(), id)
+            assertEquals(int(1), source.update(entries, id, mapOf("rank" to int(1)))!!["rank"], id)
+            assertTrue(source.delete(entries, id), id)
+            assertNull(source.get(entries, id), id)
+        }
+    }
+
+    /** Of many writers that create a record with the same id at once, in transactions or not, exactly one wins. */
+    @Test
+    public fun concurrentCreatesOfOneIdLandOnce(): Unit = runTest {
+        val source = createDataSource()
+        val attempts = (1..20).map { n ->
+            async {
+                runCatching {
+                    val record = mapOf(Resource.ID to text("taken"), "rank" to int(n.toLong()))
+                    if (n % 2 == 0) source.transaction { tx -> tx.create(entries, record) } else source.create(entries, record)
+                }
+            }
+        }.awaitAll()
+        assertEquals(1, attempts.count { it.isSuccess })
+        attempts.mapNotNull { it.exceptionOrNull() }.forEach { assertTrue(it is DuplicateIdException, "Expected a DuplicateIdException, got $it") }
+        val winner = attempts.single { it.isSuccess }.getOrThrow()
+        assertEquals(winner["rank"], source.get(entries, "taken")!!["rank"])
+    }
+
+    /**
+     * Records deleted in a transaction are gone for its later calls: get, getMany, lists by id or by a reference field,
+     * and another delete or update finds nothing, as a delete that walks down a tree of records needs. Deletes across
+     * resources commit or roll back together.
+     */
+    @Test
+    public fun deletesAreSeenByTheirTransaction(): Unit = runTest {
+        val source = createDataSource()
+        source.create(groups, mapOf(Resource.ID to text("g"), "label" to text("g")))
+        for (id in listOf("a", "b", "c")) source.create(entries, mapOf(Resource.ID to text(id), "groupId" to text("g")))
+        val byGroup = Query(Filter.Compare("groupId", Comparison.EQ, text("g")))
+        assertFailsWith<IllegalStateException> {
+            source.transaction { tx ->
+                assertTrue(tx.delete(entries, "a"))
+                assertNull(tx.get(entries, "a"))
+                assertEquals(setOf("b"), tx.getMany(entries, listOf("a", "b")).keys)
+                assertEquals(listOf("b", "c"), tx.list(entries, byGroup).items.ids())
+                assertEquals(listOf("b"), tx.list(entries, Query(Filter.In(Resource.ID, listOf(text("a"), text("b")))))
+                    .items.ids())
+                assertFalse(tx.delete(entries, "a"))
+                assertNull(tx.update(entries, "a", mapOf("rank" to int(1))))
+                if (tx is ConditionalWrites) assertEquals(ConditionalUpdate.NotFound, tx.updateIf(entries, "a", null, mapOf("rank" to int(1))))
+                tx.delete(entries, "b")
+                tx.delete(entries, "c")
+                tx.delete(groups, "g")
+                assertEquals(emptyList(), tx.list(entries, byGroup).items)
+                error("roll back")
+            }
+        }
+        assertEquals(listOf("a", "b", "c"), source.list(entries, byGroup).items.ids())
+        assertNotNull(source.get(groups, "g"))
+        source.transaction { tx ->
+            for (id in tx.list(entries, byGroup).items.ids()) tx.delete(entries, id)
+            tx.delete(groups, "g")
+        }
+        assertEquals(emptyList(), source.list(entries).items)
+        assertNull(source.get(groups, "g"))
+    }
+
     /** An entry, as a typed model of the contract's `entries` resource. */
     @Serializable
     public data class Entry(

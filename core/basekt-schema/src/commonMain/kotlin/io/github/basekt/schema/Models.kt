@@ -102,6 +102,7 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
     private var workflow: Workflow? = null
     private val reports = mutableListOf<Report>()
     private val extensions = linkedMapOf<String, JsonElement>()
+    private var id = IdSpec()
 
     override fun extend(key: String, value: JsonElement) {
         extensions[key] = value
@@ -148,10 +149,21 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
         property: KProperty1<T, String?>,
         target: String,
         name: String = property.name.removeSuffix("Id"),
+        onDelete: OnDelete = OnDelete.RESTRICT,
         block: FieldBuilder.() -> Unit = {},
     ) {
         reference(property, target, block)
-        relations += Relation.BelongsTo(name, target, property.name)
+        relations += Relation.BelongsTo(name, target, property.name, onDelete)
+    }
+
+    /** Makes the client choose every record's id, checked by the rules [block] sets. See [ResourceBuilder.naturalId]. */
+    public fun naturalId(block: IdBuilder.() -> Unit = {}) {
+        id = IdSpec(IdSource.NATURAL, IdBuilder().apply(block).rules.toList())
+    }
+
+    /** Makes each record's id out of [properties]' values. See [ResourceBuilder.keyedBy]. */
+    public fun keyedBy(vararg properties: KProperty1<T, *>) {
+        id = IdSpec(IdSource.KEY, key = properties.map { it.name })
     }
 
     /** Declares that many [target] records point to this one through their reference field [foreignField]. */
@@ -195,7 +207,7 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
                 builder.build(property, types.getValue(property), values[property], null)
             }
         }
-        val resource = Resource(name, withState(built, workflow), relations.toList(), permissions, actions.toList(), workflow, reports = reports.toList(), extensions = extensions.toMap())
+        val resource = Resource(name, withState(built, workflow), relations.toList(), permissions, actions.toList(), workflow, reports = reports.toList(), extensions = extensions.toMap(), id = id)
         return Model(resource, serializer)
     }
 

@@ -71,7 +71,8 @@ import com.google.cloud.firestore.Query as FirestoreQuery
  *   once: what it writes through the source it is given lands once, but anything else it does, such as a hook that
  *   calls another service, happens once per run. Work like that belongs after the transaction, as BaseKt's own
  *   extensions do it once a write has committed.
- * - **Writes** outside a transaction run in one of their own, except a create, which is Firestore's create.
+ * - **Writes** outside a transaction run in one of their own, except a create, which is Firestore's create, tried
+ *   again like a transaction when a transaction holding the document's lock makes Firestore abort it.
  * - **Instants** are timestamps, which hold microseconds.
  *
  * @param firestore the client of the database, from `FirestoreOptions` or the Firebase Admin SDK.
@@ -347,11 +348,20 @@ public class FirestoreDataSource(
             val ref = mapping.ref(id) ?: throw IllegalArgumentException("'$id' can't be the id of a Firestore document.")
             val data = mapping.toData(record)
             if (log == null) {
-                try {
-                    ref.create(data).await()
-                } catch (e: Throwable) {
-                    if (e.statusCode() == "ALREADY_EXISTS") throw DuplicateIdException(resource.name, id)
-                    throw e
+                val started = TimeSource.Monotonic.markNow()
+                var round = 0
+                while (true) {
+                    try {
+                        ref.create(data).await()
+                        break
+                    } catch (e: Throwable) {
+                        if (e is CancellationException) throw e
+                        if (e.statusCode() == "ALREADY_EXISTS") throw DuplicateIdException(resource.name, id)
+                        // A transaction holding the document's lock may make Firestore abort the create: try again.
+                        if (!e.conflict()) throw e
+                        if (started.elapsedNow() >= transactionRetryTimeout) throw TransactionConflictException(++round, e)
+                        withContext(NonCancellable) { delay(Random.nextLong(2, 10L + 5L * minOf(++round, 20))) }
+                    }
                 }
             } else {
                 val current = current(ref)

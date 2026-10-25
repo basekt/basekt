@@ -63,6 +63,7 @@ internal object SchemaChecker {
             for (key in resource.extensions.keys) if (!extensionKey.matches(key)) problem("$at.extensions.$key", "'$key' is not a valid extension key: use letters, digits, '.', '_' and '-', starting with a letter.")
             for (field in resource.fields) (field.auto as? Auto.Inherited)?.let { checkInherited(schema, resource, field, it, "$at.fields.${field.name}", ::problem) }
             resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
+            checkId(resource, "$at.id", ::problem)
         }
         return problems
     }
@@ -182,6 +183,9 @@ internal object SchemaChecker {
                 val field = resource.field(relation.field)
                 if (field?.type != FieldType.REFERENCE || field.target != target.name) {
                     problem(at, "'${relation.field}' must be a reference field on '${resource.name}' that targets '${target.name}'.")
+                } else if (relation.onDelete == OnDelete.SET_NULL) {
+                    if (field.required) problem(at, "'${relation.field}' is required, so deleting the target can't set it to null.")
+                    if (field.name in resource.id.key) problem(at, "'${relation.field}' is part of the id, so deleting the target can't set it to null.")
                 }
             }
             is Relation.HasMany -> {
@@ -192,6 +196,34 @@ internal object SchemaChecker {
             }
         }
     }
+
+    private fun checkId(resource: Resource, at: String, problem: (String, String) -> Unit) {
+        val id = resource.id
+        val text = Field(Resource.ID, FieldType.STRING)
+        for (rule in id.rules) {
+            if (rule is Rule.Min || rule is Rule.Max) problem("$at.rules", "An id takes length, pattern and custom rules only.")
+            else checkRule(text, rule, "$at.rules", problem)
+        }
+        if (id.source != IdSource.KEY) {
+            if (id.key.isNotEmpty()) problem("$at.key", "Only an id of source 'key' has key fields.")
+            return
+        }
+        if (id.rules.isNotEmpty()) problem("$at.rules", "A key id is made by the server, so it takes no rules: put them on its fields.")
+        if (id.key.size < 2) problem("$at.key", "A key needs at least two fields; for one, use a natural id.")
+        duplicates(id.key).forEach { problem("$at.key", "'$it' is in the key twice.") }
+        for (name in id.key.distinct()) {
+            val field = resource.field(name)
+            when {
+                field == null -> problem("$at.key", "'${resource.name}' has no field '$name'.")
+                field.type !in keyTypes -> problem("$at.key", "'$name' is a ${field.type.name.lowercase()} field; a key takes string, enum, reference, int and long fields.")
+                field.auto != null && field.auto != Auto.CreatedBy && field.auto !is Auto.Inherited ->
+                    problem("$at.key", "'$name' changes on its own, so it can't be part of the key.")
+                field.hidden -> problem("$at.key", "'$name' is hidden, so it can't be part of an id the API shows.")
+            }
+        }
+    }
+
+    private val keyTypes = setOf(FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE, FieldType.INT, FieldType.LONG)
 
     private fun checkWorkflow(schema: Schema, resource: Resource, at: String, problem: (String, String) -> Unit) {
         val states = resource.fields.filter { it.auto == Auto.State }

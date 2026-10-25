@@ -6,6 +6,7 @@ import com.networknt.schema.SchemaValidatorsConfig
 import com.networknt.schema.SpecVersion
 import io.github.basekt.data.memory.InMemoryDataSource
 import io.github.basekt.schema.ActionTarget
+import io.github.basekt.schema.OnDelete
 import io.github.basekt.schema.Operation
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.schema
@@ -65,7 +66,8 @@ val workshopSchema: Schema = schema {
 
 /**
  * A made-up permit office: residents file permits, clerks grant or refuse them through a workflow, and clerks keep
- * private notes. Permits are numbered by the server and keep a hidden field.
+ * private notes. Permits are numbered by the server and keep a hidden field. Inspectors have names for ids, and a permit
+ * is inspected once by each inspector.
  */
 val permitSchema: Schema = schema {
     resource("permits") {
@@ -89,6 +91,18 @@ val permitSchema: Schema = schema {
     resource("notes") {
         string("text") { required() }
         belongsTo("permit", "permits") { required() }
+        permissions { read("clerk"); write("clerk") }
+    }
+    resource("inspectors") {
+        naturalId { length(min = 3, max = 12); pattern("[a-z]+") }
+        string("name")
+        permissions { read("clerk"); write("clerk") }
+    }
+    resource("inspections") {
+        belongsTo("permit", "permits", onDelete = OnDelete.CASCADE) { required() }
+        belongsTo("inspector", "inspectors") { required() }
+        instant("at")
+        keyedBy("permitId", "inspectorId")
         permissions { read("clerk"); write("clerk") }
     }
 }

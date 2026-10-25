@@ -20,6 +20,9 @@ import io.github.basekt.schema.FieldError
 import io.github.basekt.schema.FieldErrorCode
 import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.FieldValidator
+import io.github.basekt.schema.IdSource
+import io.github.basekt.schema.IdSpec
+import io.github.basekt.schema.OnDelete
 import io.github.basekt.schema.Operation
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Relation
@@ -185,14 +188,18 @@ public class ResourceService(
         }
     }
 
-    /** Deletes the record of [resource] with [id], if [caller] may. */
+    /**
+     * Deletes the record of [resource] with [id], if [caller] may, with what its [Relation.BelongsTo] referrers'
+     * [OnDelete] rules say: refused while a restricting one points to it, and otherwise cascaded or cleared in the same
+     * transaction. The caller's permission on this record covers those other writes.
+     */
     public suspend fun delete(resource: Resource, caller: Identity?, id: String) {
         authorize(resource, Operation.DELETE, caller)
         val origin = Origin.of(caller)
-        val deleted = dataSource.transaction { tx ->
+        val changes = dataSource.transaction { tx ->
             deleteIn(tx, resource, origin, id) { writable(tx, resource, Operation.DELETE, caller, id) }
         }
-        committed(Change.Deleted(resource, deleted))
+        changes.forEach { committed(it) }
     }
 
     /**
@@ -256,9 +263,21 @@ public class ResourceService(
         return updateIn(tx, resource, origin, id, changes) { tx.get(resource, id) ?: throw notFound(resource, id) }
     }
 
-    /** Deletes in [tx] for trusted code. Returns the deleted record. */
-    internal suspend fun trustedDelete(tx: DataSource, resource: Resource, origin: Origin, id: String): Record =
+    /** Deletes in [tx] for trusted code, with the delete's cascades. Returns every change it made. */
+    internal suspend fun trustedDelete(tx: DataSource, resource: Resource, origin: Origin, id: String): List<Change> =
         deleteIn(tx, resource, origin, id) { tx.get(resource, id) ?: throw notFound(resource, id) }
+
+    /** Returns the ids of every record of [resource] that matches [filter] in [source], page by page. */
+    internal suspend fun idsWhere(source: DataSource, resource: Resource, filter: Filter?): List<String> {
+        val ids = mutableListOf<String>()
+        var cursor: String? = null
+        do {
+            val page = queried { source.list(resource, Query(filter = filter, limit = SCAN_PAGE, cursor = cursor)) }
+            page.items.mapTo(ids) { (it[Resource.ID] as Value.Text).value }
+            cursor = page.nextCursor
+        } while (cursor != null)
+        return ids
+    }
 
     /** The steps of a create in [tx], once the caller may make it: automatic fields, hooks, checks, the write. */
     private suspend fun createIn(tx: DataSource, resource: Resource, origin: Origin, decoded: Record): Record {
@@ -268,13 +287,18 @@ public class ResourceService(
         var record = stamped
         for (hook in hooks.beforeCreate[resource.name].orEmpty()) record = context.hook(record).accepted()
         if (record != stamped) revalidate(resource, record, WriteMode.CREATE)
+        if (resource.id.source == IdSource.KEY) record = record + (Resource.ID to Value.Text(keyOf(resource, record)))
         checkReferences(tx, resource, record)
         checkUnique(tx, resource, record, null)
         checkExtensions(tx, resource, record)
         val created = try {
             tx.create(resource, record)
         } catch (e: DuplicateIdException) {
-            throw ApiException(ErrorCode.CONFLICT, e.message!!)
+            val key = resource.id.key
+            throw ApiException(
+                ErrorCode.CONFLICT,
+                if (key.isEmpty()) e.message!! else "There is already a '${resource.name}' with this ${key.joinToString(" and ")}.",
+            )
         }
         for (hook in hooks.afterCreate[resource.name].orEmpty()) context.hook(created)
         written(Change.Created(resource, created), origin, tx)
@@ -308,6 +332,8 @@ public class ResourceService(
             changes = context.hook(Update(id, current, changes)).accepted()
         }
         if (changes != stamped) revalidate(resource, changes, WriteMode.UPDATE)
+        val moved = resource.id.key.filter { it in changes && changes[it] != current[it] }
+        if (moved.isNotEmpty()) throw invalid(moved.map { FieldError(it, FieldErrorCode.READ_ONLY, "'$it' is part of the id, so it can't change.") })
         checkReferences(tx, resource, changes)
         checkUnique(tx, resource, changes, id)
         checkExtensions(tx, resource, changes)
@@ -325,15 +351,85 @@ public class ResourceService(
         return current to updated
     }
 
-    /** The steps of a delete in [tx], with the record [load] finds. Returns the deleted record. */
-    private suspend fun deleteIn(tx: DataSource, resource: Resource, origin: Origin, id: String, load: suspend () -> Record): Record {
-        val context = HookContext(resource, origin.caller, tx)
-        val current = load()
-        for (hook in hooks.beforeDelete[resource.name].orEmpty()) context.hook(Deletion(id, current)).accepted()
-        if (!tx.delete(resource, id)) throw notFound(resource, id)
-        for (hook in hooks.afterDelete[resource.name].orEmpty()) context.hook(current)
-        written(Change.Deleted(resource, current), origin, tx)
-        return current
+    /**
+     * The steps of a delete in [tx], with the record [load] finds, and of the deletes and updates its referrers'
+     * [OnDelete] rules call for. First every record the delete reaches is found and every restriction checked, then
+     * the referrers to clear are updated, then each record is deleted with its hooks, the first one first. Returns
+     * every change, in that order.
+     */
+    private suspend fun deleteIn(tx: DataSource, resource: Resource, origin: Origin, id: String, load: suspend () -> Record): List<Change> {
+        val doomed = linkedMapOf((resource.name to id) to (resource to load()))
+        val clears = linkedMapOf<Pair<String, String>, Pair<Resource, MutableSet<String>>>()
+        val restricted = mutableListOf<Restriction>()
+        val queue = ArrayDeque(listOf(resource to id))
+        while (queue.isNotEmpty()) {
+            val (parent, parentId) = queue.removeFirst()
+            for ((child, relation) in referrers[parent.name].orEmpty()) {
+                val ids = idsWhere(tx, child, Filter.Compare(relation.field, Comparison.EQ, Value.Text(parentId)))
+                when (relation.onDelete) {
+                    OnDelete.RESTRICT -> restricted += Restriction("${parent.name}/$parentId", child, relation, ids)
+                    OnDelete.SET_NULL -> for (childId in ids) {
+                        clears.getOrPut(child.name to childId) { child to mutableSetOf() }.second += relation.field
+                    }
+                    OnDelete.CASCADE -> for (childId in ids) {
+                        if ((child.name to childId) in doomed) continue
+                        doomed[child.name to childId] = child to (tx.get(child, childId) ?: continue)
+                        queue += child to childId
+                    }
+                }
+            }
+        }
+        // A record that the same delete removes doesn't hold it back.
+        for (restriction in restricted) {
+            val blocking = restriction.ids.filter { (restriction.child.name to it) !in doomed }
+            if (blocking.isEmpty()) continue
+            val one = blocking.size == 1
+            throw ApiException(
+                ErrorCode.CONFLICT,
+                "'${restriction.parent}' can't be deleted while ${blocking.size} '${restriction.child.name}' record${if (one) "" else "s"} " +
+                    "point${if (one) "s" else ""} to it through '${restriction.relation.name}', such as '${blocking.first()}'.",
+            )
+        }
+        val changes = mutableListOf<Change>()
+        for ((key, cleared) in clears) {
+            if (key in doomed) continue
+            val (child, fields) = cleared
+            val (before, after) = updateIn(tx, child, origin, key.second, fields.associateWith { null }) {
+                tx.get(child, key.second) ?: throw notFound(child, key.second)
+            }
+            changes += Change.Updated(child, before, after)
+        }
+        for ((key, doomedRecord) in doomed) {
+            val (target, current) = doomedRecord
+            val context = HookContext(target, origin.caller, tx)
+            for (hook in hooks.beforeDelete[target.name].orEmpty()) context.hook(Deletion(key.second, current)).accepted()
+            if (!tx.delete(target, key.second)) throw notFound(target, key.second)
+            for (hook in hooks.afterDelete[target.name].orEmpty()) context.hook(current)
+            written(Change.Deleted(target, current), origin, tx)
+            changes += Change.Deleted(target, current)
+        }
+        return changes
+    }
+
+    /** The records of [child] whose [relation] points to [parent], which hold its delete back. */
+    private class Restriction(val parent: String, val child: Resource, val relation: Relation.BelongsTo, val ids: List<String>)
+
+    /** Every [Relation.BelongsTo] in the schema, with the resource that has it, by the relation's target. */
+    private val referrers: Map<String, List<Pair<Resource, Relation.BelongsTo>>> = schema.resources
+        .flatMap { child -> child.relations.filterIsInstance<Relation.BelongsTo>().map { child to it } }
+        .groupBy { it.second.target }
+
+    /** Returns the id [resource]'s key fields make of [record], or refuses the record if one is unset. */
+    private fun keyOf(resource: Resource, record: Record): String {
+        val missing = resource.id.key.filter { record[it] == null }
+        if (missing.isNotEmpty()) {
+            throw invalid(missing.map { FieldError(it, FieldErrorCode.REQUIRED, "'$it' is part of the id, so it is required.") })
+        }
+        val id = resource.id.keyOf(record)!!
+        IdSpec.problemWith(id)?.let { problem ->
+            throw invalid(listOf(FieldError(Resource.ID, FieldErrorCode.TYPE, "The id ${resource.id.key.joinToString(" and ")} make is invalid. $problem")))
+        }
+        return id
     }
 
     /** Returns the one record that the record [id] of [resource] belongs to through [relation]. */
@@ -678,6 +774,9 @@ public class ResourceService(
 }
 
 /** Returns this query with [filter] ANDed into its own. */
+/** How many records a scan for a delete or [ActionContext.deleteWhere] reads at a time. */
+private const val SCAN_PAGE = 500
+
 private fun Query.narrowed(filter: Filter?): Query =
     if (filter == null) this else copy(filter = this.filter?.let { Filter.And(listOf(it, filter)) } ?: filter)
 
