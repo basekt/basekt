@@ -126,6 +126,138 @@ class BaseKtAdminUiTest {
         assertEquals("token", login["tokenField"]!!.jsonPrimitive.content)
     }
 
+    // A library whose login route also answers a refresh token and the token's life.
+    @Test
+    fun `a login route with a refresh route goes to the panel in the shell's wire format`() = testApplication {
+        application {
+            install(BaseKtAdminUi) {
+                login {
+                    path = "/auth/login"
+                    refreshPath = "/auth/refresh"
+                    refreshTokenField = "renewal"
+                }
+            }
+        }
+        assertEquals(
+            Json.parseToJsonElement(
+                """
+                {"path":"/auth/login","usernameField":"email","usernameLabel":"Email","passwordField":"password",
+                 "tokenField":"token","refreshPath":"/auth/refresh","refreshTokenField":"renewal","expiresInField":"expiresIn"}
+                """,
+            ),
+            shellConfig("/admin")["login"],
+        )
+        assertEquals(JsonNull, shellConfig("/admin")["provider"])
+    }
+
+    // A garden club whose staff sign in with Firebase Authentication, set from the application config.
+    @Test
+    fun `a Firebase sign-in goes to the panel with its type`() = testApplication {
+        environment {
+            config = MapApplicationConfig(
+                "basekt.adminUi.firebase.apiKey" to "public-web-key",
+                "basekt.adminUi.firebase.authDomain" to "garden-club.firebaseapp.com",
+                "basekt.adminUi.firebase.providers" to "unused",
+            ).apply { put("basekt.adminUi.firebase.providers", listOf("password", "google.com", "oidc.allotments")) }
+        }
+        application { install(BaseKtAdminUi) }
+        assertEquals(
+            Json.parseToJsonElement(
+                """
+                {"type":"firebase","apiKey":"public-web-key","authDomain":"garden-club.firebaseapp.com","projectId":null,
+                 "providers":["password","google.com","oidc.allotments"]}
+                """,
+            ),
+            shellConfig("/admin")["provider"],
+        )
+        assertEquals(JsonNull, shellConfig("/admin")["login"])
+    }
+
+    // A school whose staff sign in with its OpenID Connect issuer, set in Kotlin.
+    @Test
+    fun `an OIDC sign-in goes to the panel with its type`() = testApplication {
+        application {
+            install(BaseKtAdminUi) {
+                path = "/staff"
+                oidc {
+                    issuer = "https://id.school.test/realms/staff/"
+                    clientId = "staff-panel"
+                    label = "school account"
+                }
+            }
+        }
+        assertEquals(
+            Json.parseToJsonElement(
+                """
+                {"type":"oidc","issuer":"https://id.school.test/realms/staff","clientId":"staff-panel",
+                 "scopes":["openid","profile","email","offline_access"],"label":"school account"}
+                """,
+            ),
+            shellConfig("/staff")["provider"],
+        )
+        // The issuer sends the viewer back to a page the panel serves.
+        assertContains(client.get("/staff/signed-in?code=c&state=s").bodyAsText(), "basekt-admin-config")
+    }
+
+    @Test
+    fun `sign-in settings that would send a secret elsewhere are refused, every problem at once`() {
+        val error = assertFailsWith<IllegalArgumentException> {
+            testApplication {
+                application {
+                    install(BaseKtAdminUi) {
+                        login {
+                            path = "/auth/login"
+                            refreshPath = "https://elsewhere.test/refresh"
+                            expiresInField = ""
+                        }
+                        firebase { apiKey = "key"; authDomain = "https://garden.test/"; providers = listOf("Google") }
+                        oidc { issuer = "http://id.school.test"; scopes = listOf("profile") }
+                    }
+                }
+                startApplication()
+            }
+        }
+        val message = error.message.orEmpty()
+        for (expected in listOf(
+            "refreshPath must be a path on this server",
+            "field names can't be blank",
+            "Choose one identity provider",
+            "authDomain",
+            "'Google' is not a Firebase provider id",
+            "not both: set login.path or a provider",
+        )) {
+            assertContains(message, expected)
+        }
+    }
+
+    @Test
+    fun `an OIDC issuer needs https, a client id and the openid scope`() {
+        val error = assertFailsWith<IllegalArgumentException> {
+            testApplication {
+                application { install(BaseKtAdminUi) { oidc { issuer = "http://id.school.test"; scopes = listOf("profile") } } }
+                startApplication()
+            }
+        }
+        for (expected in listOf("must be an https URL", "needs the panel's clientId", "must include openid")) {
+            assertContains(error.message.orEmpty(), expected)
+        }
+        testApplication {
+            application { install(BaseKtAdminUi) { oidc { issuer = "http://localhost:8180/realms/dev"; clientId = "panel" } } }
+            assertEquals("http://localhost:8180/realms/dev", shellConfig("/admin")["provider"]!!.jsonObject["issuer"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun `a refresh route needs a login route`() {
+        val error = assertFailsWith<IllegalArgumentException> {
+            testApplication {
+                application { install(BaseKtAdminUi) { login { refreshPath = "/auth/refresh" } } }
+                startApplication()
+            }
+        }
+        assertContains(error.message.orEmpty(), "refreshPath needs a login path")
+    }
+
     @Test
     fun `without a login route the panel asks for a token`() = testApplication {
         application { install(BaseKtAdminUi) }

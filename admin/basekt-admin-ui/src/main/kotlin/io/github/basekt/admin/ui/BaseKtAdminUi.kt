@@ -45,7 +45,13 @@ public class BrandConfig internal constructor(config: ApplicationConfig) {
 /**
  * A login route of the host app that the panel's sign-in screen calls with a name and a password, such as
  * `POST /auth/login` with `{"email": …, "password": …}` answering `{"token": …}`. The panel keeps the token like one a
- * viewer pastes, and sends it as a bearer token. Settings come from `basekt.adminUi.login`.
+ * viewer pastes, and sends it as a bearer token.
+ *
+ * The answer may also hold a refresh token and the token's life in seconds, as in
+ * `{"token": …, "refreshToken": …, "expiresIn": 900}`. With a [refreshPath], the panel then posts
+ * `{"refreshToken": …}` there before the token expires, takes the same shape back, and signs the viewer out when the
+ * route refuses. Without an `expiresIn`, the expiry is read from the token when it is a JWT. Settings come from
+ * `basekt.adminUi.login`.
  */
 public class LoginConfig internal constructor(config: ApplicationConfig) {
     /**
@@ -65,6 +71,69 @@ public class LoginConfig internal constructor(config: ApplicationConfig) {
 
     /** The JSON property of the answer that holds the bearer token. `basekt.adminUi.login.tokenField`, `token` by default. */
     public var tokenField: String = config.propertyOrNull("login.tokenField")?.getString() ?: "token"
+
+    /**
+     * The host's refresh route on this server, such as `/auth/refresh`, or `null` to keep each token until it is
+     * refused. Only with one does the panel keep a refresh token, and it sends it nowhere else.
+     * `basekt.adminUi.login.refreshPath`.
+     */
+    public var refreshPath: String? = config.propertyOrNull("login.refreshPath")?.getString()
+
+    /**
+     * The JSON property that holds the refresh token, in the answers and in the refresh call's body.
+     * `basekt.adminUi.login.refreshTokenField`, `refreshToken` by default.
+     */
+    public var refreshTokenField: String = config.propertyOrNull("login.refreshTokenField")?.getString() ?: "refreshToken"
+
+    /** The JSON property of the answers that holds the token's life in seconds. `basekt.adminUi.login.expiresInField`, `expiresIn` by default. */
+    public var expiresInField: String = config.propertyOrNull("login.expiresInField")?.getString() ?: "expiresIn"
+}
+
+/**
+ * Sign-in through Firebase Authentication, from the project's Web config. The panel runs Firebase's sign-in, sends
+ * the user's ID token as the bearer token, and has Firebase refresh it; the host checks it like any Firebase ID token.
+ * On when [apiKey] is set. Settings come from `basekt.adminUi.firebase`.
+ */
+public class FirebaseSignInConfig internal constructor(config: ApplicationConfig) {
+    /** The Web config's API key, which names the project and is public by design. `basekt.adminUi.firebase.apiKey`. */
+    public var apiKey: String? = config.propertyOrNull("firebase.apiKey")?.getString()
+
+    /** The Web config's auth domain, such as `my-project.firebaseapp.com`. `basekt.adminUi.firebase.authDomain`. */
+    public var authDomain: String? = config.propertyOrNull("firebase.authDomain")?.getString()
+
+    /** The Web config's project id, if any. `basekt.adminUi.firebase.projectId`. */
+    public var projectId: String? = config.propertyOrNull("firebase.projectId")?.getString()
+
+    /**
+     * The Firebase provider ids the sign-in screen offers: `password` for an email and a password, and ones such as
+     * `google.com`, `microsoft.com`, `oidc.<name>` or `saml.<name>` for a popup. Each must be enabled in the Firebase
+     * project. `basekt.adminUi.firebase.providers`, `["password"]` by default.
+     */
+    public var providers: List<String> = config.propertyOrNull("firebase.providers")?.getList() ?: listOf("password")
+}
+
+/**
+ * Sign-in through an OpenID Connect issuer, with the authorization code flow and PKCE. The issuer sends the viewer
+ * back to `{path}/signed-in`, which must be a redirect URI of the [clientId]; the panel then sends the ID token as the
+ * bearer token, and refreshes it with the issuer's refresh token (ask for `offline_access`). On when [issuer] is set.
+ * Settings come from `basekt.adminUi.oidc`.
+ */
+public class OidcSignInConfig internal constructor(config: ApplicationConfig) {
+    /** The issuer's `https` URL, where its `.well-known/openid-configuration` is found. `basekt.adminUi.oidc.issuer`. */
+    public var issuer: String? = config.propertyOrNull("oidc.issuer")?.getString()
+
+    /** The panel's public client id at the issuer. `basekt.adminUi.oidc.clientId`. */
+    public var clientId: String? = config.propertyOrNull("oidc.clientId")?.getString()
+
+    /**
+     * The scopes asked for, which must include `openid`. `basekt.adminUi.oidc.scopes`,
+     * `["openid", "profile", "email", "offline_access"]` by default.
+     */
+    public var scopes: List<String> = config.propertyOrNull("oidc.scopes")?.getList()
+        ?: listOf("openid", "profile", "email", "offline_access")
+
+    /** What the sign-in button names, as in "Continue with {label}". `basekt.adminUi.oidc.label`, `single sign-on` by default. */
+    public var label: String = config.propertyOrNull("oidc.label")?.getString() ?: "single sign-on"
 }
 
 /**
@@ -95,6 +164,12 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
     /** The host app's login route, for signing in with a name and a password. Off until [LoginConfig.path] is set. */
     public val login: LoginConfig = LoginConfig(config)
 
+    /** Sign-in through Firebase Authentication. Off until [FirebaseSignInConfig.apiKey] is set. */
+    public val firebase: FirebaseSignInConfig = FirebaseSignInConfig(config)
+
+    /** Sign-in through an OpenID Connect issuer. Off until [OidcSignInConfig.issuer] is set. */
+    public val oidc: OidcSignInConfig = OidcSignInConfig(config)
+
     internal var siteLink: SiteLink? = config.propertyOrNull("siteLink.url")?.getString()
         ?.let { SiteLink(config.propertyOrNull("siteLink.label")?.getString() ?: "Open site", it) }
 
@@ -118,6 +193,16 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
         login.block()
     }
 
+    /** Lets viewers sign in through Firebase Authentication. See [FirebaseSignInConfig]. */
+    public fun firebase(block: FirebaseSignInConfig.() -> Unit) {
+        firebase.block()
+    }
+
+    /** Lets viewers sign in through an OpenID Connect issuer. See [OidcSignInConfig]. */
+    public fun oidc(block: OidcSignInConfig.() -> Unit) {
+        oidc.block()
+    }
+
     /** Sets the theme; what it leaves out keeps [Theme.Default]'s value. */
     public fun theme(block: ThemeBuilder.() -> Unit) {
         themeBuilder.block()
@@ -134,37 +219,41 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
  * | `/theme.css` | the [Theme]'s CSS variables |
  * | `/assets/…` | the panel's scripts and styles, cached for a year since their names change with their content |
  *
- * The panel calls the API with the browser's cookies and, once a viewer signs in, a bearer token: one they paste, or
- * one the host's [login][BaseKtAdminUiConfig.login] route answers for their name and password. Install
- * `BaseKtAdmin` from `basekt-admin-api` for the API itself; this module doesn't depend on it.
+ * The panel calls the API with the browser's cookies and, once a viewer signs in, a bearer token: one they paste, one
+ * the host's [login][BaseKtAdminUiConfig.login] route answers for their name and password, or an identity provider's
+ * ID token ([firebase][BaseKtAdminUiConfig.firebase] or [oidc][BaseKtAdminUiConfig.oidc]). Tokens that expire are
+ * refreshed before they do. Install `BaseKtAdmin` from `basekt-admin-api` for the API itself; this module doesn't
+ * depend on it. Every setting is checked when the plugin is installed, and every problem is listed at once.
  */
 public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplicationPlugin(
     name = "BaseKtAdminUi",
     configurationPath = "basekt.adminUi",
     createConfiguration = ::BaseKtAdminUiConfig,
 ) {
+    val problems = mutableListOf<String>()
+    fun check(ok: Boolean, problem: () -> String) {
+        if (!ok) problems += problem()
+    }
     val path = "/" + pluginConfig.path.trim('/')
     val apiPath = "/" + pluginConfig.apiPath.trim('/')
-    require(path != "/") { "BaseKtAdminUi's path must not be '/': the panel answers every path under it." }
-    require(apiPath != path) { "BaseKtAdminUi's path and apiPath must differ, not both be '$path'." }
+    check(path != "/") { "BaseKtAdminUi's path must not be '/': the panel answers every path under it." }
+    check(apiPath != path) { "BaseKtAdminUi's path and apiPath must differ, not both be '$path'." }
     val logo = pluginConfig.brand.logo?.trim()?.takeIf { it.isNotEmpty() }
-    require(logo == null || logo.startsWith("/") || logo.startsWith("https://") || logo.startsWith("data:image/")) {
+    check(logo == null || logo.startsWith("/") || logo.startsWith("https://") || logo.startsWith("data:image/")) {
         "The brand logo must be a path on this server, an https: URL or a data:image/ URL, not '$logo'."
     }
-    val login = pluginConfig.login.path?.trim()?.takeIf { it.isNotEmpty() }?.let { loginPath ->
-        require(loginPath.startsWith("/") && !loginPath.startsWith("//")) {
-            "The login path must be a path on this server, such as /auth/login, not '$loginPath': passwords stay on this server."
-        }
-        val fields = with(pluginConfig.login) { listOf(usernameField, passwordField, tokenField) }
-        require(fields.all { it.isNotBlank() }) { "The login's field names can't be blank." }
-        with(pluginConfig.login) { ShellLogin(loginPath, usernameField, usernameLabel, passwordField, tokenField) }
+    val login = loginOf(pluginConfig.login, problems)
+    val provider = providerOf(pluginConfig.firebase, pluginConfig.oidc, problems)
+    check(login == null || provider == null) {
+        "Sign in through the login route or through an identity provider, not both: set login.path or a provider."
     }
     val siteLink = pluginConfig.siteLink?.also { link ->
-        require(link.label.isNotBlank() && link.label.length <= 40) { "The site link needs a label of 1 to 40 characters." }
-        require(isSafeLinkUrl(link.url)) {
+        check(link.label.isNotBlank() && link.label.length <= 40) { "The site link needs a label of 1 to 40 characters." }
+        check(isSafeLinkUrl(link.url)) {
             "The site link must be a path starting with '/' or an http or https address, with no spaces, not '${link.url}'."
         }
     }
+    require(problems.isEmpty()) { "BaseKtAdminUi's settings are not valid:\n" + problems.joinToString("\n") { "- $it" } }
     val shell = ShellConfig(
         path = path,
         apiPath = apiPath,
@@ -172,6 +261,7 @@ public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplica
         brand = ShellBrand(pluginConfig.brand.name, logo),
         defaultMode = pluginConfig.defaultMode,
         login = login,
+        provider = provider,
         siteLink = siteLink,
     )
     val entry = PanelAssets.load(application.environment.classLoader)
@@ -202,6 +292,72 @@ public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplica
         app.log.info("BaseKt admin panel serves $path, reading the admin API at $apiPath")
     }
 }
+
+/** The login route as the panel sees it, or `null` without one; adds what is wrong with it to [problems]. */
+private fun loginOf(config: LoginConfig, problems: MutableList<String>): ShellLogin? {
+    val loginPath = config.path?.trim()?.takeIf { it.isNotEmpty() }
+    val refreshPath = config.refreshPath?.trim()?.takeIf { it.isNotEmpty() }
+    if (loginPath == null) {
+        if (refreshPath != null) problems += "The login's refreshPath needs a login path: the refresh token comes from the login route."
+        return null
+    }
+    if (!isServerPath(loginPath)) {
+        problems += "The login path must be a path on this server, such as /auth/login, not '$loginPath': passwords stay on this server."
+    }
+    if (refreshPath != null && !isServerPath(refreshPath)) {
+        problems += "The login's refreshPath must be a path on this server, such as /auth/refresh, not '$refreshPath': refresh tokens stay on this server."
+    }
+    val fields = with(config) { listOf(usernameField, passwordField, tokenField, refreshTokenField, expiresInField) }
+    if (fields.any { it.isBlank() }) problems += "The login's field names can't be blank."
+    return with(config) {
+        ShellLogin(loginPath, usernameField, usernameLabel, passwordField, tokenField, refreshPath, refreshTokenField, expiresInField)
+    }
+}
+
+/** The identity provider as the panel sees it, or `null` without one; adds what is wrong with it to [problems]. */
+private fun providerOf(firebase: FirebaseSignInConfig, oidc: OidcSignInConfig, problems: MutableList<String>): ShellProvider? {
+    val apiKey = firebase.apiKey?.trim()?.takeIf { it.isNotEmpty() }
+    val issuer = oidc.issuer?.trim()?.takeIf { it.isNotEmpty() }
+    if (apiKey != null && issuer != null) {
+        problems += "Choose one identity provider: Firebase (firebase.apiKey) or OpenID Connect (oidc.issuer), not both."
+    }
+    if (apiKey != null) {
+        val authDomain = firebase.authDomain?.trim().orEmpty()
+        if (!hostName.matches(authDomain)) {
+            problems += "Firebase needs its authDomain, a host name such as my-project.firebaseapp.com, not '$authDomain'."
+        }
+        if (firebase.providers.isEmpty()) problems += "Firebase needs at least one provider, such as password or google.com."
+        firebase.providers.filterNot { firebaseProviderId.matches(it) }.forEach {
+            problems += "'$it' is not a Firebase provider id: use one such as password, google.com, oidc.<name> or saml.<name>."
+        }
+        return ShellFirebase(apiKey, authDomain, firebase.projectId?.trim()?.takeIf { it.isNotEmpty() }, firebase.providers)
+    }
+    if (issuer != null) {
+        if (!isIssuerUrl(issuer)) {
+            problems += "The OIDC issuer must be an https URL (http only on localhost), not '$issuer'."
+        }
+        val clientId = oidc.clientId?.trim().orEmpty()
+        if (clientId.isEmpty()) problems += "OpenID Connect needs the panel's clientId at the issuer."
+        if ("openid" !in oidc.scopes) problems += "The OIDC scopes must include openid, for the ID token the panel sends."
+        if (oidc.scopes.any { it.isBlank() || it.any(Char::isWhitespace) }) problems += "An OIDC scope can't be blank or hold spaces."
+        if (oidc.label.isBlank() || oidc.label.length > 40) problems += "The OIDC label must be 1 to 40 characters."
+        return ShellOidc(issuer.trimEnd('/'), clientId, oidc.scopes, oidc.label)
+    }
+    return null
+}
+
+private fun isServerPath(path: String): Boolean =
+    path.startsWith("/") && !path.startsWith("//") && path.none { it <= ' ' || it == '\\' }
+
+private fun isIssuerUrl(url: String): Boolean {
+    if (url.any { it <= ' ' } || '?' in url || '#' in url) return false
+    if (url.startsWith("https://")) return url.length > "https://".length
+    val host = url.removePrefix("http://").substringBefore('/').substringBefore(':')
+    return url.startsWith("http://") && host in setOf("localhost", "127.0.0.1")
+}
+
+private val hostName = Regex("[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*(:[0-9]{1,5})?")
+private val firebaseProviderId = Regex("password|[a-z0-9-]+(\\.[a-z0-9-]+)+")
 
 private suspend fun RoutingContext.respondShell(config: ShellConfig, entry: PanelAssets.Entry) {
     call.response.header(HttpHeaders.CacheControl, "no-cache")
