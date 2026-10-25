@@ -23,6 +23,7 @@ install(BaseKt) {
 
 - `PrincipalRoles.jwt(attributeClaims = listOf("clinic"))` reads [record scope](https://basekt.github.io/basekt/permissions/) attributes from claims.
 - `bearerIdentities("keys") { token -> ... }` takes fixed API keys.
+- Roles kept on the server, such as an operator list in configuration, go on with `AuthIdentities("jwt").withServerRoles(...)` from basekt-server; see [Roles from the server](https://basekt.github.io/basekt/permissions/#roles-from-the-server).
 
 ## Documentation
 

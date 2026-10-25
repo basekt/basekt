@@ -232,7 +232,7 @@ export interface ApiError {
   requestId: string | null;
 }
 
-export type ErrorCode = "bad_request" | "invalid_query" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "payload_too_large" | "unsupported_type" | "validation_failed" | "rejected" | "not_implemented" | "internal_error";
+export type ErrorCode = "bad_request" | "invalid_query" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "payload_too_large" | "unsupported_type" | "validation_failed" | "rejected" | "not_implemented" | "internal_error" | "unavailable";
 
 export interface FieldError {
   field: string;

@@ -64,13 +64,21 @@ public enum class ErrorCode(
 
     /** Something failed on the server. The server logged it with [ApiError.requestId]. */
     @SerialName("internal_error") INTERNAL_ERROR(500),
+
+    /** Something the server depends on, such as a lookup of the caller's roles, failed. Try again later. */
+    @SerialName("unavailable") UNAVAILABLE(503),
 }
 
-/** Thrown by [ResourceService] to answer a request with [error]. */
-public class ApiException(
+/**
+ * Thrown by [ResourceService] to answer a request with [error]. A [cause] is logged with server errors and never
+ * sent to the client.
+ */
+public class ApiException @JvmOverloads constructor(
     /** The error to send. */
     public val error: ApiError,
-) : RuntimeException(error.message) {
-    /** Creates an exception for an error with no field details. */
-    public constructor(code: ErrorCode, message: String) : this(ApiError(code, message))
+    cause: Throwable? = null,
+) : RuntimeException(error.message, cause) {
+    /** Creates an exception for an error with no field details, caused by [cause] if it has one. */
+    @JvmOverloads
+    public constructor(code: ErrorCode, message: String, cause: Throwable? = null) : this(ApiError(code, message), cause)
 }

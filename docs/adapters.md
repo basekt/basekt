@@ -181,6 +181,9 @@ install(BaseKt) {
 With JWTs, `PrincipalRoles.jwt(attributeClaims = listOf("clinic"))` reads [scope](permissions.md#record-scopes)
 attributes from claims, and `JwtSettings.issue` writes them.
 
+Roles that live on the server, in configuration or in records, are added after authentication with
+`identities = AuthIdentities("jwt").withServerRoles(...)`; see [Roles from the server](permissions.md#roles-from-the-server).
+
 ### Several providers
 
 `AuthIdentities` takes several providers and tries them in order, so one route can accept people and machines. The

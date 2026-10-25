@@ -54,7 +54,7 @@ public suspend fun ApplicationCall.answeringErrors(block: suspend () -> Unit) {
     } catch (e: CancellationException) {
         throw e
     } catch (e: ApiException) {
-        if (e.error.error.status >= 500) application.log.warn("BaseKt request $requestId: ${describe()} answered ${e.error.error.name.lowercase()}: ${e.message}")
+        if (e.error.error.status >= 500) application.log.warn("BaseKt request $requestId: ${describe()} answered ${e.error.error.name.lowercase()}: ${e.message}", e.cause)
         if (!response.isCommitted) respondError(e.error)
     } catch (e: BadRequestException) {
         if (!response.isCommitted) respondError(ApiError(ErrorCode.BAD_REQUEST, "The request is malformed."))
