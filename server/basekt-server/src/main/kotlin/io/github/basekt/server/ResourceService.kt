@@ -221,6 +221,8 @@ public class ResourceService(
         val run = ActionRun(resource, name, id, input)
         val origin = Origin.of(caller, run)
         val answer = dataSource.transaction { tx ->
+            // A source may run the block again after a conflict: only the last run's changes are reported.
+            changes.clear()
             val record = id?.let { writable(tx, resource, Operation.UPDATE, caller, it) }
             checkReferences(tx, inputResource, input)
             val state = transition?.let { checkState(resource, it, id!!, record!!) }

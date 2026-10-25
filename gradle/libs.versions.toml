@@ -10,6 +10,7 @@ postgresql = "42.7.14"
 testcontainers = "2.0.5"
 mongodb = "5.13.0"
 embed-mongo = "5.0.0"
+firestore = "3.49.0"
 logback = "1.5.18"
 vanniktech-publish = "0.37.0"
 jetbrains-markdown = "0.7.14"
@@ -42,7 +43,9 @@ exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "e
 h2 = { module = "com.h2database:h2", version.ref = "h2" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 mongodb-driver-kotlin-coroutine = { module = "org.mongodb:mongodb-driver-kotlin-coroutine", version.ref = "mongodb" }
+google-cloud-firestore = { module = "com.google.cloud:google-cloud-firestore", version.ref = "firestore" }
 embed-mongo = { module = "de.flapdoodle.embed:de.flapdoodle.embed.mongo", version.ref = "embed-mongo" }
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+testcontainers-gcloud = { module = "org.testcontainers:testcontainers-gcloud", version.ref = "testcontainers" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }

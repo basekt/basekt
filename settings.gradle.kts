@@ -23,6 +23,7 @@ include(
     ":server:basekt-data-memory",
     ":server:basekt-data-exposed",
     ":server:basekt-data-mongo",
+    ":server:basekt-data-firestore",
     ":server:basekt-auth",
     ":server:basekt-storage",
     ":server:basekt-storage-memory",
