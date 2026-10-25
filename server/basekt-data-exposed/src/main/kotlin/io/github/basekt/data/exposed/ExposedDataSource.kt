@@ -7,6 +7,7 @@ import io.github.basekt.data.ConditionalUpdate
 import io.github.basekt.data.ConditionalWrites
 import io.github.basekt.data.Counting
 import io.github.basekt.data.CursorCodec
+import io.github.basekt.data.DataException
 import io.github.basekt.data.DataSource
 import io.github.basekt.data.DuplicateIdException
 import io.github.basekt.data.Filter
@@ -16,7 +17,6 @@ import io.github.basekt.data.Sequencing
 import io.github.basekt.data.checkAggregate
 import io.github.basekt.data.checkConditionalUpdate
 import io.github.basekt.data.checkQuery
-import io.github.basekt.data.fieldType
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
@@ -32,7 +32,6 @@ import org.jetbrains.exposed.v1.core.QueryParameter
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.plus
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
@@ -48,7 +47,8 @@ import java.util.concurrent.atomic.AtomicLong
 
 /**
  * A [DataSource] over Exposed and JDBC, for Postgres, MySQL, H2 and the other databases Exposed supports. Each
- * resource of [schema] is a table laid out by [mapping]; call [createTables] once to create the missing ones.
+ * resource of [schema] is a table laid out by [mapping], or an existing table it maps with a [MappedTable]; call
+ * [createTables] once to create the missing ones.
  *
  * - Every call outside [transaction] is its own database transaction, run on [dispatcher].
  * - [list] is one query: filters become `WHERE` clauses, and the cursor becomes a keyset condition on the sort
@@ -82,19 +82,20 @@ public class ExposedDataSource(
 
     init {
         schema.requireValid()
-        mapping.check(schema)
+        val problems = mapping.problems(schema, counterTable.tableName)
+        require(problems.isEmpty()) { "The table mapping doesn't fit the schema:\n" + problems.joinToString("\n") { "- $it" } }
         tables = schema.resources.associate { it.name to ResourceTable(it, mapping) }
-        require(tables.values.none { it.tableName == counterTable.tableName }) {
-            "A resource's table can't be called '${counterTable.tableName}': the sequences are kept there."
-        }
     }
+
+    /** The tables BaseKt lays out and may change: every one but the mapped ones. */
+    private val ownTables: List<Table> get() = tables.values.filter { it.mapped == null } + counterTable
 
     /**
      * Creates the tables and indexes that don't exist yet. Existing tables are left as they are; [migrate] also
-     * brings them up to the schema.
+     * brings them up to the schema. A [MappedTable] is never created.
      */
     public suspend fun createTables() {
-        run { SchemaUtils.create(*tables.values.toTypedArray(), counterTable) }
+        run { SchemaUtils.create(*ownTables.toTypedArray()) }
     }
 
     /**
@@ -108,17 +109,23 @@ public class ExposedDataSource(
      * - it never drops, renames or narrows a column, nor changes its type. A column no field has any more is listed in
      *   [MigrationReport.notes] and kept with its data. Renaming a field is a new column; copying the old one's
      *   values over is the application's to do.
+     * - it never creates or changes a [MappedTable]. It compares each with the schema instead, and lists in
+     *   [MigrationReport.notes] what doesn't match: a missing table or column, another primary key, a column of a
+     *   type the mapping can't read, a nullable column for a required field, or a column without a default that an
+     *   optional field leaves null.
      */
     public suspend fun migrate(): MigrationReport = withContext(dispatcher) {
         suspendTransaction(database) {
             maxAttempts = 1
-            migrate(tables.values.toList() + counterTable)
+            val report = migrate(ownTables)
+            val mapped = tables.values.filter { it.mapped != null }
+            if (mapped.isEmpty()) report else report.copy(notes = report.notes + compareMapped(mapped))
         }
     }
 
-    /** Drops every table of the schema. For tests. */
+    /** Drops every table of the schema but the mapped ones. For tests. */
     internal suspend fun dropTables() {
-        run { SchemaUtils.drop(*tables.values.toTypedArray(), counterTable) }
+        run { SchemaUtils.drop(*ownTables.toTypedArray()) }
     }
 
     override suspend fun get(resource: Resource, id: String): Record? = run { it.get(resource, id) }
@@ -165,17 +172,22 @@ public class ExposedDataSource(
     private fun table(resource: Resource): ResourceTable =
         tables[resource.name] ?: throw IllegalArgumentException("'${resource.name}' is not in this source's schema.")
 
+    /** Returns [resource]'s table, or throws [ReadOnlyTableException] if it may not be written. */
+    private fun writable(resource: Resource): ResourceTable =
+        table(resource).also { if (it.readOnly) throw ReadOnlyTableException(resource.name, it.tableName) }
+
     /** The calls of one open transaction [tx]. */
     private inner class Session(private val tx: JdbcTransaction) : DataSource, Counting, Sequencing, ConditionalWrites {
         override suspend fun get(resource: Resource, id: String): Record? {
             val table = table(resource)
-            return table.selectAll().where(table.id eq id).firstOrNull()?.let(table::toRecord)
+            val matching = table.idIs(id) ?: return null
+            return table.selectAll().where(matching).firstOrNull()?.let(table::toRecord)
         }
 
         override suspend fun getMany(resource: Resource, ids: Collection<String>): Map<String, Record> {
             if (ids.isEmpty()) return emptyMap()
             val table = table(resource)
-            return table.selectAll().where(table.id inList ids.distinct())
+            return table.selectAll().where(table.idIn(ids))
                 .map(table::toRecord)
                 .associateBy { (it[Resource.ID] as Value.Text).value }
         }
@@ -205,28 +217,42 @@ public class ExposedDataSource(
         }
 
         override suspend fun create(resource: Resource, record: Record): Record {
-            val table = table(resource)
-            val id = (record[Resource.ID] as Value.Text?)?.value ?: newId()
+            val table = writable(resource)
+            val given = (record[Resource.ID] as Value.Text?)?.value
+            if (table.generated && given != null) {
+                throw DataException("The database makes the ids of '${resource.name}', so a create can't give one.")
+            }
+            val id = when {
+                table.generated -> null
+                // The key fields' columns are the key, so the id is theirs whatever the record says.
+                table.composite -> resource.id.keyOf(record)
+                    ?: throw DataException("A record of '${resource.name}' needs a value in each of ${resource.id.key.joinToString(" and ")}, its key.")
+                else -> given ?: newId()
+            }
             // A failed statement aborts a Postgres transaction, so a duplicate id is caught at a savepoint.
-            savepoint {
+            val made = savepoint {
                 try {
-                    table.insert { row ->
-                        row[table.id] = id
-                        for (field in resource.fields) row[table.column(field.name)] = record[field.name]?.toColumn(field.type)
+                    val statement = table.insert { row ->
+                        if (id != null) table.setId(row, id)
+                        for (field in resource.fields) table.set(row, field.name, record[field.name])
                     }
+                    id ?: table.keyStored.single().text(statement[table.keyColumns.single()]!!)
                 } catch (e: SQLException) {
-                    throw DuplicateIdException(resource.name, id).takeIf { e.isConstraintViolation() } ?: e
+                    // A generated key is never a duplicate, so a violation there is of another constraint of the table.
+                    if (id == null || !e.isConstraintViolation()) throw e
+                    throw DuplicateIdException(resource.name, id)
                 }
             }
-            return get(resource, id)!!
+            return get(resource, made)!!
         }
 
         override suspend fun update(resource: Resource, id: String, changes: Record): Record? {
-            val table = table(resource)
+            val table = writable(resource)
+            val matching = table.idIs(id) ?: return null
             val fields = resource.fields.filter { it.name in changes }
             if (fields.isNotEmpty()) {
-                val updated = table.update({ table.id eq id }) { row ->
-                    for (field in fields) row[table.column(field.name)] = changes[field.name]?.toColumn(field.type)
+                val updated = table.update({ matching }) { row ->
+                    for (field in fields) table.set(row, field.name, changes[field.name])
                 }
                 if (updated == 0) return null
             }
@@ -234,8 +260,9 @@ public class ExposedDataSource(
         }
 
         override suspend fun delete(resource: Resource, id: String): Boolean {
-            val table = table(resource)
-            return table.deleteWhere { table.id eq id } > 0
+            val table = writable(resource)
+            val matching = table.idIs(id) ?: return false
+            return table.deleteWhere { matching } > 0
         }
 
         override suspend fun <T> transaction(block: suspend (DataSource) -> T): T = savepoint { block(this) }
@@ -249,18 +276,19 @@ public class ExposedDataSource(
             increments: Map<String, Value>,
         ): ConditionalUpdate {
             resource.checkConditionalUpdate(condition, changes, increments)
-            val table = table(resource)
-            val matching = condition?.let { (table.id eq id) and predicate(table, it) } ?: (table.id eq id)
+            val table = writable(resource)
+            val row = table.idIs(id) ?: return ConditionalUpdate.NotFound
+            val matching = condition?.let { row and predicate(table, it) } ?: row
             val fields = resource.fields.filter { it.name in changes }
             val written = if (fields.isEmpty() && increments.isEmpty()) {
                 table.selectAll().where(matching).count().toInt()
             } else {
-                table.update({ matching }) { row ->
-                    for (field in fields) row[table.column(field.name)] = changes[field.name]?.toColumn(field.type)
+                table.update({ matching }) { statement ->
+                    for (field in fields) table.set(statement, field.name, changes[field.name])
                     for ((name, amount) in increments) {
                         val column = table.column(name)
                         val type = column.columnType as IColumnType<Any>
-                        row[column] = PlusOp(column, QueryParameter(amount.toColumn(resource.fieldType(name)), type), type)
+                        statement[column] = PlusOp(column, QueryParameter(table.stored(name).toColumn(amount)!!, type), type)
                     }
                 }
             }
@@ -314,6 +342,14 @@ private class SequenceTable(prefix: String) : Table(prefix + "basekt_sequences")
         const val NAME_LENGTH = 200
     }
 }
+
+/** A write to a resource whose [MappedTable] is [read-only][MappedTable.readOnly]. */
+public class ReadOnlyTableException(
+    /** The resource's name. */
+    public val resource: String,
+    /** The table's name. */
+    public val table: String,
+) : DataException("'$resource' is kept in the read-only table '$table', so it can't be written.")
 
 /** Whether this is an integrity constraint violation (SQLSTATE class 23), such as a duplicate primary key. */
 private fun SQLException.isConstraintViolation(): Boolean =
