@@ -29,21 +29,25 @@ Gradle re-checks a snapshot every 24 hours; `--refresh-dependencies` forces it. 
 ## Cutting a release
 
 1. Make sure `main` is green.
-2. Tag the commit and push the tag:
+2. Start the release in one of two ways:
+   - **By hand:** GitHub → Actions → **Release** → Run workflow, on `main`, with the version (such as `0.4.0`). The
+     workflow refuses a version whose tag already exists, and it tags the commit it built only after the upload
+     worked, so a failed run leaves no tag behind.
+   - **With a tag:** tag the commit and push the tag:
 
-   ```bash
-   git tag -a v0.1.0 -m v0.1.0
-   git push origin v0.1.0
-   ```
+     ```bash
+     git tag -a v0.1.0 -m v0.1.0
+     git push origin v0.1.0
+     ```
 
 3. The **Release** workflow builds and tests, publishes every module to Maven Central, releases the deployment, and
    creates the GitHub release with generated notes. A tag like `v0.2.0-rc.1` is published the same way and marked as
    a pre-release on GitHub.
 4. Artifacts reach `repo1.maven.org` within about 30 minutes of the workflow finishing.
 
-The version comes from the tag. `gradle.properties` keeps `basekt.version` at the next `-SNAPSHOT` for local builds.
-A version can't be published to Maven Central twice. If a release fails after the upload, fix it and tag the next
-patch version.
+The version comes from the tag, or from the version a run by hand is given. `gradle.properties` keeps
+`basekt.version` at the next `-SNAPSHOT` for local builds. A version can't be published to Maven Central twice. If a
+release fails after the upload, fix it and release the next patch version.
 
 ## Trying it locally
 
