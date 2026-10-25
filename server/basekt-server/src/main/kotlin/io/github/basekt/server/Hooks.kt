@@ -101,6 +101,8 @@ public data class Updated(
  * - Before-hooks run in the write's transaction, after the caller's permission and the input's validation are
  *   checked. Each may modify the input it passes on, or veto the write. Modified input is validated again.
  * - After-hooks run in the same transaction once the write is done. If one throws, the write is rolled back.
+ * - After-commit hooks run once the transaction committed, once for each record written, and never for a write that
+ *   rolled back. If one throws, the failure is logged with the request id and the write stands.
  * - Several hooks on the same resource and moment run in the order they were declared.
  */
 public class Hooks internal constructor(
@@ -110,10 +112,12 @@ public class Hooks internal constructor(
     internal val afterUpdate: Map<String, List<suspend HookContext.(Updated) -> Unit>>,
     internal val beforeDelete: Map<String, List<suspend HookContext.(Deletion) -> Verdict<Unit>>>,
     internal val afterDelete: Map<String, List<suspend HookContext.(Record) -> Unit>>,
+    internal val afterCommit: Map<String, List<suspend CommitContext.(Committed<Record>) -> Unit>> = emptyMap(),
 ) {
     /** The resources that hooks name. */
     internal val resources: Set<String> =
-        beforeCreate.keys + afterCreate.keys + beforeUpdate.keys + afterUpdate.keys + beforeDelete.keys + afterDelete.keys
+        beforeCreate.keys + afterCreate.keys + beforeUpdate.keys + afterUpdate.keys + beforeDelete.keys + afterDelete.keys +
+            afterCommit.keys
 
     /** No hooks. */
     public companion object {
@@ -130,6 +134,7 @@ public class HooksBuilder {
     private val afterUpdate = mutableMapOf<String, MutableList<suspend HookContext.(Updated) -> Unit>>()
     private val beforeDelete = mutableMapOf<String, MutableList<suspend HookContext.(Deletion) -> Verdict<Unit>>>()
     private val afterDelete = mutableMapOf<String, MutableList<suspend HookContext.(Record) -> Unit>>()
+    private val afterCommit = mutableMapOf<String, MutableList<suspend CommitContext.(Committed<Record>) -> Unit>>()
     private val pending = mutableListOf<(List<Model<*>>) -> Unit>()
 
     /**
@@ -171,14 +176,38 @@ public class HooksBuilder {
         afterDelete.getOrPut(resource) { mutableListOf() } += hook
     }
 
+    /**
+     * Runs [hook] once for each record of [resource] that a write created, updated or deleted, after the write's
+     * transaction committed. It runs for writes from every transport, the writes of actions, and each record a delete
+     * cascades to or clears; it never runs for a write that rolled back, and it runs once even when the data source
+     * ran the transaction again after a conflict.
+     *
+     * It runs before the call is answered, outside the transaction. If it throws, the failure is logged with the
+     * call's [requestId] and the write stands: use it to tell other systems of a change, not to check one.
+     */
+    public fun afterCommit(resource: String, hook: suspend CommitContext.(change: Committed<Record>) -> Unit) {
+        afterCommit.getOrPut(resource) { mutableListOf() } += hook
+    }
+
     /** Returns the hooks declared so far. Typed hooks that name a class need [build] with the schema's models. */
     public fun build(): Hooks = build(emptyList())
 
-    /** Returns the hooks declared so far, resolving typed hooks declared by class against [models]. */
+    /**
+     * Returns the hooks declared so far, resolving typed hooks declared by class against [models]. Throws
+     * [IllegalStateException] listing every class that no model in [models] has.
+     */
     public fun build(models: List<Model<*>>): Hooks {
         val resolving = pending.toList()
         pending.clear()
-        resolving.forEach { it(models) }
+        val problems = resolving.mapNotNull { resolve ->
+            try {
+                resolve(models)
+                null
+            } catch (e: IllegalStateException) {
+                e.message
+            }
+        }.distinct()
+        check(problems.isEmpty()) { problems.singleOrNull() ?: problems.joinToString("\n", "Typed hooks name classes the schema doesn't declare:\n") { "- $it" } }
         return snapshot()
     }
 
@@ -189,5 +218,6 @@ public class HooksBuilder {
         afterUpdate.mapValues { it.value.toList() },
         beforeDelete.mapValues { it.value.toList() },
         afterDelete.mapValues { it.value.toList() },
+        afterCommit.mapValues { it.value.toList() },
     )
 }
