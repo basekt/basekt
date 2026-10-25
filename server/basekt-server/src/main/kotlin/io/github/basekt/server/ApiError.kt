@@ -44,6 +44,9 @@ public enum class ErrorCode(
     /** The resource, record or relation doesn't exist. */
     @SerialName("not_found") NOT_FOUND(404),
 
+    /** The resource is read-only, as a provided one is: its records can't be created, updated or deleted. */
+    @SerialName("read_only") READ_ONLY(405),
+
     /** The record's id is already taken. */
     @SerialName("conflict") CONFLICT(409),
 
@@ -65,7 +68,10 @@ public enum class ErrorCode(
     /** Something failed on the server. The server logged it with [ApiError.requestId]. */
     @SerialName("internal_error") INTERNAL_ERROR(500),
 
-    /** Something the server depends on, such as a lookup of the caller's roles, failed. Try again later. */
+    /**
+     * Something the server depends on, such as a lookup of the caller's roles or the provider of a provided
+     * resource, failed. Try again later.
+     */
     @SerialName("unavailable") UNAVAILABLE(503),
 }
 

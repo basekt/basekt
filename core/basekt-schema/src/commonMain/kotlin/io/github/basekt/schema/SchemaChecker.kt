@@ -64,6 +64,13 @@ internal object SchemaChecker {
             for (field in resource.fields) (field.auto as? Auto.Inherited)?.let { checkInherited(schema, resource, field, it, "$at.fields.${field.name}", ::problem) }
             resource.permissions.scopes.forEachIndexed { i, scope -> checkScope(resource, scope, "$at.permissions.scopes.$i", ::problem) }
             checkId(resource, "$at.id", ::problem)
+            if (resource.provided) checkProvided(resource, at, ::problem)
+            for (field in resource.fields) {
+                val target = field.target?.let { schema.resource(it) }
+                if (field.type == FieldType.REFERENCE && target?.provided == true) {
+                    problem("$at.fields.${field.name}", "'${target.name}' is provided by the application's code, so no reference field can point to it.")
+                }
+            }
         }
         return problems
     }
@@ -220,6 +227,25 @@ internal object SchemaChecker {
                     problem("$at.key", "'$name' changes on its own, so it can't be part of the key.")
                 field.hidden -> problem("$at.key", "'$name' is hidden, so it can't be part of an id the API shows.")
             }
+        }
+    }
+
+    /** Refuses what a resource whose records come from the application's code could never serve: anything written. */
+    private fun checkProvided(resource: Resource, at: String, problem: (String, String) -> Unit) {
+        val permissions = resource.permissions
+        for (operation in listOf(Operation.CREATE, Operation.UPDATE, Operation.DELETE)) {
+            if (permissions.of(operation) != Access.Nobody) {
+                problem("$at.permissions", "A provided resource is read-only, so it can't grant ${operation.name.lowercase()}.")
+            }
+        }
+        if (resource.workflow != null) problem("$at.workflow", "A provided resource is read-only, so it can't have a workflow.")
+        if (resource.reports.isNotEmpty()) problem("$at.reports", "A provided resource can't be aggregated, so it can't have reports.")
+        if (resource.id != IdSpec()) problem("$at.id", "A provided resource's ids come from its provider, so they take no source, rules or key.")
+        for (field in resource.fields) {
+            val path = "$at.fields.${field.name}"
+            if (field.auto != null) problem(path, "A provided resource is never written, so the server can't set its fields.")
+            if (field.unique) problem(path, "A provided resource is never written, so a field can't be unique.")
+            if (field.type == FieldType.FILE) problem(path, "A provided resource is never written, so it can't have a file field.")
         }
     }
 

@@ -86,6 +86,18 @@ public class BaseKtConfig internal constructor(config: ApplicationConfig) {
 
     internal fun builtActions(): Actions = actionBuilder.build()
 
+    private val providerBuilder = ProvidersBuilder()
+
+    /**
+     * Registers the code that serves the schema's provided resources. Every provided resource needs a provider, and a
+     * provider needs a provided resource. See [RecordProvider].
+     */
+    public fun providers(block: ProvidersBuilder.() -> Unit) {
+        providerBuilder.apply(block)
+    }
+
+    internal fun builtProviders(): Map<String, RecordProvider> = providerBuilder.build()
+
     /**
      * The typed resources of the schema, which repositories and typed hooks find by class. [resources] fills it;
      * add models here yourself when you set [schema] directly.
@@ -147,6 +159,9 @@ public val BaseKtStarted: EventDefinition<BaseKtRuntime> = EventDefinition()
  * - `POST /{resource}`: create a record; `GET`, `PATCH` and `DELETE /{resource}/{id}`: one record;
  * - `GET /{resource}/{id}/{relation}`: the record it belongs to, or the records that belong to it.
  *
+ * A provided resource's records come from the provider registered in [BaseKtConfig.providers], and its writes are
+ * refused with [ErrorCode.READ_ONLY].
+ *
  * Every operation checks the resource's permissions against the caller's roles from
  * [BaseKtConfig.identities]. Errors are [ApiError] JSON bodies. Every call of the application gets a [requestId], sent
  * back in [BaseKtConfig.requestIdHeader] and in error bodies, and server errors are logged with it.
@@ -174,7 +189,7 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     val requestIdHeader = pluginConfig.requestIdHeader
     require(requestIdHeader.isNotBlank()) { "requestIdHeader can't be blank." }
 
-    val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock, pluginConfig.builtActions(), application.log)
+    val service = ResourceService(schema, dataSource, validators, pluginConfig.builtHooks(), pluginConfig.clock, pluginConfig.builtActions(), application.log, pluginConfig.builtProviders())
     val runtime = BaseKtRuntime(schema, dataSource, service, pluginConfig.identities, basePath, pluginConfig.models.toList(), pluginConfig.clock, pluginConfig.maxAggregateGroups, defaultPageSize, maxPageSize, requestIdHeader)
     application.attributes.put(RuntimeKey, runtime)
     application.routing { withIdentities(runtime.identities) { baseKtRoutes(runtime, defaultPageSize, maxPageSize) } }

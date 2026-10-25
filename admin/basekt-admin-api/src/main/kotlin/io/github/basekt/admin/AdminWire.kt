@@ -14,6 +14,7 @@ import io.github.basekt.schema.ReportOrder
 import io.github.basekt.schema.ReportRange
 import io.github.basekt.schema.Rule
 import io.github.basekt.schema.TimeBucket
+import io.github.basekt.server.FilterOperator
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -78,6 +79,25 @@ public data class AdminResource(
     val links: List<AdminLink> = emptyList(),
     /** Where record ids come from: a panel asks for one on create when the client chooses it. */
     val id: AdminId = AdminId(),
+    /**
+     * Whether the records come from the application's own code rather than the data source, so no one may create,
+     * update or delete them, whatever their roles. A panel shows no edit controls; actions still run.
+     */
+    val readOnly: Boolean = false,
+    /**
+     * The filters a list accepts, by field, when they are fewer than every operator that suits each field, as a
+     * provided resource's are; `null` when every field takes every operator its type allows.
+     */
+    val filters: List<AdminFilter>? = null,
+)
+
+/** A field a list may be filtered on, and the operators it takes. See [AdminResource.filters]. */
+@Serializable
+public data class AdminFilter(
+    /** The field's name, or `id`. */
+    val field: String,
+    /** The operators it takes, as in `{field}[{operator}]={value}`. */
+    val operators: List<FilterOperator>,
 )
 
 /**

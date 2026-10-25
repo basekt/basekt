@@ -157,6 +157,16 @@ The other direction, from a page of your site to the panel, is a plain link to `
 `/admin/r/lessons/quadratics`. The panel asks for sign-in if the visitor isn't, and only the app knows who may see the
 link.
 
+## Live, read-only resources
+
+A resource served by the application's own code, such as [live data](schema.md#live-data-from-your-own-code), comes in
+the admin API's `/schema` with `"readOnly": true`, only the `read` operation, and `filters`: each field a list may
+be filtered on and the operators it takes. Its `sortable` and `searchable` fields are the ones its provider can sort
+and search. The panel lists it with a **Read-only** badge and no New, edit, delete or bulk delete; its filter menu
+offers only those fields and operators, and only those columns sort. Its actions are buttons as on any record, and
+the list shows no total, since a provider pages its records without counting them. A resource whose fields take
+every operator their type allows has `"filters": null`.
+
 ## Markdown fields
 
 A [Markdown field](rich-text.md#the-admin-panels-editor) is edited with a visual editor and a formula menu.

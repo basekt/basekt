@@ -17,6 +17,8 @@ import io.github.basekt.server.ApiError
 import io.github.basekt.server.ApiException
 import io.github.basekt.server.BaseKtRuntime
 import io.github.basekt.server.ErrorCode
+import io.github.basekt.server.FilterOperator
+import io.github.basekt.server.RecordProvider
 import io.github.basekt.server.Identity
 import io.github.basekt.server.answeringErrors
 import io.github.basekt.server.parseAggregateQuery
@@ -56,7 +58,7 @@ internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) 
                 get {
                     handle(runtime) { caller ->
                         val resource = resource(runtime)
-                        val query = query(resource, settings.defaultPageSize, settings.maxPageSize)
+                        val query = query(runtime, resource, settings.defaultPageSize, settings.maxPageSize)
                         val page = service.list(resource, caller, query)
                         val scope = service.scopeFilter(resource, Operation.READ, caller)
                         val counted = listOfNotNull(query.filter, scope).let { if (it.size > 1) Filter.And(it) else it.firstOrNull() }
@@ -115,7 +117,7 @@ internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) 
                             deleted += id
                         } catch (e: ApiException) {
                             // Permissions are per resource: if the first id is refused, every id would be.
-                            if (e.error.error == ErrorCode.UNAUTHORIZED || e.error.error == ErrorCode.FORBIDDEN) throw e
+                            if (e.error.error in perResource) throw e
                             failed += BulkFailure(id, e.error)
                         }
                     }
@@ -127,7 +129,7 @@ internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) 
                     val resource = resource(runtime)
                     val parameters = call.request.queryParameters.toMap()
                     var query = parseAggregateQuery(resource, parameters - SEARCH, runtime.maxAggregateGroups)
-                    search(resource, parameters)?.let { search -> query = query.copy(filter = query.filter?.let { Filter.And(listOf(it, search)) } ?: search) }
+                    search(resource, service.provider(resource), parameters)?.let { search -> query = query.copy(filter = query.filter?.let { Filter.And(listOf(it, search)) } ?: search) }
                     val page = service.aggregate(resource, caller, query)
                     val groups = page.groups.map { group ->
                         AdminAggregateGroup(
@@ -154,6 +156,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
         val actions = resource.runnableActions.filter { it.access.allows(roles) }
         if (operations.isEmpty() && actions.isEmpty()) return@mapNotNull null
         val scoped = runtime.service.scopedValues(resource, Operation.CREATE, caller)
+        val provider = runtime.service.provider(resource)
         AdminResource(
             name = resource.name,
             fields = resource.visibleFields().map { it.toAdmin(scoped[it.name]) },
@@ -164,8 +167,8 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
                 }
             },
             operations = operations,
-            searchable = resource.searchable(),
-            sortable = listOf(Resource.ID) + resource.visibleFields().map { it.name },
+            searchable = resource.searchable(provider),
+            sortable = (listOf(Resource.ID) + resource.visibleFields().map { it.name }).filter { provider == null || it in provider.sorts },
             group = resource.group,
             reports = if (Operation.READ in operations) resource.reports.map { it.toAdmin() } else emptyList(),
             links = if (Operation.READ in operations) resource.adminLinks else emptyList(),
@@ -176,6 +179,12 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
                     action.name, action.target, action.input.map { it.toAdmin(null) }, action.confirm,
                     stateField = transition?.let { resource.workflow!!.field }, from = transition?.from,
                 )
+            },
+            readOnly = resource.provided,
+            filters = provider?.let { declared ->
+                (listOf(Resource.ID) + resource.visibleFields().map { it.name }).mapNotNull { field ->
+                    declared.filters[field]?.takeIf { it.isNotEmpty() }?.let { AdminFilter(field, it.sorted()) }
+                }
             },
         )
     }
@@ -200,18 +209,22 @@ private fun Field.toAdmin(scopedValues: Set<String>?): AdminField =
 /** The fields a panel may show: the ones that aren't [Field.hidden]. */
 private fun Resource.visibleFields(): List<Field> = fields.filterNot { it.hidden }
 
-private fun Resource.searchable(): List<String> =
+/** The text fields that `search` looks in: for a provided resource, the ones its [provider] can search. */
+private fun Resource.searchable(provider: RecordProvider?): List<String> =
     visibleFields().filter { it.type == FieldType.STRING || it.type == FieldType.ENUM }.map { it.name }
+        .filter { provider == null || FilterOperator.CONTAINS in provider.filters[it].orEmpty() }
 
 /** Parses the list parameters: BaseKt's filters, sort, limit and cursor, plus `search` over the searchable fields. */
-private fun RoutingContext.query(resource: Resource, defaultLimit: Int, maxLimit: Int): Query {
+private fun RoutingContext.query(runtime: BaseKtRuntime, resource: Resource, defaultLimit: Int, maxLimit: Int): Query {
     val parameters = call.request.queryParameters.toMap()
     val query = parseQuery(resource, parameters - SEARCH, defaultLimit, maxLimit)
-    val search = search(resource, parameters) ?: return query
+    val search = search(resource, runtime.service.provider(resource), parameters) ?: return query
     return query.copy(filter = query.filter?.let { Filter.And(listOf(it, search)) } ?: search)
 }
 
 private suspend fun count(runtime: BaseKtRuntime, resource: Resource, filter: Filter?): Long? {
+    // A provider pages its records but doesn't count them.
+    if (resource.provided) return null
     val counting = runtime.dataSource as? Counting ?: return null
     return try {
         counting.count(resource, filter)
@@ -222,7 +235,7 @@ private suspend fun count(runtime: BaseKtRuntime, resource: Resource, filter: Fi
 
 private suspend fun RoutingContext.exportCsv(runtime: BaseKtRuntime, settings: AdminSettings, caller: Identity?) {
     val resource = resource(runtime)
-    val first = query(resource, settings.maxPageSize, settings.maxPageSize).copy(limit = settings.maxPageSize, cursor = null)
+    val first = query(runtime, resource, settings.maxPageSize, settings.maxPageSize).copy(limit = settings.maxPageSize, cursor = null)
     // Read the first page before answering, so a refused or invalid export is an error, not a broken file.
     val firstPage = runtime.service.list(resource, caller, first)
     val total = count(runtime, resource, first.filter)
@@ -302,10 +315,13 @@ private suspend fun <T> RoutingContext.respondJson(serializer: KSerializer<T>, v
 
 private const val SEARCH = "search"
 
+/** The errors a bulk delete answers for all its ids at once: they hold for the resource, not one record. */
+private val perResource = setOf(ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN, ErrorCode.READ_ONLY)
+
 /** The condition the `search` parameter makes over the searchable fields, or `null` without one. */
-private fun search(resource: Resource, parameters: Map<String, List<String>>): Filter? {
+private fun search(resource: Resource, provider: RecordProvider?, parameters: Map<String, List<String>>): Filter? {
     val text = parameters[SEARCH]?.lastOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    val fields = resource.searchable()
+    val fields = resource.searchable(provider)
     if (fields.isEmpty()) throw ApiException(ErrorCode.INVALID_QUERY, "'${resource.name}' has no text fields to search.")
     return Filter.Or(fields.map { Filter.Contains(it, text) })
 }

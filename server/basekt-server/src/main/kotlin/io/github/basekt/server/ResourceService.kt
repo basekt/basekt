@@ -56,6 +56,10 @@ import kotlin.time.Instant
  * caller's read scope, a record outside it is not found, a record the caller may read but not write is forbidden, and
  * a write can't give a scoped field a value outside the caller's. A create that omits a scoped field gets the caller's
  * value when they have exactly one. Scopes check the caller's input; hooks and their [HookContext.data] are trusted.
+ *
+ * A [Resource.provided] resource's records come from its [RecordProvider] instead of the data source, with the same
+ * permissions, scopes and actions. Every write to one is refused with [ErrorCode.READ_ONLY], and a provider that fails
+ * answers [ErrorCode.UNAVAILABLE].
  */
 public class ResourceService(
     /** The schema whose resources are served. */
@@ -72,6 +76,8 @@ public class ResourceService(
     private val actions: Actions = Actions.None,
     /** Where the failures of after-commit hooks are logged. */
     private val log: Logger = KtorSimpleLogger("io.github.basekt.server.ResourceService"),
+    /** The code that serves each [Resource.provided] resource's records, by resource name. */
+    private val providers: Map<String, RecordProvider> = emptyMap(),
 ) {
     private val extensions = CopyOnWriteArrayList<WriteExtension>()
 
@@ -99,7 +105,13 @@ public class ResourceService(
         require(workflows.isEmpty() || dataSource is ConditionalWrites) {
             "The workflows of ${workflows.joinToString()} need a data source that offers ConditionalWrites."
         }
+        val problems = schema.providerProblems(providers) +
+            hooks.resources.filter { schema.resource(it)?.provided == true }.map { "Hooks name '$it', which is provided() and never written." }
+        require(problems.isEmpty()) { "The provided resources are not set up right:\n" + problems.joinToString("\n") { "- $it" } }
     }
+
+    /** Returns the provider of [resource], or `null` if its records live in the data source. */
+    public fun provider(resource: Resource): RecordProvider? = if (resource.provided) providers[resource.name] else null
 
     /** Adds [extension] to every later write. Modules call it when they are installed. */
     public fun extend(extension: WriteExtension) {
@@ -145,6 +157,7 @@ public class ResourceService(
     /** Lists records of [resource] that match [query], if [caller] may read them. */
     public suspend fun list(resource: Resource, caller: Identity?, query: Query): Page {
         authorize(resource, Operation.READ, caller)
+        provider(resource)?.let { return providedList(resource, it, caller, query) }
         return queried { dataSource.list(resource, query.narrowed(scopeFilter(resource, Operation.READ, caller))) }
     }
 
@@ -154,6 +167,7 @@ public class ResourceService(
      */
     public suspend fun aggregate(resource: Resource, caller: Identity?, query: AggregateQuery): AggregatePage {
         authorize(resource, Operation.READ, caller)
+        if (resource.provided) throw ApiException(ErrorCode.NOT_IMPLEMENTED, "'${resource.name}' is provided by the application's code, which can't compute aggregates.")
         val source = dataSource as? Aggregating
             ?: throw ApiException(ErrorCode.NOT_IMPLEMENTED, "This data source can't compute aggregates.")
         val scope = scopeFilter(resource, Operation.READ, caller)
@@ -169,6 +183,7 @@ public class ResourceService(
 
     /** Validates [body] and creates a record of [resource] from it, if [caller] may. */
     public suspend fun create(resource: Resource, caller: Identity?, body: JsonObject): Record {
+        refuseWrite(resource)
         authorize(resource, Operation.CREATE, caller)
         val decoded = decode(resource, scoped(resource, Operation.CREATE, caller, body), WriteMode.CREATE)
         val origin = Origin.of(caller)
@@ -179,6 +194,7 @@ public class ResourceService(
 
     /** Validates [body] and applies it to the record of [resource] with [id], if [caller] may. */
     public suspend fun update(resource: Resource, caller: Identity?, id: String, body: JsonObject): Record {
+        refuseWrite(resource)
         authorize(resource, Operation.UPDATE, caller)
         val input = decode(resource, scoped(resource, Operation.UPDATE, caller, body), WriteMode.UPDATE)
         val origin = Origin.of(caller)
@@ -198,6 +214,7 @@ public class ResourceService(
      * transaction. The caller's permission on this record covers those other writes.
      */
     public suspend fun delete(resource: Resource, caller: Identity?, id: String) {
+        refuseWrite(resource)
         authorize(resource, Operation.DELETE, caller)
         val origin = Origin.of(caller)
         val changes = dataSource.transaction { tx ->
@@ -212,6 +229,7 @@ public class ResourceService(
      *
      * The caller needs the action's access, and the record must be in their update scope. The input is checked like
      * a record. The action's code runs in one transaction, and the extensions learn of its writes once it commits.
+     * On a [Resource.provided] resource, the record comes from its provider, and the action writes other resources.
      */
     public suspend fun run(resource: Resource, name: String, caller: Identity?, id: String?, body: JsonObject): JsonObject? {
         val transition = resource.transition(name)
@@ -252,27 +270,34 @@ public class ResourceService(
         }
         changes.forEach { committed(it, origin) }
         if (answer != null || id == null) return answer
-        return resource.encodeRecord(dataSource.get(resource, id) ?: throw notFound(resource, id))
+        val provider = provider(resource)
+        val after = if (provider == null) dataSource.get(resource, id) else providedGet(resource, provider, id)
+        return resource.encodeRecord(after ?: throw notFound(resource, id))
     }
 
     /** Creates [record] in [tx] for trusted code, such as an action: every write step but permissions and scopes. */
     internal suspend fun trustedCreate(tx: DataSource, resource: Resource, origin: Origin, record: Record): Record {
+        refuseWrite(resource)
         revalidate(resource, record, WriteMode.CREATE)
         return createIn(tx, resource, origin, record)
     }
 
     /** Applies [changes] in [tx] for trusted code. Returns the record before and after. */
     internal suspend fun trustedUpdate(tx: DataSource, resource: Resource, origin: Origin, id: String, changes: Record): Pair<Record, Record> {
+        refuseWrite(resource)
         revalidate(resource, changes, WriteMode.UPDATE)
         return updateIn(tx, resource, origin, id, changes) { tx.get(resource, id) ?: throw notFound(resource, id) }
     }
 
     /** Deletes in [tx] for trusted code, with the delete's cascades. Returns every change it made. */
-    internal suspend fun trustedDelete(tx: DataSource, resource: Resource, origin: Origin, id: String): List<Change> =
-        deleteIn(tx, resource, origin, id) { tx.get(resource, id) ?: throw notFound(resource, id) }
+    internal suspend fun trustedDelete(tx: DataSource, resource: Resource, origin: Origin, id: String): List<Change> {
+        refuseWrite(resource)
+        return deleteIn(tx, resource, origin, id) { tx.get(resource, id) ?: throw notFound(resource, id) }
+    }
 
     /** Returns the ids of every record of [resource] that matches [filter] in [source], page by page. */
     internal suspend fun idsWhere(source: DataSource, resource: Resource, filter: Filter?): List<String> {
+        refuseWrite(resource)
         val ids = mutableListOf<String>()
         var cursor: String? = null
         do {
@@ -473,7 +498,8 @@ public class ResourceService(
 
     /** Returns the record of [resource] with [id] if it is in [caller]'s read scope, and throws not found otherwise. */
     private suspend fun readable(source: DataSource, resource: Resource, caller: Identity?, id: String): Record {
-        val record = source.get(resource, id)
+        val provider = provider(resource)
+        val record = if (provider == null) source.get(resource, id) else providedGet(resource, provider, id)
         if (record == null || !inScope(resource, Operation.READ, caller, record)) throw notFound(resource, id)
         return record
     }
@@ -774,6 +800,54 @@ public class ResourceService(
         }
     }
 
+    /**
+     * Lists a provided [resource]'s records for [caller]: checks [query] against what [provider] declares, narrows it
+     * to the caller's read scope, and checks what comes back.
+     */
+    private suspend fun providedList(resource: Resource, provider: RecordProvider, caller: Identity?, query: Query): Page {
+        checkProvidedQuery(resource, provider, query)
+        val scope = scopeFilter(resource, Operation.READ, caller)
+        if (matchesNothing(scope)) return Page(emptyList(), null)
+        val narrowed = query.narrowed(scope)
+        val page = provided(resource) {
+            val page = provider.list(narrowed)
+            check(page.items.size <= query.limit) { "The provider of '${resource.name}' returned ${page.items.size} records for a limit of ${query.limit}." }
+            page.copy(items = page.items.map(resource::providedRecord))
+        }
+        // The provider applied the scope; a record outside it never reaches the caller all the same.
+        return page.copy(items = page.items.filter { inScope(resource, Operation.READ, caller, it) })
+    }
+
+    /** Returns the record with [id] that [provider] serves for [resource], checked, or `null` if there isn't one. */
+    private suspend fun providedGet(resource: Resource, provider: RecordProvider, id: String): Record? = provided(resource) {
+        provider.get(id)?.let(resource::providedRecord)?.also { record ->
+            check(record[Resource.ID] == Value.Text(id)) { "The provider of '${resource.name}' returned '${record[Resource.ID]}' for the id '$id'." }
+        }
+    }
+
+    /**
+     * Runs [block], a call of a provided [resource]'s provider. Its failures answer [ErrorCode.UNAVAILABLE], except an
+     * [ApiException] it throws itself and an invalid query, such as a cursor it didn't issue.
+     */
+    private suspend fun <T> provided(resource: Resource, block: suspend () -> T): T = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: ApiException) {
+        throw e
+    } catch (e: InvalidQueryException) {
+        throw ApiException(ErrorCode.INVALID_QUERY, e.message!!)
+    } catch (e: Exception) {
+        throw ApiException(ErrorCode.UNAVAILABLE, "The records of '${resource.name}' can't be read right now. Try again later.", e)
+    }
+
+    /** Refuses any write to a provided [resource], whose records belong to the application's code. */
+    private fun refuseWrite(resource: Resource) {
+        if (resource.provided) {
+            throw ApiException(ErrorCode.READ_ONLY, "'${resource.name}' is read-only: its records come from the application's code.")
+        }
+    }
+
     private inline fun <T> queried(block: () -> T): T = try {
         block()
     } catch (e: InvalidQueryException) {
@@ -799,11 +873,3 @@ private const val SCAN_PAGE = 500
 
 private fun Query.narrowed(filter: Filter?): Query =
     if (filter == null) this else copy(filter = this.filter?.let { Filter.And(listOf(it, filter)) } ?: filter)
-
-private fun Value.fits(type: FieldType): Boolean = when (type) {
-    FieldType.STRING, FieldType.ENUM, FieldType.REFERENCE, FieldType.FILE -> this is Value.Text
-    FieldType.INT, FieldType.LONG -> this is Value.Integer
-    FieldType.DECIMAL -> this is Value.Decimal
-    FieldType.BOOL -> this is Value.Bool
-    FieldType.INSTANT -> this is Value.Timestamp
-}

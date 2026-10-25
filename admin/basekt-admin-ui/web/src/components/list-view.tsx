@@ -26,7 +26,7 @@ interface PageMark {
 
 /**
  * A resource's records: columns from the schema, search, filters and sort kept in the URL, and cursor pagination
- * with the total. Buttons for what the caller may not do are left out.
+ * with the total. Buttons for what the caller may not do are left out, and a read-only resource has none to edit.
  */
 export function ListView({ resource, search }: { resource: AdminResource; search: URLSearchParams }) {
   // A new search, sort or filter starts again from the first page.
@@ -71,7 +71,12 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{humanize(resource.name)}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">{humanize(resource.name)}</h1>
+          {resource.readOnly && (
+            <Badge variant="secondary" title="Its records come from the application and can't be edited here.">Read-only</Badge>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <ActionButtons resource={resource} target="resource" onDone={() => page.reload()} />
           <ExportButton resource={resource} params={params} />

@@ -5,9 +5,15 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { filterParam, filtersOf, humanize, opLabels, opsFor, type Filter, type FilterOp } from "@/lib/fields"
+import { filterChoices, filterParam, filtersOf, humanize, opLabels, type Filter, type FilterOp } from "@/lib/fields"
 
-/** The active filters as removable chips, and a row to add one: a field, an operator that suits it, and a value. */
+/** The choices of a new filter: each field a list may be filtered on, with the operators it takes. */
+type Choices = ReturnType<typeof filterChoices>
+
+/**
+ * The active filters as removable chips, and a row to add one: a field, an operator that suits it and the resource
+ * accepts, and a value.
+ */
 export function FilterBar({ resource, search, setSearch }: {
   resource: AdminResource
   search: URLSearchParams
@@ -15,6 +21,7 @@ export function FilterBar({ resource, search, setSearch }: {
 }) {
   const [adding, setAdding] = useState(false)
   const filters = filtersOf(resource, search)
+  const choices = filterChoices(resource)
 
   const remove = (filter: Filter) => {
     const [key] = filterParam(filter)
@@ -41,9 +48,9 @@ export function FilterBar({ resource, search, setSearch }: {
         </Badge>
       ))}
       {adding ? (
-        <NewFilter fields={resource.fields} onAdd={add} onCancel={() => setAdding(false)} />
+        <NewFilter choices={choices} onAdd={add} onCancel={() => setAdding(false)} />
       ) : (
-        <Button variant="outline" onClick={() => setAdding(true)} disabled={resource.fields.length === 0}>
+        <Button variant="outline" onClick={() => setAdding(true)} disabled={choices.length === 0}>
           <FilterIcon /> Filter
         </Button>
       )}
@@ -51,10 +58,9 @@ export function FilterBar({ resource, search, setSearch }: {
   )
 }
 
-function NewFilter({ fields, onAdd, onCancel }: { fields: AdminField[]; onAdd: (filter: Filter) => void; onCancel: () => void }) {
-  const [name, setName] = useState(fields[0].name)
-  const field = fields.find((f) => f.name === name) ?? fields[0]
-  const ops = opsFor(field.type)
+function NewFilter({ choices, onAdd, onCancel }: { choices: Choices; onAdd: (filter: Filter) => void; onCancel: () => void }) {
+  const [name, setName] = useState(choices[0].field.name)
+  const { field, ops } = choices.find((c) => c.field.name === name) ?? choices[0]
   const [op, setOp] = useState<FilterOp>(ops[0])
   const [value, setValue] = useState("")
   const currentOp = ops.includes(op) ? op : ops[0]
@@ -72,7 +78,7 @@ function NewFilter({ fields, onAdd, onCancel }: { fields: AdminField[]; onAdd: (
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {fields.map((f) => (
+          {choices.map(({ field: f }) => (
             <SelectItem key={f.name} value={f.name}>{humanize(f.name)}</SelectItem>
           ))}
         </SelectContent>

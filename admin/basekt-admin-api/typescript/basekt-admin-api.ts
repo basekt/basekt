@@ -36,6 +36,8 @@ export interface AdminResource {
   reports: AdminReport[];
   links: AdminLink[];
   id: AdminId;
+  readOnly: boolean;
+  filters: AdminFilter[] | null;
 }
 
 export interface AdminField {
@@ -203,6 +205,13 @@ export interface AdminId {
 
 export type IdSource = "generated" | "natural" | "key";
 
+export interface AdminFilter {
+  field: string;
+  operators: FilterOperator[];
+}
+
+export type FilterOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "contains" | "null";
+
 export interface AdminPage {
   items: JsonObject[];
   nextCursor: string | null;
@@ -241,7 +250,7 @@ export interface ApiError {
   requestId: string | null;
 }
 
-export type ErrorCode = "bad_request" | "invalid_query" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "payload_too_large" | "unsupported_type" | "validation_failed" | "rejected" | "not_implemented" | "internal_error" | "unavailable";
+export type ErrorCode = "bad_request" | "invalid_query" | "unauthorized" | "forbidden" | "not_found" | "read_only" | "conflict" | "payload_too_large" | "unsupported_type" | "validation_failed" | "rejected" | "not_implemented" | "internal_error" | "unavailable";
 
 export interface FieldError {
   field: string;

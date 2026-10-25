@@ -141,6 +141,7 @@ public fun Schema.storefrontProblems(): List<String> {
         val shop = resource.storefront ?: continue
         val at = "Storefront of '${resource.name}'"
         if (resource.name == "api") problems += "$at: a resource named 'api' clashes with the storefront's API path."
+        if (resource.provided) problems += "$at: '${resource.name}' is provided by the application's code, and a storefront reads the data source."
 
         fun shown(role: String, field: String, types: Set<FieldType>, idAllowed: Boolean = false) {
             if (field == Resource.ID && idAllowed) return
