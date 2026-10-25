@@ -34,7 +34,8 @@ The schema serves:
 | `GET /api/{resource}/{id}/{relation}` | the record a `belongsTo` points to, or a page of a `hasMany` |
 
 Errors are typed JSON: `{"error": "validation_failed", "message": ..., "fields": [{"field", "code", "message"}], "requestId": ...}`.
-A caller without credentials gets `401 unauthorized`, one without the role `403 forbidden`. The base path and page
+A caller without credentials gets `401 unauthorized`, one without the role `403 forbidden`, and one whose [server roles](permissions.md#roles-from-the-server) couldn't be looked up
+`503 unavailable`. The base path and page
 sizes come from the `basekt` section of `ApplicationConfig`.
 
 ### Request ids and server errors

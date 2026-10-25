@@ -27,6 +27,7 @@ fun Application.module() {
 - Routes are under `/api` by default: `GET /api/products`, `POST`, `PATCH`, `DELETE`, filters, sorting and cursor paging.
 - Optional modules sit on it: `basekt-audit`, `basekt-files`, `basekt-admin-api`, `basekt-richtext`, `basekt-storefront`.
 - A `WriteExtension` lets a module take part in every write, whichever route it came from.
+- `identities = resolver.withServerRoles(ServerRoles.from(config), ServerRoles { identity, call -> ... })` adds roles from configuration or a lookup to the caller's own, once per call; see [Roles from the server](https://basekt.github.io/basekt/permissions/#roles-from-the-server).
 
 ## Documentation
 
