@@ -10,6 +10,7 @@ Every module is its own artifact and its own Ktor plugin, published as `io.githu
 | `server:basekt-data-memory` | ✓ works | in-memory adapter, for tests, samples and prototypes |
 | `server:basekt-data-exposed` | ✓ works | Exposed/JDBC adapter: Postgres, MySQL, H2. Keyset cursors, one-query `getMany`, savepoints |
 | `server:basekt-data-mongo` | ✓ works | MongoDB adapter: a collection per resource, ObjectId ids and references, transactions with nested rollback, `migrate()` for indexes, and every capability; it reads collections another program wrote as they are |
+| `server:basekt-data-firestore` | ✓ works | Cloud Firestore adapter: a collection per resource, document ids as record ids, Firestore transactions with nested rollback, aggregation counts, conditional writes and sequences; it reads collections another program wrote as they are, and checks in memory, within a limit, what Firestore can't filter or sort |
 | `server:basekt-auth` | ✓ works | Ktor Authentication adapters (JWT, bearer), `PrincipalRoles` mapped to permissions, typed 401 and 403 |
 | `admin:basekt-admin-api` | ✓ works | `install(BaseKtAdmin)`: a JSON admin API from the schema (per-caller schema, list and search, CRUD, bulk delete, CSV export) and its TypeScript types |
 | `testing:basekt-testing` | ✓ works | the `DataSourceContract` and `BlobStoreContract` suites every adapter runs, plus test fixtures |

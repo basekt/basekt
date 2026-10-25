@@ -1,5 +1,6 @@
 package io.github.basekt.server
 
+import io.github.basekt.data.ConditionalWrites
 import io.github.basekt.data.DataSource
 import io.github.basekt.data.memory.InMemoryDataSource
 import io.github.basekt.schema.Resource
@@ -184,6 +185,38 @@ class WorkflowsTest {
     }
 
     @Test
+    fun `a transaction a source runs again reports only its last run's changes`() {
+        val committed = mutableListOf<String>()
+        val resolutions = deskSchema.resource("resolutions")!!
+        testApplication {
+            application {
+                install(BaseKt) {
+                    dataSource = Rerunning(InMemoryDataSource())
+                    schema = deskSchema
+                    identities = headerIdentities
+                    actions {
+                        on("tickets", "close") { input ->
+                            create(resolutions, mapOf("ticketId" to record!![Resource.ID], "summary" to input["summary"]))
+                            null
+                        }
+                    }
+                }
+                baseKt.service.extend(object : WriteExtension {
+                    override suspend fun committed(change: Change) {
+                        committed += "${change::class.simpleName}:${change.resource.name}"
+                    }
+                })
+            }
+            client.post("/api/tickets") { caller("ava", listOf("agent")); json("""{"id": "t1", "subject": "Printer"}""") }
+            committed.clear()
+            val closed = client.post("/api/tickets/t1/actions/close") { caller("ava", listOf("agent")); json("""{"summary": "Paper jam"}""") }
+            assertEquals(HttpStatusCode.OK, closed.status)
+            assertEquals(listOf("Created:resolutions", "Updated:tickets"), committed)
+            assertEquals(1, client.get("/api/resolutions") { caller("ava", listOf("agent")) }.json()["items"]!!.jsonArray.size)
+        }
+    }
+
+    @Test
     fun `install refuses code for unknown transitions and workflows without conditional writes`() {
         val extra = ActionsBuilder().apply { on("claims", "escalate") { null } }.build()
         val unknown = assertFailsWith<IllegalArgumentException> { ResourceService(claimsSchema, InMemoryDataSource(), actions = extra) }
@@ -192,5 +225,13 @@ class WorkflowsTest {
         val plain = InMemoryDataSource().let { memory -> object : DataSource by memory {} }
         val noConditions = assertFailsWith<IllegalArgumentException> { ResourceService(claimsSchema, plain) }
         assertTrue("ConditionalWrites" in noConditions.message!!, noConditions.message)
+    }
+}
+
+/** A source that runs every transaction's block twice, the first time rolled back, as a database that aborts one would. */
+private class Rerunning(private val memory: InMemoryDataSource) : DataSource by memory, ConditionalWrites by memory {
+    override suspend fun <T> transaction(block: suspend (DataSource) -> T): T = memory.transaction { tx ->
+        runCatching { tx.transaction { inner -> block(inner); throw IllegalStateException("aborted") } }
+        block(tx)
     }
 }

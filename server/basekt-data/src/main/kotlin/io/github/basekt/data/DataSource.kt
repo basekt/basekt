@@ -51,6 +51,10 @@ public interface DataSource {
      * may nest: a failed inner one rolls back only its own writes.
      *
      * Use only the source passed to [block] inside it; calling the outer source may wait for the transaction.
+     *
+     * A source may run [block] again when the database aborts the transaction over a conflict with another one, as the
+     * MongoDB and Firestore adapters do. Only what [block] writes through the source it is given is undone then: work
+     * it does elsewhere, such as calling another service, belongs after the transaction returns.
      */
     public suspend fun <T> transaction(block: suspend (DataSource) -> T): T
 }
@@ -66,5 +70,8 @@ public class DuplicateIdException(
     public val id: String,
 ) : DataException("'$resource' already has a record with id '$id'.")
 
-/** A [Query] doesn't fit the resource, or its cursor is invalid. */
-public class InvalidQueryException(message: String) : DataException(message)
+/**
+ * A [Query] doesn't fit the resource, or its cursor is invalid. Open so an adapter can say more precisely why, as a
+ * query its database can't answer.
+ */
+public open class InvalidQueryException(message: String) : DataException(message)

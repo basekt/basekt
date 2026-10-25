@@ -63,6 +63,21 @@ Without any of them the tests are skipped. CI passes `-Pbasekt.mongo.required=tr
 ./gradlew :server:basekt-data-mongo:test -Pbasekt.mongo.embedded=true
 ```
 
+### The Firestore adapter
+
+Its contract suite and its own tests run against the Firestore emulator: the one `-Pbasekt.firestore.emulator=host:port`
+names; else a Testcontainers container of the Cloud SDK's emulator image when Docker is available. Without either the
+tests are skipped. CI passes `-Pbasekt.firestore.required=true`, so there they fail instead. To run an emulator without
+Docker, use the gcloud SDK (`gcloud components install cloud-firestore-emulator`) or `firebase-tools`:
+
+```bash
+gcloud emulators firestore start --host-port=127.0.0.1:8085
+```
+
+```bash
+./gradlew :server:basekt-data-firestore:test -Pbasekt.firestore.emulator=127.0.0.1:8085
+```
+
 ### Admin API TypeScript types
 
 After changing the admin API's wire classes, regenerate the TypeScript types and commit them. The panel compiles

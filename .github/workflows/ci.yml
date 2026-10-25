@@ -29,5 +29,6 @@ jobs:
           cache: npm
           cache-dependency-path: admin/basekt-admin-ui/web/package-lock.json
       - uses: gradle/actions/setup-gradle@v4
-      # The runner has Docker, so the Exposed adapter's contract suite also runs on Postgres in a container, and the MongoDB adapter's on MongoDB in one.
-      - run: ./gradlew build --no-daemon -Pbasekt.postgres.required=true -Pbasekt.mongo.required=true
+      # The runner has Docker, so the Exposed adapter's contract suite also runs on Postgres in a container, the MongoDB
+      # adapter's on MongoDB in one, and the Firestore adapter's on the Cloud SDK's Firestore emulator in one.
+      - run: ./gradlew build --no-daemon -Pbasekt.postgres.required=true -Pbasekt.mongo.required=true -Pbasekt.firestore.required=true
