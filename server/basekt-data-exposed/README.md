@@ -19,6 +19,9 @@ migration.notes.forEach { log.warn("Left alone: $it") }
 ## Good to know
 
 - `migrate()` only makes changes that keep every row, and reports what it found but left alone.
+- A resource can be kept in a table that already exists, with its own table and column names, key and column types,
+  and optionally read-only: `TableMapping(tables = mapOf("members" to MappedTable("member", ...)))`. `migrate()` never
+  changes such a table, and reports in `notes` what doesn't match the schema.
 - Its contract suite also runs on Postgres: see [Building](https://basekt.github.io/basekt/building/).
 
 ## Documentation
