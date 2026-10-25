@@ -313,6 +313,9 @@ class StorefrontTest {
         assertTrue(problems.any { "listWhen names 'ghost'" in it })
         assertTrue(problems.any { "variants field 'nope'" in it })
 
+        val live = schema { resource("stalls") { provided(); string("name"); permissions { read(everyone) }; storefront { title("name") } } }
+        assertTrue(live.storefrontProblems().any { "'stalls' is provided by the application's code" in it }, live.storefrontProblems().toString())
+
         val error = runCatching {
             testApplication {
                 application {

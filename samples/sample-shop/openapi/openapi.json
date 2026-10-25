@@ -3523,6 +3523,7 @@
           "unauthorized",
           "forbidden",
           "not_found",
+          "read_only",
           "conflict",
           "payload_too_large",
           "unsupported_type",

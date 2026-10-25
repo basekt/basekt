@@ -88,6 +88,21 @@ class BaseKtOpenApiTest {
     }
 
     @Test
+    fun `a provided resource has its read routes and no writes or aggregate`() {
+        val live = io.github.basekt.schema.schema {
+            resource("gauges") {
+                provided()
+                decimal("level")
+                permissions { read(everyone) }
+            }
+        }
+        val paths = live.toOpenApi().at("paths").jsonObject
+        assertEquals(setOf("get"), paths.getValue("/api/gauges").jsonObject.keys - "parameters")
+        assertEquals(setOf("get"), paths.getValue("/api/gauges/{id}").jsonObject.keys - "parameters")
+        assertNull(paths["/api/aggregate/gauges"])
+    }
+
+    @Test
     fun `hidden fields are left out everywhere`() = testApplication {
         openApi(permitSchema)
         val permits = client.document()

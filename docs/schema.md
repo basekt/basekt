@@ -164,6 +164,56 @@ actions {
 The action's writes are one transaction, so a refusal anywhere leaves everything in place, and every record removed
 runs its hooks and gets its audit entry.
 
+## Live data from your own code
+
+Some records an admin needs aren't stored: what a queue holds right now, the readings of a device, or records another
+service owns behind its HTTP API. Declare such a resource `provided()`, and register a `RecordProvider` that serves
+its records:
+
+```kotlin
+resources {
+    resource("docks") {
+        provided()
+        string("station") { required() }
+        string("zone") { required() }
+        int("bikes")
+        action("release") { allow(authenticated) }
+        permissions { read(authenticated); scope("zone", attribute = "zone", unless = setOf("operator")) }
+    }
+}
+providers {
+    provide("docks", object : RecordProvider {
+        override val filters = mapOf("zone" to setOf(FilterOperator.IN), "bikes" to setOf(FilterOperator.GTE))
+        override val sorts = setOf("bikes")
+        override suspend fun list(query: Query): Page = controller.docks(query)   // at most query.limit, after query.cursor
+        override suspend fun get(id: String): Record? = controller.dock(id)
+    })
+}
+```
+
+- **The provider says which filters and sorts it supports.** A list that uses any other, such as `bikes[gt]=3` above,
+  is refused with `400 invalid_query` before the provider is called, naming what it takes. The filter it gets is
+  made of those comparisons, joined by `And` and, for a search or a scope with several ways in, `Or`. Without a sort,
+  records come in id order, and a cursor is whatever the provider puts in `Page.nextCursor`.
+- **It is read-only everywhere.** Every create, update and delete, through the REST API, the admin API and an
+  action's `create`, `update` and `delete`, is refused with `405 read_only`. The schema refuses what only a write
+  would use: create, update or delete permissions, a workflow, automatic, unique and file fields, reports, ids that
+  aren't generated, and a reference field anywhere that points to it. Aggregates answer `501 not_implemented`.
+- **Permissions, scopes and actions apply as for any resource.** The caller's read scope reaches the provider as an
+  `In` filter on each scoped field, so a provider of a scoped resource must support `in` on it; a caller with no
+  values reaches no record without the provider being asked, and the service checks every returned record against
+  the scope again. A record action loads its record from the provider, may write stored resources and call whatever
+  the record describes, and answers with the record as the provider has it afterwards.
+- **A provider that fails answers `503 unavailable`** with the [request id](#request-ids-and-server-errors), and the
+  cause goes to the log only. Records that don't fit the resource (a missing text id, an unknown field, a value of
+  the wrong type, or more than the limit) count as a failure. A provider may throw an `ApiException` to answer
+  something else, and an `InvalidQueryException` for a cursor it didn't issue.
+
+`install(BaseKt)` refuses a provided resource without a provider, a provider of a resource that isn't provided,
+filters or sorts on fields the API doesn't serve, a scoped field without `in`, and hooks on a provided resource, listing
+every problem at once. The [admin panel](admin-panel.md#live-read-only-resources) lists a provided resource with no edit
+controls.
+
 ## Typed models
 
 **Typed models** are an optional layer on the same runtime schema. A `@Serializable` class describes a resource, and

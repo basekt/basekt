@@ -24,7 +24,7 @@ request id header are BaseKt's own settings, so the document always matches what
 | `GET`, `PATCH`, `DELETE /api/{resource}/{id}` | `.get`, `.update` (a `{resource}.patch` body, which may carry the [version](concurrent-writes.md) it last read) and `.delete` |
 | `GET /api/{resource}/{id}/{relation}` | `.relation.{name}`: the record a `belongsTo` points to, or a page of a `hasMany`, which takes the target's filters |
 | `POST /api/{resource}[/{id}]/actions/{name}` | `.action.{name}`, for [actions and workflow transitions](actions-workflows.md), with an `{resource}.{name}.input` body |
-| `GET /api/aggregate/{resource}` | `.aggregate`, with `groupBy`, the measures and the filters |
+| `GET /api/aggregate/{resource}` | `.aggregate`, with `groupBy`, the measures and the filters. A [provided](schema.md#live-data-from-your-own-code) resource has none |
 | `GET /api/schema` | `basekt.schema` |
 
 Fields are JSON Schema: `minLength` and `maxLength` from `length()`, `pattern` from `pattern()`, `minimum` and `maximum`

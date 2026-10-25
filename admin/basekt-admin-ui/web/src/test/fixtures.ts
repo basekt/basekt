@@ -22,6 +22,8 @@ export const books: AdminResource = {
   id: { source: "generated", rules: [], key: [] },
   actions: [],
   reports: [],
+  readOnly: false,
+  filters: null,
 }
 
 export const authors: AdminResource = {
@@ -36,6 +38,8 @@ export const authors: AdminResource = {
   id: { source: "natural", rules: [{ kind: "pattern", regex: "[a-z][a-z-]*", message: "Use lowercase letters and dashes." }], key: [] },
   actions: [],
   reports: [],
+  readOnly: false,
+  filters: null,
 }
 
 export const librarySchema: AdminSchema = { version: 1, caller: { id: "librarian", roles: ["staff"] }, resources: [books, authors] }
@@ -61,9 +65,38 @@ export const tickets: AdminResource = {
     { name: "ticketsByState", chart: "pie", groupBy: "state", function: "count", field: null, measure: "count", order: "valueDesc", limit: 12, bucket: null, timeZone: null, filters: [], range: null, compare: null },
     { name: "totalViews", chart: "number", groupBy: null, function: "sum", field: "views", measure: "sum_views", order: "valueDesc", limit: 12, bucket: null, timeZone: null, filters: [], range: null, compare: null },
   ],
+  readOnly: false,
+  filters: null,
+}
+
+// The callers waiting on a phone line right now: a read-only resource served by the application's own code, which
+// filters by line only, searches names and sorts by how long a caller has waited.
+export const callers: AdminResource = {
+  name: "callers",
+  fields: [
+    { name: "name", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "line", type: "enum", required: false, values: ["sales", "support"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "waitedSeconds", type: "int", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+  ],
+  relations: [],
+  operations: ["read"],
+  searchable: ["name"],
+  sortable: ["waitedSeconds"],
+  group: null,
+  links: [],
+  id: { source: "generated", rules: [], key: [] },
+  actions: [{ name: "pickUp", target: "record", input: [], confirm: null, stateField: null, from: null }],
+  reports: [],
+  readOnly: true,
+  filters: [
+    { field: "name", operators: ["contains"] },
+    { field: "line", operators: ["eq", "in"] },
+  ],
 }
 
 export const helpDeskSchema: AdminSchema = { version: 1, caller: { id: "viewer", roles: ["observer"] }, resources: [tickets] }
+
+export const switchboardSchema: AdminSchema = { version: 1, caller: { id: "agent", roles: ["agent"] }, resources: [tickets, callers] }
 
 export const config: PanelConfig = { path: "/admin", apiPath: "/admin/api", filesPath: "/files", brand: { name: "Test", logo: null }, defaultMode: "light", login: null, siteLink: null }
 

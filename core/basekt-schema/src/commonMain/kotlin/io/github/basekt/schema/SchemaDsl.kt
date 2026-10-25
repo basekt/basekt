@@ -102,6 +102,7 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
     private val reports = mutableListOf<Report>()
     private val extensions = linkedMapOf<String, JsonElement>()
     private var id = IdSpec()
+    private var provided = false
 
     override fun extend(key: String, value: JsonElement) {
         extensions[key] = value
@@ -122,6 +123,14 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
      */
     public fun keyedBy(vararg fields: String) {
         id = IdSpec(IdSource.KEY, key = fields.toList())
+    }
+
+    /**
+     * Makes the application's own code serve this resource's records, read-only, instead of the data source. Register
+     * its provider with the server. See [Resource.provided].
+     */
+    public fun provided() {
+        provided = true
     }
 
     /** Lists this resource under the heading [name] in an admin panel's menu. Resources without one come first. */
@@ -179,7 +188,7 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
     }
 
     internal fun build(): Resource = Resource(
-        name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow, group, reports.toList(), extensions.toMap(), id,
+        name, withState(fields, workflow), relations.toList(), permissions, actions.toList(), workflow, group, reports.toList(), extensions.toMap(), id, provided,
     )
 }
 

@@ -69,6 +69,19 @@ export function opsFor(type: FieldType): FilterOp[] {
   }
 }
 
+/**
+ * The fields a list may be filtered on, each with the operators it takes: every one that suits its type, or only
+ * those the resource lists in `filters`, as a read-only resource served by the application's own code does.
+ */
+export function filterChoices(resource: AdminResource): { field: AdminField; ops: FilterOp[] }[] {
+  return resource.fields.flatMap((field) => {
+    const suited = opsFor(field.type)
+    const declared = resource.filters?.find((f) => f.field === field.name)?.operators
+    const ops = resource.filters ? suited.filter((op) => declared?.some((d) => d === op)) : suited
+    return ops.length > 0 ? [{ field, ops }] : []
+  })
+}
+
 /** One active filter. */
 export interface Filter {
   field: string

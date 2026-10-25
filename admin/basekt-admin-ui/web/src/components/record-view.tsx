@@ -78,7 +78,11 @@ export function CreateView({ resource }: { resource: AdminResource }) {
     return (
       <Alert>
         <AlertTitle>You can't create {humanize(resource.name).toLowerCase()}</AlertTitle>
-        <AlertDescription>Your roles allow {resource.operations.join(", ")} only.</AlertDescription>
+        <AlertDescription>
+          {resource.readOnly
+            ? "Its records come from the application, so they can't be created, edited or deleted here."
+            : `Your roles allow ${resource.operations.join(", ")} only.`}
+        </AlertDescription>
       </Alert>
     )
   }

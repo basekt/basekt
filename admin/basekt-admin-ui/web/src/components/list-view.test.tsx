@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
-import { apiError, fakeFetch, helpDeskSchema, librarySchema, page } from "@/test/fixtures"
+import { apiError, fakeFetch, helpDeskSchema, librarySchema, page, switchboardSchema } from "@/test/fixtures"
 import { renderPanel } from "@/test/render"
 
 const library = [
@@ -107,6 +107,28 @@ describe("the list view", () => {
     expect(screen.getByText(/Emma is on loan\./)).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByText("Dune")).not.toBeInTheDocument())
     expect(screen.getByRole("checkbox", { name: "Select b2" })).toBeChecked()
+  })
+
+  it("lists a read-only resource with no edit controls, and offers only the filters and sorts it takes", async () => {
+    const user = userEvent.setup()
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: switchboardSchema }
+      if (url.pathname === "/admin/api/resources/callers/records") return { body: page([{ id: "c1", name: "Ana", line: "sales", waitedSeconds: 40 }], null) }
+    })
+    renderPanel("/admin/r/callers", fetch)
+
+    expect(await screen.findByText("Ana")).toBeInTheDocument()
+    expect(screen.getByText("Read-only")).toHaveAttribute("data-slot", "badge")
+    expect(screen.queryByRole("link", { name: /new/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Waited seconds" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Name" })).not.toBeInTheDocument()
+    expect(screen.getByRole("searchbox", { name: "Search" })).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: /filter/i }))
+    const form = screen.getByRole("form", { name: "New filter" })
+    expect(within(form).getByRole("combobox", { name: "Field" })).toHaveTextContent("Name")
+    expect(within(form).getByRole("combobox", { name: "Operator" })).toHaveTextContent("contains")
   })
 
   it("exports CSV with the list's parameters, and offers no selection without delete", async () => {

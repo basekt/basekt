@@ -161,7 +161,8 @@ private class OpenApiWriter(private val schema: Schema, private val options: Ope
             schemas["$name.page"] = pageSchema(name)
             put(path, "get", operation(resource, "list", "List $name", listOf(read), Operation.READ, queryParameters(resource, paging = true), null, mapOf("200" to response("A page of records.", ref("$name.page"))), setOf(400)))
             put("$path/{id}", "get", operation(resource, "get", "Get a record of $name", listOf(read), Operation.READ, emptyList(), null, mapOf("200" to response("The record.", ref(name))), setOf(404)))
-            put(
+            // A provided resource's records come from the application's code, which doesn't aggregate.
+            if (!resource.provided) put(
                 "$base/aggregate/$name", "get",
                 operation(resource, "aggregate", "Aggregate $name", listOf(read), Operation.READ, aggregateParameters(resource), null, mapOf("200" to response("The groups.", ref("basekt.AggregatePage"))), setOf(400, 501)),
             )
