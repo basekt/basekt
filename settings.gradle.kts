@@ -25,6 +25,7 @@ include(
     ":server:basekt-data-mongo",
     ":server:basekt-data-firestore",
     ":server:basekt-auth",
+    ":server:basekt-auth-firebase",
     ":server:basekt-storage",
     ":server:basekt-storage-memory",
     ":server:basekt-storage-local",

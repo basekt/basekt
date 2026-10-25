@@ -12,6 +12,7 @@ Every module is its own artifact and its own Ktor plugin, published as `io.githu
 | `server:basekt-data-mongo` | ✓ works | MongoDB adapter: a collection per resource, ObjectId ids and references, transactions with nested rollback, `migrate()` for indexes, and every capability; it reads collections another program wrote as they are |
 | `server:basekt-data-firestore` | ✓ works | Cloud Firestore adapter: a collection per resource, document ids as record ids, Firestore transactions with nested rollback, aggregation counts, conditional writes and sequences; it reads collections another program wrote as they are, and checks in memory, within a limit, what Firestore can't filter or sort |
 | `server:basekt-auth` | ✓ works | Ktor Authentication adapters (JWT, bearer), `PrincipalRoles` mapped to permissions, typed 401 and 403 |
+| `server:basekt-auth-firebase` | ✓ works | Firebase ID tokens as an identity, verified against Google's rotating public keys without the Admin SDK: the uid, roles and record-scope attributes from custom claims, beside other providers on the same routes |
 | `admin:basekt-admin-api` | ✓ works | `install(BaseKtAdmin)`: a JSON admin API from the schema (per-caller schema, list and search, CRUD, bulk delete, CSV export) and its TypeScript types |
 | `testing:basekt-testing` | ✓ works | the `DataSourceContract` and `BlobStoreContract` suites every adapter runs, plus test fixtures |
 | `admin:basekt-admin-ui` | ✓ works | `install(BaseKtAdminUi)`: a schema-driven admin panel (React, shadcn/ui and Tailwind, prebuilt into the jar) with a typed Kotlin theme |
@@ -28,4 +29,4 @@ Every module is its own artifact and its own Ktor plugin, published as `io.githu
 | `commerce:basekt-commerce`, `commerce:basekt-storefront` | ✓ works | an optional group for selling online. `basekt-storefront` is `install(BaseKtStorefront)`: listing and detail pages and a public JSON API generated from `storefront { }` blocks in the schema, with an availability hook for stock, CSS and page-renderer hooks for the layout, and a per-client rate limit. `basekt-commerce` is an umbrella that pulls in the commerce modules. Payments, holds, idempotency and customers are planned, each as its own module |
 | `client:basekt-client` | later | a typed multiplatform client SDK: auth, queries, realtime, storage |
 | `server:basekt-data-jdbc`, `-mongo` | later | more data adapters |
-| `server:basekt-auth-oidc`, `-firebase` | later | more auth providers |
+| `server:basekt-auth-oidc` | later | more auth providers |
