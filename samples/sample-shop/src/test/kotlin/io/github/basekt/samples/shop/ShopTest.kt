@@ -33,6 +33,7 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
 
 class ShopTest {
@@ -73,6 +74,28 @@ class ShopTest {
         assertContains(shell.bodyAsText(), "\"apiPath\":\"/admin/api\"")
         assertContains(shell.bodyAsText(), "<title>Sample shop admin</title>")
         assertContains(client.get("/admin/theme.css").bodyAsText(), "--primary: oklch(0.511 0.262 276.966);")
+    }
+
+    @Test
+    fun `staff sign in to the panel, and refresh their token with a refresh token that works once`() = shop {
+        val login = client.get("/admin").bodyAsText()
+        assertContains(login, "\"refreshPath\":\"/auth/refresh\"")
+
+        val refused = client.post("/auth/login") { json("""{"email":"sam@shop.test","password":"wrong"}""") }
+        assertEquals(HttpStatusCode.Unauthorized, refused.status)
+        assertEquals("unauthorized", refused.json()["error"]!!.jsonPrimitive.content)
+
+        val signedIn = client.post("/auth/login") { json("""{"email":"sam@shop.test","password":"staff-password"}""") }.json()
+        assertEquals(900, signedIn["expiresIn"]!!.jsonPrimitive.content.toInt())
+        val token = signedIn["token"]!!.jsonPrimitive.content
+        assertEquals(HttpStatusCode.OK, client.get("/admin/api/schema") { bearerAuth(token) }.status)
+
+        val first = signedIn["refreshToken"]!!.jsonPrimitive.content
+        val refreshed = client.post("/auth/refresh") { json("""{"refreshToken":"$first"}""") }.json()
+        val second = refreshed["refreshToken"]!!.jsonPrimitive.content
+        assertTrue(second != first)
+        assertEquals(HttpStatusCode.OK, client.get("/admin/api/schema") { bearerAuth(refreshed["token"]!!.jsonPrimitive.content) }.status)
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/auth/refresh") { json("""{"refreshToken":"$first"}""") }.status)
     }
 
     @Test

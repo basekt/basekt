@@ -15,7 +15,41 @@ export interface LoginRoute {
   usernameLabel: string
   passwordField: string
   tokenField: string
+  /**
+   * The host's refresh route on the panel's server, such as `/auth/refresh`, or null when tokens aren't refreshed.
+   * Only with one does the panel keep a refresh token, and it sends it nowhere else.
+   */
+  refreshPath: string | null
+  /** The JSON property of the answers that holds the refresh token, and of the refresh call's body. */
+  refreshTokenField: string
+  /** The JSON property of the answers that holds the token's life in seconds. */
+  expiresInField: string
 }
+
+/** Sign-in through Firebase Authentication. Mirrors the plugin's `ShellFirebase`. */
+export interface FirebaseProvider {
+  type: "firebase"
+  /** The Firebase Web config's API key, which identifies the project and is public by design. */
+  apiKey: string
+  authDomain: string
+  projectId: string | null
+  /** Firebase provider ids: `password` for an email and a password, or ones such as `google.com` for a popup. */
+  providers: string[]
+}
+
+/** Sign-in through an OpenID Connect issuer, with the authorization code flow and PKCE. Mirrors `ShellOidc`. */
+export interface OidcProvider {
+  type: "oidc"
+  /** The issuer's URL, where its `.well-known/openid-configuration` is found. */
+  issuer: string
+  clientId: string
+  scopes: string[]
+  /** What the sign-in button names, as in "Continue with {label}". */
+  label: string
+}
+
+/** An identity provider the panel signs in with, sending its ID token as the bearer token. */
+export type SignInProvider = FirebaseProvider | OidcProvider
 
 /** A link from the panel to the host app's own site. Mirrors the plugin's `SiteLink`. */
 export interface SiteLink {
@@ -39,6 +73,8 @@ export interface PanelConfig {
   defaultMode: ThemeMode
   /** Where viewers sign in with a name and a password, or null to paste a token only. */
   login: LoginRoute | null
+  /** An identity provider to sign in with, or null for none. */
+  provider: SignInProvider | null
   /** A link to the host's site for the top bar, or null for none. */
   siteLink: SiteLink | null
 }
@@ -50,8 +86,12 @@ const fallback: PanelConfig = {
   brand: { name: "BaseKt", logo: null },
   defaultMode: "system",
   login: null,
+  provider: null,
   siteLink: null,
 }
+
+// What an older plugin's login leaves out.
+const loginDefaults = { refreshPath: null, refreshTokenField: "refreshToken", expiresInField: "expiresIn" }
 
 /** Reads the config the shell page carries, or the defaults when there is none. */
 export function readConfig(doc: Document = document): PanelConfig {
@@ -64,7 +104,8 @@ export function readConfig(doc: Document = document): PanelConfig {
     filesPath: trimSlash(parsed.filesPath ?? fallback.filesPath),
     brand: { ...fallback.brand, ...parsed.brand },
     defaultMode: parsed.defaultMode ?? fallback.defaultMode,
-    login: parsed.login ?? null,
+    login: parsed.login ? { ...loginDefaults, ...parsed.login } : null,
+    provider: parsed.provider ?? null,
     siteLink: parsed.siteLink ?? null,
   }
 }

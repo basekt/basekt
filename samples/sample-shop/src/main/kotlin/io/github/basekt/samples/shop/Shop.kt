@@ -177,6 +177,8 @@ public val shopSchema: Schema = schema {
  * - BaseKt on the Exposed adapter, over the database at `shop.database.url` (in-memory H2 by default), seeded with
  *   a small catalogue when it is empty;
  * - callers authenticated by JWTs signed with `shop.jwt`, or by the demo bearer tokens under `shop.tokens`;
+ * - `POST /auth/login` and `POST /auth/refresh` for the staff accounts under `shop.staff`, which the admin panel signs
+ *   in with and refreshes its token through;
  * - a hook that keeps every product's price at or above its cost;
  * - product images in the `images` bucket, stored under `shop.files.dir` and served under `basekt.files.path`;
  * - the JSON admin API under `basekt.admin.path`, and the admin panel under `basekt.adminUi.path`, themed with [shopTheme];
@@ -203,8 +205,9 @@ public suspend fun Application.shopModule() {
         entry.property("token").getString() to
             Identity(entry.property("user").getString(), entry.property("roles").getList().toSet())
     }
+    val jwt = JwtSettings.from(config.config("shop.jwt"))
     install(Authentication) {
-        baseKtJwt("jwt", JwtSettings.from(config.config("shop.jwt")))
+        baseKtJwt("jwt", jwt)
         bearerIdentities("demo-tokens") { token -> demoTokens[token] }
     }
     install(BaseKt) {
@@ -231,10 +234,15 @@ public suspend fun Application.shopModule() {
     }
     install(BaseKtAdminUi) {
         brand { name = "Sample shop" }
+        login {
+            path = "/auth/login"
+            refreshPath = "/auth/refresh"
+        }
         theme { use(shopTheme) }
     }
     routing {
         get("/health") { call.respondText("ok") }
+        staffLogin(jwt, StaffAccount.list(config))
         // App code reads typed records with a repository and a typed query. The catalogue is public, so skipping
         // the permission checks a repository skips is fine here.
         get("/low-stock") {
