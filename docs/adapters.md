@@ -181,6 +181,58 @@ install(BaseKt) {
 With JWTs, `PrincipalRoles.jwt(attributeClaims = listOf("clinic"))` reads [scope](permissions.md#record-scopes)
 attributes from claims, and `JwtSettings.issue` writes them.
 
+### Several providers
+
+`AuthIdentities` takes several providers and tries them in order, so one route can accept people and machines. The
+first provider that accepts the credentials identifies the caller; a call whose credentials every provider rejects is
+`401`. Each principal goes through the same `PrincipalRoles`, so when providers read claims differently, have one of
+them produce an `Identity` (as `firebase` does) or combine mappings with `PrincipalRoles.firstOf`:
+
+```kotlin
+identities = AuthIdentities(
+    "firebase", "jwt",
+    roles = PrincipalRoles.firstOf(PrincipalRoles.of<Identity> { it }, PrincipalRoles.jwt(attributeClaims = listOf("team"))),
+)
+```
+
+### Firebase ID tokens
+
+`basekt-auth-firebase` accepts the ID tokens of users who sign in with Firebase Authentication. It verifies them as
+plain JWTs against Google's public keys, without the Firebase Admin SDK:
+
+```kotlin
+install(Authentication) {
+    firebase("firebase", FirebaseSettings.from(environment.config.config("auth.firebase")))   // basekt-auth-firebase
+    baseKtJwt("jwt", JwtSettings.from(environment.config.config("auth.jwt")))                 // machine tokens
+}
+install(BaseKt) {
+    identities = AuthIdentities("firebase", "jwt")
+}
+```
+
+```hocon
+auth.firebase {
+    projectId = "my-project"
+    clockSkew = "PT30S"          # optional, at most five minutes
+    rolesClaim = "roles"         # optional
+    attributeClaims = ["team"]   # optional
+}
+```
+
+- **Checks:** an RS256 signature with one of Google's keys, issuer `https://securetoken.google.com/<projectId>`,
+  audience `<projectId>`, an unexpired `exp`, and `iat` and `auth_time` not in the future, each with the clock skew
+  allowed. The uid is at most 128 characters.
+- **Identity:** the uid is the id. Roles come from the `rolesClaim` custom claim and
+  [scope](permissions.md#record-scopes) attributes from `attributeClaims`, as set with the Admin SDK's
+  `setCustomUserClaims`, either as arrays of strings or as one string of names. Pass `roles = ...` to `firebase` to map
+  tokens differently; the principal is the resulting `Identity`.
+- **Keys:** `FirebaseKeys` fetches Google's certificates on the first Firebase token, not at startup, and keeps them for
+  the response's `Cache-Control: max-age`. A token signed with a key it doesn't know fetches again, at most once a
+  minute. A failed refresh keeps the old keys; with no keys at all, Firebase tokens are refused with `401`.
+- **Other providers first:** a token that isn't one of the project's Firebase tokens is refused before any key is
+  fetched, so the next provider gets its turn.
+- **Tests:** pass `FirebaseKeys(fetcher)` with a `FirebaseKeyFetcher` that returns a test key, and sign tokens with it.
+
 ## Storage
 
 The `BlobStore` SPI (`basekt-storage`) covers streamed puts and reads of files, byte ranges, and optional listing and
