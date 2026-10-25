@@ -2,7 +2,7 @@ import type { AdminPage, AdminResource, AdminSchema, ApiError, JsonObject } from
 import type { PanelConfig } from "@/config"
 
 // Two made-up schemas that use the panel differently: a lending library with references and decimals, and a help
-// desk with enums, instants and a read-only role.
+// desk with enums, instants and a read-only role. Authors have ids the librarian chooses, such as `ursula-le-guin`.
 
 export const books: AdminResource = {
   name: "books",
@@ -19,6 +19,7 @@ export const books: AdminResource = {
   sortable: ["id", "title", "pages", "fee", "lendable", "authorId"],
   group: null,
   links: [],
+  id: { source: "generated", rules: [], key: [] },
   actions: [],
   reports: [],
 }
@@ -32,6 +33,7 @@ export const authors: AdminResource = {
   sortable: ["id", "name"],
   group: null,
   links: [],
+  id: { source: "natural", rules: [{ kind: "pattern", regex: "[a-z][a-z-]*", message: "Use lowercase letters and dashes." }], key: [] },
   actions: [],
   reports: [],
 }
@@ -53,6 +55,7 @@ export const tickets: AdminResource = {
   sortable: ["id", "subject", "state", "openedAt", "views", "screenshot"],
   group: null,
   links: [],
+  id: { source: "generated", rules: [], key: [] },
   actions: [],
   reports: [
     { name: "ticketsByState", chart: "pie", groupBy: "state", function: "count", field: null, measure: "count", order: "valueDesc", limit: 12, bucket: null, timeZone: null, filters: [], range: null, compare: null },

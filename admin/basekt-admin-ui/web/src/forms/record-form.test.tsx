@@ -142,4 +142,32 @@ describe("record forms", () => {
     await waitFor(() => expect(location.pathname).toBe("/admin/r/books"))
     expect(fetch.calls.some((c) => c.method === "DELETE")).toBe(true)
   })
+
+  it("asks for the id when the client chooses it, and shows its errors under it", async () => {
+    const user = userEvent.setup()
+    const fetch = fakeFetch(({ url, method, body }) => {
+      if (url.pathname === "/admin/api/schema") return { body: librarySchema }
+      if (url.pathname === "/admin/api/resources/authors/records" && method === "POST") {
+        return (body as { id?: string }).id === "taken"
+          ? { status: 422, body: apiError("validation_failed", "The record has invalid fields.", [{ field: "id", code: "pattern", message: "Use lowercase letters and dashes." }]) }
+          : { status: 201, body: { ...(body as object) } }
+      }
+    })
+    renderPanel("/admin/r/authors/new", fetch)
+
+    await user.type(await screen.findByLabelText("Id*"), "taken")
+    await user.type(screen.getByLabelText("Name*"), "Ursula")
+    await user.click(screen.getByRole("button", { name: "Create" }))
+    expect(await screen.findByLabelText("Id*")).toHaveAccessibleDescription("Use lowercase letters and dashes.")
+    expect(fetch.calls.at(-1)!.body).toEqual({ id: "taken", name: "Ursula" })
+  })
+
+  it("doesn't ask for an id the data source makes", async () => {
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: librarySchema }
+    })
+    renderPanel("/admin/r/books/new", fetch)
+    expect(await screen.findByLabelText("Title*")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Id*")).not.toBeInTheDocument()
+  })
 })

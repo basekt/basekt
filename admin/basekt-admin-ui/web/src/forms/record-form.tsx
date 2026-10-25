@@ -21,7 +21,7 @@ const noErrors: FormErrors = { fields: {}, form: [], message: null }
 
 /** Spreads an API error over the form: each field error under its field, the rest above the form. */
 export function errorsFrom(resource: AdminResource, failure: ApiFailure): FormErrors {
-  const names = new Set(resource.fields.map((f) => f.name))
+  const names = new Set([...resource.fields, ...(idField(resource) ? [idField(resource)!] : [])].map((f) => f.name))
   const fields: Record<string, FieldError[]> = {}
   const form: FieldError[] = []
   for (const error of failure.error?.fields ?? []) {
@@ -32,8 +32,17 @@ export function errorsFrom(resource: AdminResource, failure: ApiFailure): FormEr
 }
 
 /**
- * A form for every field of [resource], with each field's widget from the registry. In `create` mode it sends the
- * fields that have a value; in `edit` mode it sends only what changed. Validation errors and hook vetoes come back
+ * The id a create form asks for, as a field of its own, when the client chooses ids: a required string checked by
+ * the resource's id rules. `null` when the server or the data source makes them.
+ */
+export function idField(resource: AdminResource): AdminField | null {
+  if (resource.id?.source !== "natural") return null
+  return { name: "id", type: "string", required: true, values: null, target: null, rules: resource.id.rules, bucket: null, scopedValues: null, auto: null, list: false, markdown: null }
+}
+
+/**
+ * A form for every field of [resource], with each field's widget from the registry, and the id first when a create
+ * must choose one. In `create` mode it sends the fields that have a value; in `edit` mode it sends only what changed. Validation errors and hook vetoes come back
  * from the API and are shown under the fields they name.
  */
 export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCancel }: {
@@ -74,6 +83,8 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
   }
 
   const fieldErrorCount = Object.values(errors.fields).reduce((n, list) => n + list.length, 0)
+  const chosenId = mode === "create" ? idField(resource) : null
+  const fields = [...(chosenId ? [chosenId] : []), ...resource.fields.filter((field) => field.auto == null)]
   return (
     <form onSubmit={submit} noValidate aria-label={`${mode === "create" ? "New" : "Edit"} ${humanize(resource.name)}`} className="grid gap-5">
       {failure != null && <ErrorState error={failure} />}
@@ -91,7 +102,7 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
           )}
         </Alert>
       )}
-      {resource.fields.filter((field) => field.auto == null).map((field) => {
+      {fields.map((field) => {
         const id = `field-${field.name}`
         const fieldErrors = errors.fields[field.name] ?? []
         const Widget = widgetFor(field)
