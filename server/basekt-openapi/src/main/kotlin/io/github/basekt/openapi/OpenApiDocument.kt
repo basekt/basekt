@@ -7,6 +7,8 @@ import io.github.basekt.schema.Auto
 import io.github.basekt.schema.Field
 import io.github.basekt.schema.FieldErrorCode
 import io.github.basekt.schema.FieldType
+import io.github.basekt.schema.IdSource
+import io.github.basekt.schema.IdSpec
 import io.github.basekt.schema.Operation
 import io.github.basekt.schema.Relation
 import io.github.basekt.schema.Resource
@@ -90,7 +92,7 @@ private val errorResponses = linkedMapOf(
     401 to ("basekt.unauthorized" to "The operation needs a signed-in caller (`unauthorized`)."),
     403 to ("basekt.forbidden" to "The caller's roles or record scope don't allow it (`forbidden`)."),
     404 to ("basekt.notFound" to "The record or relation doesn't exist, or is outside the caller's scope (`not_found`)."),
-    409 to ("basekt.conflict" to "The id is taken, the record changed since the version sent, or the transition can't start from the record's state (`conflict`)."),
+    409 to ("basekt.conflict" to "The id is taken, the record changed since the version sent, the transition can't start from the record's state, or records that belong to it restrict its delete (`conflict`)."),
     422 to ("basekt.unprocessable" to "A field was rejected (`validation_failed`, see `fields`) or a hook refused the write (`rejected`)."),
     500 to ("basekt.internalError" to "Something failed on the server (`internal_error`). The message names the request id the server logged it with."),
     501 to ("basekt.notImplemented" to "The data source can't do what the request needs, such as aggregates (`not_implemented`)."),
@@ -183,7 +185,7 @@ private class OpenApiWriter(private val schema: Schema, private val options: Ope
             )
         }
         if (permissions.delete.gate() != Gate.CLOSED) {
-            put("$path/{id}", "delete", operation(resource, "delete", "Delete a record of $name", listOf(permissions.delete), Operation.DELETE, emptyList(), null, mapOf("204" to response("Deleted.")), setOf(404, 422)))
+            put("$path/{id}", "delete", operation(resource, "delete", "Delete a record of $name", listOf(permissions.delete), Operation.DELETE, emptyList(), null, mapOf("204" to response("Deleted.")), setOf(404, 409, 422)))
         }
         for (relation in resource.relations) {
             val target = schema.resource(relation.target) ?: continue
@@ -287,23 +289,45 @@ private class OpenApiWriter(private val schema: Schema, private val options: Ope
             "type" to str("object"),
             "required" to strings(listOf(Resource.ID) + alwaysSet.map { it.name }),
             "properties" to JsonObject(
-                mapOf(Resource.ID to obj("type" to str("string"), "description" to str("The record's id."))) +
+                mapOf(Resource.ID to obj("type" to str("string"), "description" to str(idAbout(resource)))) +
                     fields.associate { it.name to fieldSchema(it, Mode.OUTPUT, nullable = it !in alwaysSet) },
             ),
         )
     }
 
+    private fun idAbout(resource: Resource): String = when (resource.id.source) {
+        IdSource.KEY -> "The record's id: its ${resource.id.key.joinToString(" and ")}, joined with '~', each with '%', '~' and '/' percent-encoded."
+        else -> "The record's id."
+    }
+
     private fun bodySchema(resource: Resource, mode: Mode): JsonObject {
         // An update may send the version it last read; every other automatic field is the server's.
         val fields = resource.fields.filter { !it.hidden && (it.auto == null || mode == Mode.PATCH && it.auto == Auto.Version) }
-        val id = mapOf(Resource.ID to obj("type" to str("string"), "minLength" to JsonPrimitive(1), "description" to str("The new record's id. The data source generates one when it is left out.")))
+        val id = if (resource.id.source == IdSource.KEY) emptyMap() else mapOf(Resource.ID to idSchema(resource))
+        val required = (if (resource.id.source == IdSource.NATURAL) listOf(Resource.ID) else emptyList()) +
+            fields.filter { it.required }.map { it.name }
         return obj(
             "type" to str("object"),
-            "required" to fields.filter { mode == Mode.CREATE && it.required }.takeIf { it.isNotEmpty() }?.let { required -> strings(required.map { it.name }) },
+            "required" to required.takeIf { mode == Mode.CREATE && it.isNotEmpty() }?.let(::strings),
             "properties" to JsonObject(
                 (if (mode == Mode.CREATE) id else emptyMap()) + fields.associate { it.name to fieldSchema(it, mode, nullable = !it.required) },
             ),
             "additionalProperties" to JsonPrimitive(false),
+        )
+    }
+
+    /** The id a create may send, or must for a natural id: every id's limits, narrowed by the resource's id rules. */
+    private fun idSchema(resource: Resource): JsonObject {
+        val lengths = resource.id.rules.filterIsInstance<Rule.Length>()
+        val pattern = resource.id.rules.filterIsInstance<Rule.Pattern>().singleOrNull()
+        val about = if (resource.id.source == IdSource.NATURAL) "The new record's id, which the client chooses. It never changes."
+        else "The new record's id. The data source generates one when it is left out."
+        return obj(
+            "type" to str("string"),
+            "minLength" to JsonPrimitive((lengths.mapNotNull { it.min } + 1).max()),
+            "maxLength" to JsonPrimitive((lengths.mapNotNull { it.max } + IdSpec.MAX_LENGTH).min()),
+            "pattern" to pattern?.let { str("^(?:${it.regex})$") },
+            "description" to str(about),
         )
     }
 

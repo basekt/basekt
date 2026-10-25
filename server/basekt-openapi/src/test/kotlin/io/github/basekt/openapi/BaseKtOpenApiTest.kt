@@ -150,6 +150,24 @@ class BaseKtOpenApiTest {
     }
 
     @Test
+    fun `natural ids are required on create, key ids are never sent, and deletes may conflict`() = testApplication {
+        openApi(permitSchema)
+        val document = client.document()
+        val schemas = document.at("components", "schemas")
+        val inspector = schemas.at("inspectors.create")
+        assertEquals(listOf("id"), inspector.at("required").strings())
+        assertEquals(JsonPrimitive(3), inspector.at("properties", "id", "minLength"))
+        assertEquals(JsonPrimitive(12), inspector.at("properties", "id", "maxLength"))
+        assertEquals("^(?:[a-z]+)$", inspector.at("properties", "id", "pattern").jsonPrimitive.content)
+        assertEquals(JsonPrimitive(256), schemas.at("notes.create", "properties", "id", "maxLength"))
+
+        assertFalse(schemas.has("inspections.create", "properties", "id"))
+        assertEquals(listOf("permitId", "inspectorId"), schemas.at("inspections.create", "required").strings())
+        assertTrue("permitId and inspectorId" in schemas.at("inspections", "properties", "id", "description").jsonPrimitive.content)
+        assertTrue(document.has("paths", "/api/inspectors/{id}", "delete", "responses", "409"))
+    }
+
+    @Test
     fun `list routes take the filters, sort, limit and cursor`() = testApplication {
         openApi(workshopSchema, workshopActions)
         val document = client.document()

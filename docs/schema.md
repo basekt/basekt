@@ -107,7 +107,8 @@ missing), it can't send an id itself (`read_only`), and an update can't change a
 key is the record's id, the data source refuses a second record with the same values atomically, in every adapter:
 concurrent creates of one key give one `201` and `409 conflict` for the rest, with the message `There is already a
 'grants' with this accountId and itemId.` A `unique()` field, by contrast, is checked in the write's transaction and
-backed by a unique index only in the Exposed adapter, so a key is the way to make a pair unique under concurrent writes.
+backed by a unique index in the Exposed and MongoDB adapters but not in Firestore, which has none, and it covers one
+field only. So a key is the way to make a pair unique under concurrent writes, in every adapter.
 
 ## Deleting records
 
