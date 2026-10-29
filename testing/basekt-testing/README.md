@@ -1,6 +1,6 @@
 # basekt-testing
 
-The `DataSourceContract` and `BlobStoreContract` suites every adapter runs, and `testApplication` fixtures.
+The `DataSourceContract`, `BlobStoreContract` and `PaymentProviderContract` suites every adapter runs, and `testApplication` fixtures.
 
 ```kotlin
 dependencies { implementation("io.github.basekt:basekt-testing:0.2.0") }
