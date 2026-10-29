@@ -10,6 +10,7 @@ description = "BaseKt testing: the DataSource and BlobStore contract suites ever
 dependencies {
     api(project(":server:basekt-data-memory"))
     api(project(":server:basekt-storage-memory"))
+    api(project(":commerce:basekt-payment-memory"))
     api(libs.ktor.server.test.host)
     api(libs.kotlinx.coroutines.test)
     api(kotlin("test-junit5"))

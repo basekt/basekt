@@ -24,6 +24,7 @@ import org.bson.BsonString
 import org.bson.types.ObjectId
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assumptions.assumeTrue
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -61,6 +62,7 @@ class MongoDataSourceTest {
 
     private fun database(): String {
         assumeTrue(mongoAvailable(), "No MongoDB: pass -Pbasekt.mongo.url, start Docker, or pass -Pbasekt.mongo.embedded=true.")
+        mongoClient
         return freshDatabaseName().also { databases += it }
     }
 
@@ -71,8 +73,19 @@ class MongoDataSourceTest {
 
     @AfterEach
     fun dropDatabases(): Unit = runBlocking {
-        databases.forEach { mongoClient.getDatabase(it).drop() }
-        databases.clear()
+        if (databases.isNotEmpty()) {
+            val client = mongoClient
+            databases.forEach { client.getDatabase(it).drop() }
+            databases.clear()
+        }
+    }
+
+    companion object {
+        @JvmStatic
+        @BeforeAll
+        fun startServer() {
+            if (mongoAvailable()) mongoClient
+        }
     }
 
     private fun text(value: String) = Value.Text(value)

@@ -8,4 +8,6 @@ description = "BaseKt commerce: an optional umbrella over the modules for sellin
 
 dependencies {
     api(project(":commerce:basekt-storefront"))
+    api(project(":commerce:basekt-payment"))
+    api(project(":commerce:basekt-payments"))
 }
