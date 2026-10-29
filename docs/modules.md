@@ -13,6 +13,7 @@ Every module is its own artifact and its own Ktor plugin, published as `io.githu
 | `server:basekt-data-firestore` | ✓ works | Cloud Firestore adapter: a collection per resource, document ids as record ids, Firestore transactions with nested rollback, aggregation counts, conditional writes and sequences; it reads collections another program wrote as they are, and checks in memory, within a limit, what Firestore can't filter or sort |
 | `server:basekt-auth` | ✓ works | Ktor Authentication adapters (JWT, bearer), `PrincipalRoles` mapped to permissions, typed 401 and 403 |
 | `server:basekt-auth-firebase` | ✓ works | Firebase ID tokens as an identity, verified against Google's rotating public keys without the Admin SDK: the uid, roles and record-scope attributes from custom claims, beside other providers on the same routes |
+| `server:basekt-auth-supabase` | ✓ works | Supabase Auth access tokens as an identity, verified via GoTrue or HMAC-SHA256 JWT secret: user ID, roles and record-scope attributes, beside other providers on the same routes |
 | `admin:basekt-admin-api` | ✓ works | `install(BaseKtAdmin)`: a JSON admin API from the schema (per-caller schema, list and search, CRUD, bulk delete, CSV export) and its TypeScript types |
 | `testing:basekt-testing` | ✓ works | the `DataSourceContract` and `BlobStoreContract` suites every adapter runs, plus test fixtures |
 | `admin:basekt-admin-ui` | ✓ works | `install(BaseKtAdminUi)`: a schema-driven admin panel (React, shadcn/ui and Tailwind, prebuilt into the jar) with a typed Kotlin theme |

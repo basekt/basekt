@@ -312,6 +312,40 @@ auth.firebase {
   fetched, so the next provider gets its turn.
 - **Tests:** pass `FirebaseKeys(fetcher)` with a `FirebaseKeyFetcher` that returns a test key, and sign tokens with it.
 
+### Supabase access tokens
+
+`basekt-auth-supabase` accepts access tokens issued by Supabase Auth (GoTrue). It verifies tokens against GoTrue's `/auth/v1/user` endpoint or locally via an HMAC-SHA256 JWT secret:
+
+```kotlin
+install(Authentication) {
+    supabase("supabase", SupabaseSettings.from(environment.config.config("auth.supabase")))   // basekt-auth-supabase
+    firebase("firebase", FirebaseSettings.from(environment.config.config("auth.firebase")))   // optional fallback
+}
+install(BaseKt) {
+    identities = AuthIdentities("supabase", "firebase")
+}
+```
+
+```hocon
+auth.supabase {
+    url = "https://your-project.supabase.co"
+    anonKey = "eyJhbGciOi..."
+    jwtSecret = "optional-jwt-secret-for-local-hmac"
+    clockSkew = "PT30S"          # optional, at most five minutes
+    cacheTtl = "PT5M"            # optional, in-memory cache duration for GoTrue validations
+    rolesClaim = "roles"         # optional
+    attributeClaims = ["team"]   # optional
+}
+```
+
+- **Checks:**
+  - With `jwtSecret`: verifies the HMAC-SHA256 signature locally with no network calls.
+  - Without `jwtSecret`: queries Supabase's `/auth/v1/user` endpoint using the JDK's standard HTTP client, caching verified profiles in memory for `cacheTtl` or until the token's `exp`.
+  - Expiration and clock skew are enforced.
+- **Identity:** the user UUID (`sub`) is the id. Roles come from `app_metadata.roles`, `user_metadata.roles`, or top-level custom claims. Record-scope attributes come from `attributeClaims`.
+- **Other providers first:** a token whose issuer does not match Supabase is refused before querying GoTrue, so other providers in `AuthIdentities` (like Firebase or machine JWTs) get their turn.
+- **Tests:** pass a mock `SupabaseUserFetcher` to `supabase` to stub GoTrue responses.
+
 ## Storage
 
 The `BlobStore` SPI (`basekt-storage`) covers streamed puts and reads of files, byte ranges, and optional listing and
