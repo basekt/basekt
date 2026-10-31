@@ -82,6 +82,15 @@ internal data class ShellOidc(
     val label: String,
 ) : ShellProvider
 
+/** A Supabase Auth project and the sign-in methods to offer. The panel's `SupabaseProvider` mirrors it. */
+@Serializable
+@SerialName("supabase")
+internal data class ShellSupabase(
+    val url: String,
+    val anonKey: String,
+    val providers: List<String>,
+) : ShellProvider
+
 private val json = Json { encodeDefaults = true }
 
 /**

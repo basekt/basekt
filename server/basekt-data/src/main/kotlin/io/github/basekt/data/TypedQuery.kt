@@ -195,8 +195,18 @@ internal fun Model<*>.fieldName(property: KProperty1<*, *>): String {
     return name
 }
 
+/** Returns [property]'s field name for a write, refusing [Resource.ID] and unknown fields. */
+internal fun Model<*>.writableFieldName(property: KProperty1<*, *>): String {
+    val name = property.name
+    if (name == Resource.ID) throw InvalidQueryException("'${resource.name}.id' is the record's id and can't be changed.")
+    if (resource.field(name) == null) {
+        throw InvalidQueryException("'${resource.name}' has no field '$name'. Properties renamed with @SerialName can't be written by reference.")
+    }
+    return name
+}
+
 /** Returns the stored text of [value]: its serial name in [property]'s enum. */
-private fun Model<*>.enumValue(property: KProperty1<*, *>, value: Enum<*>): Value.Text {
+internal fun Model<*>.enumValue(property: KProperty1<*, *>, value: Enum<*>): Value.Text {
     val descriptor = serializer.descriptor
     val index = (0 until descriptor.elementsCount).first { descriptor.getElementName(it) == fieldName(property) }
     return Value.Text(descriptor.getElementDescriptor(index).getElementName(value.ordinal))

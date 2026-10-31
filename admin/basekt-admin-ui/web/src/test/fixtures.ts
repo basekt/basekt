@@ -24,6 +24,7 @@ export const books: AdminResource = {
   reports: [],
   readOnly: false,
   filters: null,
+  view: null,
 }
 
 export const authors: AdminResource = {
@@ -40,6 +41,7 @@ export const authors: AdminResource = {
   reports: [],
   readOnly: false,
   filters: null,
+  view: null,
 }
 
 export const librarySchema: AdminSchema = { version: 1, caller: { id: "librarian", roles: ["staff"] }, resources: [books, authors] }
@@ -67,6 +69,7 @@ export const tickets: AdminResource = {
   ],
   readOnly: false,
   filters: null,
+  view: null,
 }
 
 // The callers waiting on a phone line right now: a read-only resource served by the application's own code, which
@@ -92,7 +95,60 @@ export const callers: AdminResource = {
     { field: "name", operators: ["contains"] },
     { field: "line", operators: ["eq", "in"] },
   ],
+  view: null,
 }
+
+export const posters: AdminResource = {
+  name: "posters",
+  fields: [
+    { name: "title", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "artist", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "era", type: "enum", required: false, values: ["deco", "modern", "minimal"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "imageUrl", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+  ],
+  relations: [],
+  operations: ["read", "create", "update", "delete"],
+  searchable: ["title", "artist"],
+  sortable: ["id", "title", "era"],
+  group: "Archive",
+  links: [],
+  id: { source: "generated", rules: [], key: [] },
+  actions: [],
+  reports: [],
+  readOnly: false,
+  filters: null,
+  view: {
+    cards: { media: "imageUrl", title: "title", subtitle: "artist", badge: "era" },
+    detailLayout: "split",
+    orderField: null,
+  },
+}
+
+export const chapters: AdminResource = {
+  name: "chapters",
+  fields: [
+    { name: "heading", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "position", type: "int", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+  ],
+  relations: [],
+  operations: ["read", "create", "update", "delete"],
+  searchable: ["heading"],
+  sortable: ["id", "heading", "position"],
+  group: "Archive",
+  links: [],
+  id: { source: "generated", rules: [], key: [] },
+  actions: [],
+  reports: [],
+  readOnly: false,
+  filters: null,
+  view: {
+    cards: null,
+    detailLayout: "sheet",
+    orderField: "position",
+  },
+}
+
+export const gallerySchema: AdminSchema = { version: 1, caller: { id: "curator", roles: ["curator"] }, resources: [posters, chapters] }
 
 export const helpDeskSchema: AdminSchema = { version: 1, caller: { id: "viewer", roles: ["observer"] }, resources: [tickets] }
 

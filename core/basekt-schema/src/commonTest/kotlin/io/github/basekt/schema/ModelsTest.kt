@@ -38,6 +38,21 @@ private data class NoId(val name: String)
 @Serializable
 private data class Renamed(val id: String, @SerialName("display_name") val displayName: String)
 
+@Serializable
+private data class RescheduleInput(
+    val seats: Int = 8,
+    val level: Level = Level.BEGINNER,
+    val tags: List<String>,
+    val roomIds: List<String>? = null,
+    val note: String? = null,
+)
+
+@Serializable
+private data class BadActionId(val id: String)
+
+@Serializable
+private data class NullableListInput(val tags: List<String?>)
+
 class ModelsTest {
     private val sessions = model<Session>("sessions") {
         field(Session::label) { length(max = 40) }
@@ -126,5 +141,44 @@ class ModelsTest {
         assertEquals(true, "@SerialName" in renamed.message!!, renamed.message)
         val notText = assertFailsWith<IllegalArgumentException> { model<Session>("x") { field(Session::id) { required() } } }
         assertEquals(true, "is the record's id" in notText.message!!, notText.message)
+    }
+
+    @Test
+    fun `typed action inputs support lists, references and defaults and match dynamic action inputs`() {
+        val typedInput = actionInput<RescheduleInput> {
+            field(RescheduleInput::seats) { min(1); max(40) }
+            reference(RescheduleInput::roomIds, "rooms")
+        }
+        val builtSchema = schema {
+            resource("rooms") { string("name") }
+            resource<Session>("sessions") {
+                belongsTo(Session::roomId, "rooms")
+                action("reschedule") {
+                    allow("host")
+                    input<RescheduleInput> {
+                        field(RescheduleInput::seats) { min(1); max(40) }
+                        reference(RescheduleInput::roomIds, "rooms")
+                    }
+                }
+            }
+        }
+        val action = builtSchema.resource("sessions")!!.action("reschedule")!!
+        assertEquals(typedInput.fields, action.input)
+        assertEquals(true, action.input.first { it.name == "tags" }.list)
+        assertEquals(true, action.input.first { it.name == "tags" }.required)
+        assertEquals(FieldType.REFERENCE, action.input.first { it.name == "roomIds" }.type)
+        assertEquals(true, action.input.first { it.name == "roomIds" }.list)
+
+        val value = RescheduleInput(seats = 12, level = Level.EXPERT, tags = listOf("evening", "ensemble"), roomIds = listOf("r1", "r2"))
+        val record = typedInput.toRecord(value)
+        assertEquals(Value.Items(listOf(Value.Text("evening"), Value.Text("ensemble"))), record["tags"])
+        assertEquals(value, typedInput.fromRecord(record))
+        assertEquals(
+            RescheduleInput(tags = listOf("solo")),
+            typedInput.fromRecord(mapOf("tags" to Value.Items(listOf(Value.Text("solo"))))),
+        )
+
+        assertFailsWith<IllegalArgumentException> { actionInput<BadActionId>() }
+        assertFailsWith<IllegalArgumentException> { actionInput<NullableListInput>() }
     }
 }

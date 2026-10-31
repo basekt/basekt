@@ -186,6 +186,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
                     declared.filters[field]?.takeIf { it.isNotEmpty() }?.let { AdminFilter(field, it.sorted()) }
                 }
             },
+            view = if (Operation.READ in operations) resource.adminView else null,
         )
     }
     return AdminSchema(caller = caller?.let { AdminCaller(it.id, it.roles.sorted()) }, resources = resources)

@@ -48,8 +48,19 @@ export interface OidcProvider {
   label: string
 }
 
-/** An identity provider the panel signs in with, sending its ID token as the bearer token. */
-export type SignInProvider = FirebaseProvider | OidcProvider
+/** Sign-in through Supabase Auth (GoTrue). Mirrors the plugin's `ShellSupabase`. */
+export interface SupabaseProvider {
+  type: "supabase"
+  /** The Supabase project's URL, such as `https://xyzcompany.supabase.co`. */
+  url: string
+  /** The project's public anon key. */
+  anonKey: string
+  /** `password` for an email and a password, or OAuth provider names such as `google`, `github` or `discord`. */
+  providers: string[]
+}
+
+/** An identity provider the panel signs in with, sending its ID or access token as the bearer token. */
+export type SignInProvider = FirebaseProvider | OidcProvider | SupabaseProvider
 
 /** A link from the panel to the host app's own site. Mirrors the plugin's `SiteLink`. */
 export interface SiteLink {

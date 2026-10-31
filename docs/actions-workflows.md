@@ -39,6 +39,48 @@ same way, as an [erasure](schema.md#erasing-what-a-principal-owns) does.
 A record action needs the record in the caller's update [scope](permissions.md#record-scopes). The admin API lists
 the actions each caller may run, and the panel shows them as buttons, with a form for their input.
 
+### Typed actions
+
+With `Model<T>` and `actionInput<I>`, an action's input, target record and writes stay typed end to end:
+
+```kotlin
+@Serializable
+data class Copy(val id: String = "", val available: Int)
+
+@Serializable
+data class LendInput(val borrower: String)
+
+val lendInput = actionInput<LendInput> {
+    field(LendInput::borrower) { required() }
+}
+
+val copies = model<Copy>("copies") {
+    field(Copy::available) { required(); min(0) }
+    action("lend") {
+        input(lendInput)
+        allow("librarian")
+    }
+}
+
+install(BaseKt) {
+    models(copies, loans)
+    actions {
+        onRecord(copies, "lend", lendInput) { copy, input ->
+            val updated = repository(copies).updateIf(copy.id, where = { Copy::available gte 1 }) {
+                increment(Copy::available, -1)
+            }
+            if (updated !is TypedConditionalUpdate.Updated) fail("None left.")
+            create(loans, Loan(copyId = copy.id, borrower = input.borrower))
+            null
+        }
+    }
+}
+```
+
+`onRecord` handles record actions and workflow transitions; `onResource` handles resource-level actions. Inside
+`TypedActionContext`, `create(model, value)`, `update(model, id, value)` and `repository(model)` decode and validate
+records without raw `Map<String, Value>` casts.
+
 ## Workflows
 
 **Workflows** make an enum field a state machine, for approvals and anything else that moves through statuses. The

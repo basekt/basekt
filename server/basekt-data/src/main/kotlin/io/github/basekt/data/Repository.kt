@@ -2,6 +2,10 @@ package io.github.basekt.data
 
 import io.github.basekt.schema.Model
 import io.github.basekt.schema.Resource
+import io.github.basekt.schema.Value
+import kotlin.jvm.JvmName
+import kotlin.reflect.KProperty1
+import kotlin.time.Instant
 
 /**
  * Typed access to a [Model]'s records in [source]: every call takes and returns [T], converted through [T]'s
@@ -42,11 +46,141 @@ public class Repository<T>(
     public suspend fun update(id: String, value: T): T? =
         source.update(resource, id, model.toRecord(value) - Resource.ID)?.let(model::fromRecord)
 
+    /**
+     * Atomically checks [block]'s `where` condition and applies its `set` and `increment` writes to the record with
+     * [id] through [ConditionalWrites]. Throws [UnsupportedOperationException] if [source] doesn't offer
+     * [ConditionalWrites].
+     */
+    public suspend fun updateIf(id: String, block: ConditionalWriteScope<T>.() -> Unit): TypedConditionalUpdate<T> {
+        val conditional = source as? ConditionalWrites
+            ?: throw UnsupportedOperationException("This data source doesn't offer ConditionalWrites.")
+        val scope = ConditionalWriteScope(model).apply(block)
+        return conditional.updateIf(resource, id, scope.filter, scope.changes, scope.increments).toTyped(model)
+    }
+
+    /**
+     * Replaces every field of the record with [id] by [value]'s only if the stored record currently matches [where].
+     * [value]'s own id is ignored. Throws [UnsupportedOperationException] if [source] doesn't offer [ConditionalWrites].
+     */
+    public suspend fun updateWhere(
+        id: String,
+        value: T,
+        where: FilterScope<T>.() -> Filter,
+    ): TypedConditionalUpdate<T> {
+        val conditional = source as? ConditionalWrites
+            ?: throw UnsupportedOperationException("This data source doesn't offer ConditionalWrites.")
+        val condition = FilterScope(model).where()
+        return conditional.updateIf(resource, id, condition, model.toRecord(value) - Resource.ID).toTyped(model)
+    }
+
     /** Deletes the record with [id]. Returns `false` if there wasn't one. */
     public suspend fun delete(id: String): Boolean = source.delete(resource, id)
 
     /** Returns the transport-neutral [Query] that [block] describes. */
     public fun query(block: TypedQuery<T>.() -> Unit): Query = TypedQuery(model).apply(block).build()
+}
+
+/**
+ * Builds the condition, field assignments and numeric increments of a [Repository.updateIf] call:
+ *
+ * ```kotlin
+ * repository.updateIf(id) {
+ *     where { SeatPool::remaining gte 1 }
+ *     increment(SeatPool::remaining, -1)
+ * }
+ * ```
+ */
+public class ConditionalWriteScope<T> internal constructor(private val model: Model<T>) {
+    internal var filter: Filter? = null
+    internal val changes = linkedMapOf<String, Value?>()
+    internal val increments = linkedMapOf<String, Value>()
+
+    /** Requires the stored record to match [block]'s filter. Calling it again adds another filter with `and`. */
+    public fun where(block: FilterScope<T>.() -> Filter) {
+        val added = FilterScope(model).block()
+        filter = filter?.let { Filter.And(listOf(it, added)) } ?: added
+    }
+
+    /** Sets [property] to [value]. */
+    @JvmName("setString")
+    public fun <V : String?> set(property: KProperty1<T, V>, value: V) {
+        changes[model.writableFieldName(property)] = value?.let(Value::Text)
+    }
+
+    /** Sets [property] to [value]. */
+    @JvmName("setInt")
+    public fun <V : Int?> set(property: KProperty1<T, V>, value: V) {
+        changes[model.writableFieldName(property)] = value?.let { Value.Integer(it.toLong()) }
+    }
+
+    /** Sets [property] to [value]. */
+    @JvmName("setLong")
+    public fun <V : Long?> set(property: KProperty1<T, V>, value: V) {
+        changes[model.writableFieldName(property)] = value?.let(Value::Integer)
+    }
+
+    /** Sets [property] to [value]. */
+    @JvmName("setDecimal")
+    public fun <V : Value.Decimal?> set(property: KProperty1<T, V>, value: V) {
+        changes[model.writableFieldName(property)] = value
+    }
+
+    /** Sets [property] to [value]. */
+    @JvmName("setInstant")
+    public fun <V : Instant?> set(property: KProperty1<T, V>, value: V) {
+        changes[model.writableFieldName(property)] = value?.let(Value::Timestamp)
+    }
+
+    /** Sets [property] to [value]. */
+    @JvmName("setBoolean")
+    public fun <V : Boolean?> set(property: KProperty1<T, V>, value: V) {
+        changes[model.writableFieldName(property)] = value?.let(Value::Bool)
+    }
+
+    /** Sets [property] to [value]. */
+    @JvmName("setEnum")
+    public fun <E : Enum<E>, V : E?> set(property: KProperty1<T, V>, value: V) {
+        changes[model.writableFieldName(property)] = value?.let { model.enumValue(property, it) }
+    }
+
+    /** Adds [amount] (positive or negative) to [property]. */
+    @JvmName("incrementInt")
+    public fun increment(property: KProperty1<T, Int?>, amount: Int) {
+        increments[model.writableFieldName(property)] = Value.Integer(amount.toLong())
+    }
+
+    /** Adds [amount] (positive or negative) to [property]. */
+    @JvmName("incrementLong")
+    public fun increment(property: KProperty1<T, Long?>, amount: Long) {
+        increments[model.writableFieldName(property)] = Value.Integer(amount)
+    }
+
+    /** Adds [amount] (positive or negative) to [property]. */
+    @JvmName("incrementDecimal")
+    public fun increment(property: KProperty1<T, Value.Decimal?>, amount: Value.Decimal) {
+        increments[model.writableFieldName(property)] = amount
+    }
+}
+
+/** What a conditional update on a [Repository] did. */
+public sealed interface TypedConditionalUpdate<out T> {
+    /** The record matched and was written; [value] is the record after the write. */
+    public data class Updated<T>(
+        /** The record after the write. */
+        val value: T,
+    ) : TypedConditionalUpdate<T>
+
+    /** The record exists but didn't match the condition, so nothing changed. */
+    public data object ConditionFailed : TypedConditionalUpdate<Nothing>
+
+    /** There is no record with that id. */
+    public data object NotFound : TypedConditionalUpdate<Nothing>
+}
+
+private fun <T> ConditionalUpdate.toTyped(model: Model<T>): TypedConditionalUpdate<T> = when (this) {
+    is ConditionalUpdate.Updated -> TypedConditionalUpdate.Updated(model.fromRecord(record))
+    ConditionalUpdate.ConditionFailed -> TypedConditionalUpdate.ConditionFailed
+    ConditionalUpdate.NotFound -> TypedConditionalUpdate.NotFound
 }
 
 /** One page of typed records, and the cursor of the next page. */

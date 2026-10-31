@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronLeft, ExternalLink, Trash2 } from "lucide-react"
+import { ChevronLeft, ExternalLink, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import type { AdminResource, JsonObject } from "@wire"
 import { ActionButtons } from "@/components/action-button"
@@ -31,6 +31,7 @@ import { Link, useRouter } from "@/router"
  */
 export function RecordView({ resource, id }: { resource: AdminResource; id: string }) {
   const { api } = usePanel()
+  const { navigate } = useRouter()
   const record = useAsync(() => api.get(resource.name, id), [api, resource.name, id])
   return (
     <div className="grid max-w-3xl gap-6">
@@ -42,9 +43,97 @@ export function RecordView({ resource, id }: { resource: AdminResource; id: stri
         <div className="flex flex-wrap items-center gap-2">
           {record.data && <SiteLinks resource={resource} record={record.data} />}
           {record.data && <ActionButtons resource={resource} target="record" id={id} record={record.data} onDone={record.reload} />}
-          {can(resource, "delete") && record.data && <DeleteButton resource={resource} id={id} />}
+          {can(resource, "delete") && record.data && (
+            <DeleteButton
+              resource={resource}
+              id={id}
+              onDeleted={() => navigate({ screen: "list", resource: resource.name, search: new URLSearchParams() }, { replace: true })}
+            />
+          )}
         </div>
       </div>
+      <RecordBody resource={resource} id={id} record={record} />
+    </div>
+  )
+}
+
+/**
+ * An inline inspector for one record inside a split-view or slide-over sheet on the list screen.
+ */
+export function RecordInspector({
+  resource,
+  id,
+  onClose,
+  onChanged,
+  onDeleted,
+}: {
+  resource: AdminResource
+  id: string
+  onClose: () => void
+  onChanged?: () => void
+  onDeleted?: () => void
+}) {
+  const { api } = usePanel()
+  const record = useAsync(() => api.get(resource.name, id), [api, resource.name, id])
+  return (
+    <div className="grid gap-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{humanize(resource.name)}</p>
+          <h2 className="truncate font-mono text-lg font-semibold tracking-tight">{id}</h2>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link to={{ screen: "detail", resource: resource.name, id }}>Open page</Link>
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Close inspector" onClick={onClose}>
+            <X />
+          </Button>
+        </div>
+      </div>
+      {record.data && (
+        <div className="flex flex-wrap items-center gap-2">
+          <SiteLinks resource={resource} record={record.data} />
+          <ActionButtons
+            resource={resource}
+            target="record"
+            id={id}
+            record={record.data}
+            onDone={() => {
+              record.reload()
+              onChanged?.()
+            }}
+          />
+          {can(resource, "delete") && (
+            <DeleteButton
+              resource={resource}
+              id={id}
+              onDeleted={() => {
+                onDeleted?.()
+                onClose()
+              }}
+            />
+          )}
+        </div>
+      )}
+      <RecordBody resource={resource} id={id} record={record} onSaved={onChanged} />
+    </div>
+  )
+}
+
+function RecordBody({
+  resource,
+  id,
+  record,
+  onSaved,
+}: {
+  resource: AdminResource
+  id: string
+  record: ReturnType<typeof useAsync<JsonObject>>
+  onSaved?: () => void
+}) {
+  return (
+    <>
       {record.error ? (
         <ErrorState error={record.error} onRetry={record.reload} />
       ) : !record.data ? (
@@ -61,13 +150,14 @@ export function RecordView({ resource, id }: { resource: AdminResource; id: stri
           onSaved={() => {
             toast.success(`Saved ${id}.`)
             record.reload()
+            onSaved?.()
           }}
         />
       ) : (
         <ReadOnly resource={resource} record={record.data} />
       )}
       {record.data && <Relations resource={resource} id={id} record={record.data} />}
-    </div>
+    </>
   )
 }
 
@@ -145,15 +235,14 @@ function ReadOnly({ resource, record }: { resource: AdminResource; record: JsonO
   )
 }
 
-function DeleteButton({ resource, id }: { resource: AdminResource; id: string }) {
+function DeleteButton({ resource, id, onDeleted }: { resource: AdminResource; id: string; onDeleted: () => void }) {
   const { api } = usePanel()
-  const { navigate } = useRouter()
   const [failure, setFailure] = useState<unknown>(null)
   const remove = async () => {
     try {
       await api.remove(resource.name, id)
       toast.success(`Deleted ${id}.`)
-      navigate({ screen: "list", resource: resource.name, search: new URLSearchParams() }, { replace: true })
+      onDeleted()
     } catch (error) {
       setFailure(error)
     }

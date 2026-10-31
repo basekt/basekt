@@ -253,6 +253,11 @@ public class ActionBuilder internal constructor(private val name: String, privat
         input = FieldsBuilder().apply(block).fields.toList()
     }
 
+    /** Sets the action's input fields directly, such as from an [ActionInput]. */
+    public fun input(fields: List<Field>) {
+        input = fields.toList()
+    }
+
     /** Who may run the action. No one may until it is set. */
     public fun allow(access: Access) {
         this.access = access

@@ -4,8 +4,10 @@ import io.github.basekt.data.DataSource
 import io.github.basekt.data.Filter
 import io.github.basekt.schema.FieldError
 import io.github.basekt.schema.FieldErrorCode
+import io.github.basekt.schema.Model
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -99,6 +101,16 @@ public class Actions internal constructor(
 /** Registers the code of the schema's actions. */
 public class ActionsBuilder {
     private val handlers = linkedMapOf<String, MutableMap<String, ActionHandler>>()
+    private val pending = mutableListOf<(List<Model<*>>) -> Unit>()
+
+    /**
+     * Registers a typed action for the class [serializer] serializes once the schema's models are known, which may be
+     * after this call: [register] receives its model.
+     */
+    @PublishedApi
+    internal fun <T> typed(serializer: KSerializer<T>, register: ActionsBuilder.(Model<T>) -> Unit) {
+        pending += { models -> register(modelOf(serializer, models)) }
+    }
 
     /** Runs [handler] when a caller runs [resource]'s action [name]. */
     public fun on(resource: String, name: String, handler: ActionHandler) {
@@ -107,6 +119,27 @@ public class ActionsBuilder {
         registered[name] = handler
     }
 
-    /** Returns the code registered so far. */
-    public fun build(): Actions = Actions(handlers.mapValues { it.value.toMap() })
+    /** Returns the code registered so far. Typed actions that name a class need [build] with the schema's models. */
+    public fun build(): Actions = build(emptyList())
+
+    /**
+     * Returns the code registered so far, resolving typed actions declared by class against [models]. Throws
+     * [IllegalStateException] listing every class that no model in [models] has.
+     */
+    public fun build(models: List<Model<*>>): Actions {
+        val resolving = pending.toList()
+        pending.clear()
+        val problems = resolving.mapNotNull { resolve ->
+            try {
+                resolve(models)
+                null
+            } catch (e: IllegalStateException) {
+                e.message
+            }
+        }.distinct()
+        check(problems.isEmpty()) {
+            problems.singleOrNull() ?: problems.joinToString("\n", "Typed actions name classes the schema doesn't declare:\n") { "- $it" }
+        }
+        return Actions(handlers.mapValues { it.value.toMap() })
+    }
 }

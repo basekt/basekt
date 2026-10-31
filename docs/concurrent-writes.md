@@ -31,3 +31,17 @@ when ((data as ConditionalWrites).updateIf(pools, poolId, Filter.Compare("left",
 
 The in-memory and Exposed adapters offer it. The Exposed adapter does it as one `UPDATE … WHERE`, which the database
 checks again under the row's lock.
+
+With a typed `Model<T>`, `Repository.updateIf` and `Repository.updateWhere` build the condition, field assignments and
+numeric increments from Kotlin property references and decode the updated record back to `T`:
+
+```kotlin
+when (val result = poolsRepo.updateIf(poolId, where = { Pool::left gte 1 }) {
+    increment(Pool::left, -1)
+    set(Pool::note, "claimed")
+}) {
+    is TypedConditionalUpdate.Updated -> result.record
+    TypedConditionalUpdate.NotFound,
+    TypedConditionalUpdate.ConditionFailed -> error("None left.")
+}
+```

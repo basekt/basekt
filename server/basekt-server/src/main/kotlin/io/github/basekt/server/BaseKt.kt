@@ -84,7 +84,7 @@ public class BaseKtConfig internal constructor(config: ApplicationConfig) {
         actionBuilder.apply(block)
     }
 
-    internal fun builtActions(): Actions = actionBuilder.build()
+    internal fun builtActions(): Actions = actionBuilder.build(models.toList())
 
     private val providerBuilder = ProvidersBuilder()
 

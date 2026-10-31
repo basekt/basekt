@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { providerClient, SignInCancelled, signInMethods } from "@/api/providers"
 import { RefreshUnavailable, type Session } from "@/auth"
-import type { FirebaseProvider, OidcProvider } from "@/config"
+import type { FirebaseProvider, OidcProvider, SupabaseProvider } from "@/config"
 
 const oidc = vi.hoisted(() => {
   const managers: { settings: Record<string, unknown>; user: Record<string, unknown> | null }[] = []
@@ -78,6 +78,7 @@ function idToken(exp: number): string {
 
 const school: OidcProvider = { type: "oidc", issuer: "https://id.school.test", clientId: "panel", scopes: ["openid", "offline_access"], label: "school account" }
 const garden: FirebaseProvider = { type: "firebase", apiKey: "public-key", authDomain: "garden.firebaseapp.com", projectId: null, providers: ["password", "google.com", "oidc.allotment"] }
+const studio: SupabaseProvider = { type: "supabase", url: "https://studio.supabase.co", anonKey: "sb-anon-key", providers: ["password", "google", "discord"] }
 
 describe("sign-in methods", () => {
   it("names each way in without loading an SDK", () => {
@@ -86,6 +87,11 @@ describe("sign-in methods", () => {
       { id: "password", kind: "password", label: "Email" },
       { id: "google.com", kind: "button", label: "Continue with Google" },
       { id: "oidc.allotment", kind: "button", label: "Continue with allotment" },
+    ])
+    expect(signInMethods(studio)).toEqual([
+      { id: "password", kind: "password", label: "Email" },
+      { id: "google", kind: "button", label: "Continue with Google" },
+      { id: "discord", kind: "button", label: "Continue with Discord" },
     ])
   })
 })
@@ -188,5 +194,82 @@ describe("Firebase Authentication", () => {
     expect((await client.refresh(first)).token).toBe("fb-2")
     await client.signOut()
     await expect(client.refresh(first)).rejects.toThrow(/no session/)
+  })
+})
+
+describe("Supabase Auth", () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+  })
+
+  it("signs in with password, refreshes the access token, and signs out cleanly", async () => {
+    const calls: { url: string; headers: Record<string, string>; body: unknown }[] = []
+    const fake = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      calls.push({
+        url,
+        headers: (init?.headers ?? {}) as Record<string, string>,
+        body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
+      })
+      if (url.endsWith("grant_type=password")) {
+        return new Response(
+          JSON.stringify({ access_token: idToken(2_000_000_000), refresh_token: "sb-ref-1", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        )
+      }
+      if (url.endsWith("grant_type=refresh_token")) {
+        return new Response(
+          JSON.stringify({ access_token: idToken(2_000_003_600), refresh_token: "sb-ref-2", expires_in: 3600 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        )
+      }
+      return new Response(null, { status: 204 })
+    }) as typeof fetch
+
+    const client = providerClient(studio, "/admin", fake)
+    const first = await client.signIn("password", true, { username: "staff@studio.test", password: "secret" })
+    expect(first).toEqual({
+      token: idToken(2_000_000_000),
+      source: "provider",
+      refreshToken: null,
+      expiresAt: 2_000_000_000_000,
+    })
+    expect(calls[0].headers.apikey).toBe("sb-anon-key")
+    expect(calls[0].body).toEqual({ email: "staff@studio.test", password: "secret" })
+
+    const renewed = await client.refresh(first!)
+    expect(renewed.token).toBe(idToken(2_000_003_600))
+    expect(calls[1].body).toEqual({ refresh_token: "sb-ref-1" })
+
+    await client.signOut()
+    expect(calls[2].url).toBe("https://studio.supabase.co/auth/v1/logout")
+    await expect(client.refresh(renewed)).rejects.toThrow(/no refresh token/)
+  })
+
+  it("explains refused credentials and completes PKCE callbacks", async () => {
+    const badFetch = (async () =>
+      new Response(JSON.stringify({ error_description: "Invalid login credentials" }), { status: 400 })) as typeof fetch
+    const badClient = providerClient(studio, "/admin", badFetch)
+    await expect(badClient.signIn("password", false, { username: "a@b.test", password: "wrong" })).rejects.toThrow(
+      "That email or password was refused.",
+    )
+
+    sessionStorage.setItem(
+      "basekt-admin-ui:supabase-oauth",
+      JSON.stringify({ verifier: "pkce-v1", returnTo: "/admin/r/books", remember: true }),
+    )
+    history.replaceState(null, "", "/admin/signed-in?code=auth-code-9")
+    let sentBody: unknown = null
+    const pkceFetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      sentBody = typeof init?.body === "string" ? JSON.parse(init.body) : null
+      return new Response(
+        JSON.stringify({ access_token: idToken(2_050_000_000), refresh_token: "sb-ref-pkce" }),
+        { status: 200 },
+      )
+    }) as typeof fetch
+    const completed = await providerClient(studio, "/admin", pkceFetch).complete()
+    expect(sentBody).toEqual({ auth_code: "auth-code-9", code_verifier: "pkce-v1" })
+    expect(completed?.returnTo).toBe("/admin/r/books")
+    expect(completed?.session.token).toBe(idToken(2_050_000_000))
   })
 })

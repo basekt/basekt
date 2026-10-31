@@ -31,6 +31,8 @@ describe("readConfig", () => {
     expect(readConfig(page(JSON.stringify({ provider: firebase }))).provider).toEqual(firebase)
     const oidc = { type: "oidc", issuer: "https://id.school.test", clientId: "panel", scopes: ["openid", "offline_access"], label: "school account" }
     expect(readConfig(page(JSON.stringify({ provider: oidc }))).provider).toEqual(oidc)
+    const supabase = { type: "supabase", url: "https://studio.supabase.co", anonKey: "anon-key", providers: ["password", "google"] }
+    expect(readConfig(page(JSON.stringify({ provider: supabase }))).provider).toEqual(supabase)
     expect(readConfig(page("{}")).provider).toBeNull()
   })
 
