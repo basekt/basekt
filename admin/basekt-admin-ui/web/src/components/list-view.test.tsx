@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
-import { apiError, fakeFetch, helpDeskSchema, librarySchema, page, switchboardSchema } from "@/test/fixtures"
+import { apiError, fakeFetch, gallerySchema, helpDeskSchema, librarySchema, page, switchboardSchema } from "@/test/fixtures"
 import { renderPanel } from "@/test/render"
 
 const library = [
@@ -147,5 +147,92 @@ describe("the list view", () => {
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled())
     const exported = fetch.calls.find((c) => c.url.pathname.endsWith("export.csv"))!
     expect([...exported.url.searchParams]).toEqual([["state", "open"], ["sort", "-openedAt"]])
+  })
+
+  it("renders cards with a Grid/Table toggle and opens a split inspector without sending UI params to the API", async () => {
+    const user = userEvent.setup()
+    let rows = [
+      { id: "p1", title: "Metropolis", artist: "Schulz-Neudamm", era: "deco", imageUrl: "/media/p1.png" },
+      { id: "p2", title: "Bauhaus", artist: "Schmidt", era: "modern", imageUrl: "javascript:alert(1)" },
+    ]
+    const fetch = fakeFetch(({ method, url, body }) => {
+      if (url.pathname === "/admin/api/schema") return { body: gallerySchema }
+      if (url.pathname === "/admin/api/resources/posters/records") {
+        expect(url.searchParams.has("_view")).toBe(false)
+        expect(url.searchParams.has("_inspect")).toBe(false)
+        return { body: page(rows) }
+      }
+      if (url.pathname === "/admin/api/resources/posters/records/p1" && method === "GET") {
+        return { body: rows[0] }
+      }
+      if (url.pathname === "/admin/api/resources/posters/records/p1" && method === "PATCH") {
+        rows = [{ ...rows[0], ...(body as object) }, rows[1]]
+        return { body: rows[0] }
+      }
+    })
+    renderPanel("/admin/r/posters", fetch)
+
+    const cards = await screen.findByRole("list", { name: "Posters cards" })
+    expect(within(cards).getByText("Metropolis")).toBeInTheDocument()
+    expect(within(cards).getByText("Schulz-Neudamm")).toBeInTheDocument()
+    expect(within(cards).getByText("deco")).toHaveAttribute("data-slot", "badge")
+    expect(cards.querySelectorAll("img")).toHaveLength(1)
+    expect(cards.querySelector("img")).toHaveAttribute("src", "/media/p1.png")
+
+    await user.click(within(cards).getByRole("button", { name: "Metropolis" }))
+    const inspector = await screen.findByRole("complementary", { name: "Record inspector" })
+    const titleInput = await within(inspector).findByLabelText(/title/i)
+    await user.clear(titleInput)
+    await user.type(titleInput, "Metropolis Restored")
+    await user.click(within(inspector).getByRole("button", { name: /save/i }))
+    expect(await within(cards).findByText("Metropolis Restored")).toBeInTheDocument()
+
+    await user.click(within(inspector).getByRole("button", { name: "Close inspector" }))
+    expect(screen.queryByRole("complementary", { name: "Record inspector" })).not.toBeInTheDocument()
+
+    const modeGroup = screen.getByRole("group", { name: "View mode" })
+    await user.click(within(modeGroup).getByRole("button", { name: "Table" }))
+    expect(await screen.findByRole("table")).toBeInTheDocument()
+  })
+
+  it("reorders records on orderField and opens a slide-over sheet inspector when detailLayout is sheet", async () => {
+    const user = userEvent.setup()
+    let rows = [
+      { id: "c1", heading: "Preface", position: 1 },
+      { id: "c2", heading: "Foundations", position: 2 },
+    ]
+    const fetch = fakeFetch(({ method, url, body }) => {
+      if (url.pathname === "/admin/api/schema") return { body: gallerySchema }
+      if (url.pathname === "/admin/api/resources/chapters/records") {
+        return { body: page([...rows].sort((a, b) => a.position - b.position)) }
+      }
+      const match = /^\/admin\/api\/resources\/chapters\/records\/(c\d+)$/.exec(url.pathname)
+      if (match && method === "GET") return { body: rows.find((r) => r.id === match[1]) }
+      if (match && method === "PATCH") {
+        rows = rows.map((r) => (r.id === match[1] ? { ...r, ...(body as object) } : r))
+        return { body: rows.find((r) => r.id === match[1]) }
+      }
+    })
+    renderPanel("/admin/r/chapters", fetch)
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getByRole("button", { name: "Move c1 up" })).toBeDisabled()
+    await user.click(within(table).getByRole("button", { name: "Move c2 up" }))
+
+    await waitFor(() => {
+      const patches = fetch.calls.filter((c) => c.method === "PATCH")
+      expect(patches).toHaveLength(2)
+    })
+    await waitFor(() => {
+      const dataRows = within(screen.getByRole("table")).getAllByRole("row").slice(1)
+      expect(dataRows[0]).toHaveTextContent("Foundations")
+      expect(dataRows[1]).toHaveTextContent("Preface")
+    })
+
+    await user.click(within(screen.getByRole("table")).getByRole("button", { name: "c2" }))
+    const dialog = await screen.findByRole("dialog", { name: "Inspect c2" })
+    expect(await within(dialog).findByDisplayValue("Foundations")).toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "Close inspector" }))
+    expect(screen.queryByRole("dialog", { name: "Inspect c2" })).not.toBeInTheDocument()
   })
 })

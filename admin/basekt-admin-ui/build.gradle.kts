@@ -64,6 +64,15 @@ val npmTest by tasks.registering(Exec::class) {
     doLast { marker.get().asFile.writeText("passed\n") }
 }
 
-tasks.processResources { from(npmBuild) { into("basekt-admin-ui") } }
+tasks.processResources {
+    from(npmBuild) { into("basekt-admin-ui") }
+    // Package the TypeScript SDK sources and wire types so host apps building custom views can unpack them from the jar.
+    from(web.dir("src")) {
+        exclude("**/*.test.ts", "**/*.test.tsx", "test/**")
+        into("basekt-admin-ui-sdk/src")
+    }
+    from(wireTypes) { into("basekt-admin-ui-sdk/wire") }
+    from(web.file("package.json")) { into("basekt-admin-ui-sdk") }
+}
 tasks.check { dependsOn(npmTest) }
 tasks.clean { delete(web.dir("dist")) }

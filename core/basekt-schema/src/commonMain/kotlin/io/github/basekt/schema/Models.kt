@@ -6,6 +6,7 @@ import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.SerialKind
+import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
@@ -14,6 +15,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
+import kotlin.jvm.JvmName
 import kotlin.reflect.KProperty1
 
 /**
@@ -217,21 +219,168 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
             else "$className has no serialized property '$property'. Properties renamed with @SerialName can't be passed by reference.",
         )
 
-    private fun fieldType(property: String, element: SerialDescriptor): FieldType {
-        val serialName = element.serialName.removeSuffix("?")
-        return when {
-            serialName == DecimalSerializer.descriptor.serialName -> FieldType.DECIMAL
-            serialName == "kotlin.time.Instant" -> FieldType.INSTANT
-            element.kind == PrimitiveKind.STRING -> FieldType.STRING
-            element.kind == PrimitiveKind.INT -> FieldType.INT
-            element.kind == PrimitiveKind.LONG -> FieldType.LONG
-            element.kind == PrimitiveKind.BOOLEAN -> FieldType.BOOL
-            element.kind == SerialKind.ENUM -> FieldType.ENUM
-            else -> throw IllegalArgumentException(
-                "$className.$property is a $serialName, which BaseKt can't store. Use String, Int, Long, Boolean, " +
-                    "Value.Decimal, kotlin.time.Instant or an enum class.",
-            )
+    private fun fieldType(property: String, element: SerialDescriptor): FieldType =
+        scalarFieldType(className, property, element)
+}
+
+/**
+ * An [Action]'s input described by a `@Serializable` class [I]: the [fields] checked by the schema and the
+ * [serializer] that converts between [I] and [Record]s. Unlike a [Model], an action input needs no `id` property and
+ * may hold `List` properties of scalar values ([Field.list]).
+ *
+ * Build one with [actionInput], or declare it directly on an action with `input<MyInput> { }`.
+ */
+public class ActionInput<I> internal constructor(
+    /** The input fields, in declaration order. */
+    public val fields: List<Field>,
+    /** [I]'s serializer. */
+    public val serializer: KSerializer<I>,
+) {
+    private val inputResource = Resource("${serializer.descriptor.serialName}.input", fields)
+
+    /** Converts [value] to a checked action input record. */
+    public fun toRecord(value: I): Record {
+        val json = ModelJson.encodeToJsonElement(serializer, value).jsonObject
+        return buildMap {
+            for (field in fields) {
+                val element = json[field.name] ?: JsonNull
+                put(field.name, if (element is JsonNull) null else checkNotNull(field.decode(element)) {
+                    "${serializer.descriptor.serialName}.${field.name} encoded as $element, which isn't a ${field.type.name.lowercase()}."
+                })
+            }
         }
+    }
+
+    /** Converts [record] to an [I], using property defaults for absent or null fields when declared. */
+    public fun fromRecord(record: Record): I = try {
+        val whole = fields.associate { it.name to record[it.name] }
+        ModelJson.decodeFromJsonElement(serializer, inputResource.encodeRecord(whole))
+    } catch (e: SerializationException) {
+        throw IllegalArgumentException("The action input can't be read as ${serializer.descriptor.serialName}: ${e.message}", e)
+    }
+
+    override fun toString(): String = "ActionInput(${serializer.descriptor.serialName})"
+}
+
+/** Builds an [ActionInput] of [I]: its fields come from [I]'s serializer, and [block] adds rules or references. */
+public inline fun <reified I> actionInput(noinline block: ActionInputBuilder<I>.() -> Unit = {}): ActionInput<I> =
+    ActionInputBuilder(serializer<I>()).apply(block).build()
+
+/** Declares an action's input from `@Serializable` class [I], with optional per-property rules in [block]. */
+public inline fun <reified I> ActionBuilder.input(noinline block: ActionInputBuilder<I>.() -> Unit = {}) {
+    input(actionInput(block).fields)
+}
+
+/**
+ * Declares an [ActionInput] of [I]. Every property of [I]'s serializer becomes an input field, including `List<…>`
+ * properties (stored with [Field.list] set). A property is required unless it is nullable or has a default.
+ */
+@SchemaDsl
+public class ActionInputBuilder<I> @PublishedApi internal constructor(
+    private val serializer: KSerializer<I>,
+) {
+    private val descriptor = serializer.descriptor
+    private val className = descriptor.serialName
+    private val fields = linkedMapOf<String, FieldBuilder>()
+    private val types = mutableMapOf<String, FieldType>()
+    private val values = mutableMapOf<String, List<String>>()
+    private val targets = mutableMapOf<String, String>()
+    private val buckets = mutableMapOf<String, String>()
+
+    init {
+        for (index in 0 until descriptor.elementsCount) {
+            val property = descriptor.getElementName(index)
+            require(property != Resource.ID) {
+                "$className.id can't be named 'id' in an action input: action inputs have no record id."
+            }
+            val element = descriptor.getElementDescriptor(index)
+            val isList = element.kind == StructureKind.LIST
+            val itemElement = if (isList) element.getElementDescriptor(0) else element
+            if (isList && itemElement.isNullable) {
+                throw IllegalArgumentException("$className.$property is a list of nullable items, which BaseKt action inputs don't allow.")
+            }
+            types[property] = scalarFieldType(className, property, itemElement)
+            if (itemElement.kind == SerialKind.ENUM) {
+                values[property] = (0 until itemElement.elementsCount).map(itemElement::getElementName)
+            }
+            val required = !element.isNullable && !descriptor.isElementOptional(index)
+            fields[property] = FieldBuilder().apply {
+                if (required) required()
+                if (isList) list()
+            }
+        }
+    }
+
+    /** Adds rules to [property]'s input field, such as `field(BatchInput::limit) { min(1); max(500) }`. */
+    public fun field(property: KProperty1<I, *>, block: FieldBuilder.() -> Unit) {
+        builder(property.name).apply(block)
+    }
+
+    /** Makes [property] a reference to a record of [target]. */
+    public fun reference(property: KProperty1<I, String?>, target: String, block: FieldBuilder.() -> Unit = {}) {
+        builder(property.name).apply(block)
+        targets[property.name] = target
+    }
+
+    /** Makes [property], a list of record ids, a list of references to [target]. */
+    @JvmName("referenceList")
+    public fun reference(property: KProperty1<I, List<String>?>, target: String, block: FieldBuilder.() -> Unit = {}) {
+        builder(property.name).apply(block)
+        targets[property.name] = target
+    }
+
+    /** Makes [property] a stored file in [bucket]. */
+    public fun file(property: KProperty1<I, String?>, bucket: String, block: FieldBuilder.() -> Unit = {}) {
+        builder(property.name).apply(block)
+        buckets[property.name] = bucket
+    }
+
+    /** Makes [property], a list of file keys, a list of stored files in [bucket]. */
+    @JvmName("fileList")
+    public fun file(property: KProperty1<I, List<String>?>, bucket: String, block: FieldBuilder.() -> Unit = {}) {
+        builder(property.name).apply(block)
+        buckets[property.name] = bucket
+    }
+
+    /** Builds the [ActionInput]. */
+    @PublishedApi
+    internal fun build(): ActionInput<I> {
+        val built = fields.map { (property, builder) ->
+            val target = targets[property]
+            val bucket = buckets[property]
+            if (bucket != null) {
+                require(types[property] == FieldType.STRING) { "$className.$property must be a String (or List<String>) to hold a file." }
+                builder.build(property, FieldType.FILE, null, null, bucket)
+            } else if (target != null) {
+                require(types[property] == FieldType.STRING) { "$className.$property must be a String (or List<String>) to reference '$target'." }
+                builder.build(property, FieldType.REFERENCE, null, target)
+            } else {
+                builder.build(property, types.getValue(property), values[property], null)
+            }
+        }
+        return ActionInput(built, serializer)
+    }
+
+    private fun builder(property: String): FieldBuilder = fields[property]
+        ?: throw IllegalArgumentException(
+            "$className has no serialized property '$property'. Properties renamed with @SerialName can't be passed by reference.",
+        )
+}
+
+private fun scalarFieldType(className: String, property: String, element: SerialDescriptor): FieldType {
+    val serialName = element.serialName.removeSuffix("?")
+    return when {
+        serialName == DecimalSerializer.descriptor.serialName -> FieldType.DECIMAL
+        serialName == "kotlin.time.Instant" -> FieldType.INSTANT
+        element.kind == PrimitiveKind.STRING -> FieldType.STRING
+        element.kind == PrimitiveKind.INT -> FieldType.INT
+        element.kind == PrimitiveKind.LONG -> FieldType.LONG
+        element.kind == PrimitiveKind.BOOLEAN -> FieldType.BOOL
+        element.kind == SerialKind.ENUM -> FieldType.ENUM
+        else -> throw IllegalArgumentException(
+            "$className.$property is a $serialName, which BaseKt can't store. Use String, Int, Long, Boolean, " +
+                "Value.Decimal, kotlin.time.Instant or an enum class.",
+        )
     }
 }
 

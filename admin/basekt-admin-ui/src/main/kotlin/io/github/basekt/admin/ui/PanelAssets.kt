@@ -15,10 +15,10 @@ internal object PanelAssets {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** Reads the entry from Vite's manifest, failing with a clear message if the jar has no built panel. */
-    fun load(classLoader: ClassLoader): Entry {
-        val text = classLoader.getResource("$ROOT/.vite/manifest.json")?.readText()
-            ?: error("The admin panel's files are missing from the classpath ($ROOT/.vite/manifest.json). The jar was built without its web build.")
+    /** Reads the entry from Vite's manifest under [root], failing with a clear message if missing. */
+    fun load(classLoader: ClassLoader, root: String = ROOT): Entry {
+        val text = classLoader.getResource("$root/.vite/manifest.json")?.readText()
+            ?: error("The admin panel's files are missing from the classpath ($root/.vite/manifest.json). The jar was built without its web build.")
         val manifest = json.decodeFromString<Map<String, ManifestEntry>>(text)
         val entry = manifest.values.singleOrNull { it.isEntry }
             ?: error("The admin panel's manifest names ${manifest.values.count { it.isEntry }} entries; it should name one.")

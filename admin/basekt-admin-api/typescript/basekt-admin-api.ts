@@ -38,6 +38,7 @@ export interface AdminResource {
   id: AdminId;
   readOnly: boolean;
   filters: AdminFilter[] | null;
+  view: AdminView | null;
 }
 
 export interface AdminField {
@@ -211,6 +212,21 @@ export interface AdminFilter {
 }
 
 export type FilterOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "contains" | "null";
+
+export interface AdminView {
+  cards: AdminCardView | null;
+  detailLayout: DetailLayout;
+  orderField: string | null;
+}
+
+export interface AdminCardView {
+  media: string | null;
+  title: string | null;
+  subtitle: string | null;
+  badge: string | null;
+}
+
+export type DetailLayout = "page" | "split" | "sheet";
 
 export interface AdminPage {
   items: JsonObject[];

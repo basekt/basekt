@@ -1,7 +1,9 @@
-import { screen } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
-import { apiError, fakeFetch, librarySchema, page } from "@/test/fixtures"
+import { App } from "@/index"
+import { TokenStore } from "@/auth"
+import { apiError, config, fakeFetch, librarySchema, page } from "@/test/fixtures"
 import { renderPanel } from "@/test/render"
 
 describe("the panel", () => {
@@ -41,5 +43,34 @@ describe("the panel", () => {
     const fetch = fakeFetch(({ url }) => (url.pathname === "/admin/api/schema" ? { body: librarySchema } : undefined))
     renderPanel("/admin/r/payroll", fetch)
     expect(await screen.findByText("No Payroll here")).toBeInTheDocument()
+  })
+
+  it("renders customResourceViews and customPages inside the panel layout", async () => {
+    const user = userEvent.setup()
+    const fetch = fakeFetch(({ url }) => (url.pathname === "/admin/api/schema" ? { body: librarySchema } : undefined))
+    history.replaceState(null, "", "/admin/r/books?shelf=rare")
+    render(
+      <App
+        config={config}
+        tokens={new TokenStore(null)}
+        fetchImpl={fetch}
+        customResourceViews={{
+          books: ({ resource, search }) => <div>Custom {resource.name}: {search.get("shelf")}</div>,
+        }}
+        customPages={[
+          {
+            id: "desk",
+            label: "Circulation desk",
+            path: "/desk",
+            render: () => <div>Desk workspace</div>,
+          },
+        ]}
+      />,
+    )
+
+    expect(await screen.findByText("Custom books: rare")).toBeInTheDocument()
+    await user.click(screen.getByRole("link", { name: "Circulation desk" }))
+    expect(await screen.findByText("Desk workspace")).toBeInTheDocument()
+    expect(location.pathname).toBe("/admin/desk")
   })
 })

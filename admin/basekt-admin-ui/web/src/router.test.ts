@@ -8,6 +8,10 @@ describe("routes", () => {
     expect(parseRoute("/admin", "/admin/r/books", "?sort=-fee")).toMatchObject({ screen: "list", resource: "books" })
     expect(parseRoute("/admin", "/admin/r/books/new")).toEqual({ screen: "create", resource: "books" })
     expect(parseRoute("/back-office", "/back-office/r/books/a%2Fb")).toEqual({ screen: "detail", resource: "books", id: "a/b" })
+    expect(parseRoute("/admin", "/admin/p/status")).toMatchObject({ screen: "page", page: "status" })
+    const customPages = [{ id: "live", label: "Live", path: "/live", render: () => null }]
+    expect(parseRoute("/admin", "/admin/live", "?window=1h", customPages)).toMatchObject({ screen: "page", page: "live" })
+    expect(href("/admin", { screen: "page", page: "live", search: new URLSearchParams() }, customPages)).toBe("/admin/live")
   })
 
   it("writes URLs that parse back", () => {

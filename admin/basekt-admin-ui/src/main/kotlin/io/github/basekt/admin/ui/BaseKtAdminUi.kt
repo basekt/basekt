@@ -137,6 +137,27 @@ public class OidcSignInConfig internal constructor(config: ApplicationConfig) {
 }
 
 /**
+ * Sign-in through Supabase Auth (GoTrue), from the project's public URL and anon key. The panel signs viewers in with
+ * an email and password or an OAuth redirect back to `{path}/signed-in`, sends the Supabase access token as the bearer
+ * token, and refreshes it before it expires; the host checks it with `basekt-auth-supabase`. On when [url] is set.
+ * Settings come from `basekt.adminUi.supabase`.
+ */
+public class SupabaseSignInConfig internal constructor(config: ApplicationConfig) {
+    /** The Supabase project URL, such as `https://xyzcompany.supabase.co`. `basekt.adminUi.supabase.url`. */
+    public var url: String? = config.propertyOrNull("supabase.url")?.getString()
+
+    /** The project's public anon key, sent as `apikey` to Supabase Auth. `basekt.adminUi.supabase.anonKey`. */
+    public var anonKey: String? = config.propertyOrNull("supabase.anonKey")?.getString()
+
+    /**
+     * The sign-in methods offered: `password` for an email and a password, and OAuth provider names such as `google`,
+     * `github`, `discord` or `microsoft` for an OAuth redirect. `basekt.adminUi.supabase.providers`, `["password"]` by
+     * default.
+     */
+    public var providers: List<String> = config.propertyOrNull("supabase.providers")?.getList() ?: listOf("password")
+}
+
+/**
  * The configuration of [BaseKtAdminUi]. Settings can come from the `basekt.adminUi` section of the application's
  * configuration; values set in the `install` block win. The theme is set in Kotlin only, with [theme].
  */
@@ -152,6 +173,12 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
      * default. Without `BaseKtFiles` installed, file fields can still show their keys.
      */
     public var filesPath: String = config.propertyOrNull("filesPath")?.getString() ?: "/files"
+
+    /**
+     * Classpath directory holding a Vite build (`.vite/manifest.json` and `assets/`). Defaults to `basekt-admin-ui`;
+     * host apps that build an extended panel with custom views point this at their own resource directory.
+     */
+    public var assetsRoot: String = config.propertyOrNull("assetsRoot")?.getString() ?: PanelAssets.ROOT
 
     /** The mode the panel starts in. `basekt.adminUi.defaultMode` (light, dark or system), system by default. */
     public var defaultMode: ThemeMode = config.propertyOrNull("defaultMode")?.getString()
@@ -169,6 +196,9 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
 
     /** Sign-in through an OpenID Connect issuer. Off until [OidcSignInConfig.issuer] is set. */
     public val oidc: OidcSignInConfig = OidcSignInConfig(config)
+
+    /** Sign-in through Supabase Auth. Off until [SupabaseSignInConfig.url] is set. */
+    public val supabase: SupabaseSignInConfig = SupabaseSignInConfig(config)
 
     internal var siteLink: SiteLink? = config.propertyOrNull("siteLink.url")?.getString()
         ?.let { SiteLink(config.propertyOrNull("siteLink.label")?.getString() ?: "Open site", it) }
@@ -201,6 +231,11 @@ public class BaseKtAdminUiConfig internal constructor(config: ApplicationConfig)
     /** Lets viewers sign in through an OpenID Connect issuer. See [OidcSignInConfig]. */
     public fun oidc(block: OidcSignInConfig.() -> Unit) {
         oidc.block()
+    }
+
+    /** Lets viewers sign in through Supabase Auth. See [SupabaseSignInConfig]. */
+    public fun supabase(block: SupabaseSignInConfig.() -> Unit) {
+        supabase.block()
     }
 
     /** Sets the theme; what it leaves out keeps [Theme.Default]'s value. */
@@ -243,9 +278,13 @@ public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplica
         "The brand logo must be a path on this server, an https: URL or a data:image/ URL, not '$logo'."
     }
     val login = loginOf(pluginConfig.login, problems)
-    val provider = providerOf(pluginConfig.firebase, pluginConfig.oidc, problems)
+    val provider = providerOf(pluginConfig.firebase, pluginConfig.oidc, pluginConfig.supabase, problems)
     check(login == null || provider == null) {
         "Sign in through the login route or through an identity provider, not both: set login.path or a provider."
+    }
+    val assetsRoot = pluginConfig.assetsRoot.trim().trim('/')
+    check(assetsRoot.isNotEmpty() && ".." !in assetsRoot && assetsRoot.none { it <= ' ' || it == '\\' }) {
+        "BaseKtAdminUi's assetsRoot must be a clean classpath directory name, not '${pluginConfig.assetsRoot}'."
     }
     val siteLink = pluginConfig.siteLink?.also { link ->
         check(link.label.isNotBlank() && link.label.length <= 40) { "The site link needs a label of 1 to 40 characters." }
@@ -264,7 +303,7 @@ public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplica
         provider = provider,
         siteLink = siteLink,
     )
-    val entry = PanelAssets.load(application.environment.classLoader)
+    val entry = PanelAssets.load(application.environment.classLoader, assetsRoot)
     val themeCss = ThemeCss.write(Theme.Default + pluginConfig.themeBuilder.build())
     val apiPrefix = "$apiPath/"
     val assetsPrefix = "$path/assets/"
@@ -276,7 +315,7 @@ public val BaseKtAdminUi: ApplicationPlugin<BaseKtAdminUiConfig> = createApplica
                 call.response.header(HttpHeaders.CacheControl, "no-cache")
                 call.respondText(themeCss, ContentType.Text.CSS)
             }
-            staticResources("assets", "${PanelAssets.ROOT}/assets", index = null) {
+            staticResources("assets", "$assetsRoot/assets", index = null) {
                 cacheControl { listOf(CacheControl.MaxAge(maxAgeSeconds = ONE_YEAR, visibility = CacheControl.Visibility.Public)) }
             }
             get("{...}") {
@@ -315,11 +354,18 @@ private fun loginOf(config: LoginConfig, problems: MutableList<String>): ShellLo
 }
 
 /** The identity provider as the panel sees it, or `null` without one; adds what is wrong with it to [problems]. */
-private fun providerOf(firebase: FirebaseSignInConfig, oidc: OidcSignInConfig, problems: MutableList<String>): ShellProvider? {
+private fun providerOf(
+    firebase: FirebaseSignInConfig,
+    oidc: OidcSignInConfig,
+    supabase: SupabaseSignInConfig,
+    problems: MutableList<String>,
+): ShellProvider? {
     val apiKey = firebase.apiKey?.trim()?.takeIf { it.isNotEmpty() }
     val issuer = oidc.issuer?.trim()?.takeIf { it.isNotEmpty() }
-    if (apiKey != null && issuer != null) {
-        problems += "Choose one identity provider: Firebase (firebase.apiKey) or OpenID Connect (oidc.issuer), not both."
+    val supabaseUrl = supabase.url?.trim()?.takeIf { it.isNotEmpty() }
+    val chosen = listOfNotNull(apiKey, issuer, supabaseUrl).size
+    if (chosen > 1) {
+        problems += "Choose one identity provider: Firebase (firebase.apiKey), OpenID Connect (oidc.issuer) or Supabase (supabase.url), not more than one."
     }
     if (apiKey != null) {
         val authDomain = firebase.authDomain?.trim().orEmpty()
@@ -343,6 +389,18 @@ private fun providerOf(firebase: FirebaseSignInConfig, oidc: OidcSignInConfig, p
         if (oidc.label.isBlank() || oidc.label.length > 40) problems += "The OIDC label must be 1 to 40 characters."
         return ShellOidc(issuer.trimEnd('/'), clientId, oidc.scopes, oidc.label)
     }
+    if (supabaseUrl != null) {
+        if (!isIssuerUrl(supabaseUrl)) {
+            problems += "The Supabase url must be an https URL (http only on localhost), not '$supabaseUrl'."
+        }
+        val anonKey = supabase.anonKey?.trim().orEmpty()
+        if (anonKey.isEmpty()) problems += "Supabase needs its public anonKey."
+        if (supabase.providers.isEmpty()) problems += "Supabase needs at least one provider, such as password, google or discord."
+        supabase.providers.filterNot { supabaseProviderId.matches(it) }.forEach {
+            problems += "'$it' is not a Supabase provider name: use password or a lowercase provider such as google, github or discord."
+        }
+        return ShellSupabase(supabaseUrl.trimEnd('/'), anonKey, supabase.providers)
+    }
     return null
 }
 
@@ -358,6 +416,7 @@ private fun isIssuerUrl(url: String): Boolean {
 
 private val hostName = Regex("[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*(:[0-9]{1,5})?")
 private val firebaseProviderId = Regex("password|[a-z0-9-]+(\\.[a-z0-9-]+)+")
+private val supabaseProviderId = Regex("password|[a-z][a-z0-9_-]*")
 
 private suspend fun RoutingContext.respondShell(config: ShellConfig, entry: PanelAssets.Entry) {
     call.response.header(HttpHeaders.CacheControl, "no-cache")

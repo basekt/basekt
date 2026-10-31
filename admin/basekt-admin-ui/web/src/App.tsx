@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import { ADMIN_SCHEMA_VERSION, type AdminSchema } from "@wire"
+import { useEffect, useMemo, useState, type ComponentType } from "react"
+import { ADMIN_SCHEMA_VERSION, type AdminResource, type AdminSchema } from "@wire"
 import { AdminApi, ApiFailure } from "@/api/client"
 import { FilesApi } from "@/api/files"
 import { oidcCallbackPath, providerClient, SignInCancelled, type ProviderClient } from "@/api/providers"
@@ -17,24 +17,48 @@ import type { PanelConfig } from "@/config"
 import { humanize } from "@/lib/fields"
 import { useAsync } from "@/lib/use-async"
 import { PanelProvider, useResource, type Panel } from "@/panel"
-import { Router, useRouter } from "@/router"
+import { Router, useRouter, type CustomPage } from "@/router"
 import { useThemeMode } from "@/theme-mode"
+
+/** Props passed to a custom resource list component registered on [App]. */
+export interface CustomResourceViewProps {
+  resource: AdminResource
+  search: URLSearchParams
+}
+
+/** Per-resource overrides for `/r/{resource}` list screens in [App]. */
+export type CustomResourceViews = Record<string, ComponentType<CustomResourceViewProps>>
 
 /**
  * The panel: loads the caller's schema, asks for a token when the API wants one, and renders the screen the URL
- * names. Every screen is built from the schema. A session from the host's login route or an identity provider is
- * refreshed before it expires, and ends with a clean sign-out when it can't be.
+ * names. Every screen is built from the schema unless overridden in `customResourceViews` or `customPages`. A session
+ * from the host's login route or an identity provider is refreshed before it expires, and ends with a clean sign-out
+ * when it can't be.
  */
-export function App({ config, tokens: givenTokens, fetchImpl, provider: givenProvider, clock }: {
+export function App({
+  config,
+  tokens: givenTokens,
+  fetchImpl,
+  provider: givenProvider,
+  clock,
+  customResourceViews,
+  customPages,
+}: {
   config: PanelConfig
   tokens?: TokenStore
   fetchImpl?: typeof fetch
   /** The identity provider's client; by default one for `config.provider`. */
   provider?: ProviderClient | null
   clock?: Clock
+  /** Optional custom list/workspace components keyed by resource name. */
+  customResourceViews?: CustomResourceViews
+  /** Optional standalone pages added to the sidebar and router. */
+  customPages?: readonly CustomPage[]
 }) {
   const [tokens] = useState(() => givenTokens ?? new TokenStore())
-  const [provider] = useState(() => (givenProvider !== undefined ? givenProvider : config.provider ? providerClient(config.provider, config.path) : null))
+  const [provider] = useState(() =>
+    givenProvider !== undefined ? givenProvider : config.provider ? providerClient(config.provider, config.path, fetchImpl) : null,
+  )
   const [mode, setMode] = useThemeMode(config.defaultMode)
   const login = config.login
   const now = () => (clock ? clock.now() : Date.now())
@@ -49,7 +73,12 @@ export function App({ config, tokens: givenTokens, fetchImpl, provider: givenPro
   }
   const { session, renewing, signIn, signOut, ended } = useSession(tokens, refreshFor, providerSignOut, clock)
   const token = session?.token ?? null
-  const [completing, setCompleting] = useState(() => provider !== null && config.provider?.type === "oidc" && location.pathname === oidcCallbackPath(config.path))
+  const [completing, setCompleting] = useState(
+    () =>
+      provider !== null &&
+      (config.provider?.type === "oidc" || config.provider?.type === "supabase") &&
+      location.pathname === oidcCallbackPath(config.path),
+  )
   const [signInReason, setSignInReason] = useState<string | null>(null)
   const waiting = renewing || completing
   const api = useMemo(() => new AdminApi(config.apiPath, () => tokens.get(), fetchImpl), [config.apiPath, tokens, fetchImpl])
@@ -170,9 +199,9 @@ export function App({ config, tokens: givenTokens, fetchImpl, provider: givenPro
   }
   return (
     <PanelProvider value={panel}>
-      <Router base={config.path}>
-        <Layout>
-          <Screen />
+      <Router base={config.path} customPages={customPages}>
+        <Layout customPages={customPages}>
+          <Screen customResourceViews={customResourceViews} customPages={customPages} />
         </Layout>
       </Router>
       <Toaster theme={mode} position="bottom-right" />
@@ -180,10 +209,28 @@ export function App({ config, tokens: givenTokens, fetchImpl, provider: givenPro
   )
 }
 
-function Screen() {
+function Screen({
+  customResourceViews,
+  customPages,
+}: {
+  customResourceViews?: CustomResourceViews
+  customPages?: readonly CustomPage[]
+}) {
   const { route } = useRouter()
-  const resource = useResource(route.screen === "home" ? "" : route.resource)
+  const resource = useResource(route.screen === "home" || route.screen === "page" ? "" : route.resource)
   if (route.screen === "home") return <Home />
+  if (route.screen === "page") {
+    const matched = customPages?.find((p) => p.id === route.page)
+    if (!matched) {
+      return (
+        <Alert>
+          <AlertTitle>No {humanize(route.page)} here</AlertTitle>
+          <AlertDescription>There is no such page in this panel.</AlertDescription>
+        </Alert>
+      )
+    }
+    return <>{matched.render(route.search)}</>
+  }
   if (!resource) {
     return (
       <Alert>
@@ -193,8 +240,10 @@ function Screen() {
     )
   }
   switch (route.screen) {
-    case "list":
-      return <ListView resource={resource} search={route.search} />
+    case "list": {
+      const CustomView = customResourceViews?.[resource.name]
+      return CustomView ? <CustomView resource={resource} search={route.search} /> : <ListView resource={resource} search={route.search} />
+    }
     case "create":
       return <CreateView key={resource.name} resource={resource} />
     case "detail":

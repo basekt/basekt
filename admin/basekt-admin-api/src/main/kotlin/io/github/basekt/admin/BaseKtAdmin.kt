@@ -59,6 +59,8 @@ public val BaseKtAdmin: ApplicationPlugin<BaseKtAdminConfig> = createApplication
     val runtime = application.baseKt
     val linkProblems = runtime.schema.adminLinkProblems()
     require(linkProblems.isEmpty()) { "The schema's admin links are not valid:\n" + linkProblems.joinToString("\n") { "- $it" } }
+    val viewProblems = runtime.schema.adminViewProblems()
+    require(viewProblems.isEmpty()) { "The schema's admin views are not valid:\n" + viewProblems.joinToString("\n") { "- $it" } }
     val settings = AdminSettings(
         path = "/" + pluginConfig.path.trim('/'),
         defaultPageSize = pluginConfig.defaultPageSize,

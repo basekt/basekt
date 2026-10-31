@@ -671,6 +671,49 @@ public abstract class DataSourceContract {
         assertNull(repository.get(id))
     }
 
+    /** A repository updates and increments typed fields conditionally when the source offers [ConditionalWrites]. */
+    @Test
+    public fun repositoriesUpdateConditionally(): Unit = runTest {
+        val source = createDataSource()
+        if (source !is ConditionalWrites) return@runTest
+        val repository = Repository(typedEntries, source)
+        val created = repository.create(Entry(id = "c1", title = "batch", rank = 2, size = 10L, amount = Value.Decimal.of("4.50"), flag = true, kind = Kind.A))
+        val first = repository.updateIf("c1") {
+            where { (Entry::rank gte 1) and (Entry::flag eq true) }
+            increment(Entry::rank, -1)
+            increment(Entry::size, 5L)
+            increment(Entry::amount, Value.Decimal.of("1.25"))
+            set(Entry::kind, Kind.B)
+        }
+        assertEquals(
+            io.github.basekt.data.TypedConditionalUpdate.Updated(
+                created.copy(rank = 1, size = 15L, amount = Value.Decimal.of("5.75"), kind = Kind.B),
+            ),
+            first,
+        )
+        val refused = repository.updateIf("c1") {
+            where { Entry::rank gte 2 }
+            increment(Entry::rank, -1)
+        }
+        assertEquals(io.github.basekt.data.TypedConditionalUpdate.ConditionFailed, refused)
+        assertEquals(
+            io.github.basekt.data.TypedConditionalUpdate.NotFound,
+            repository.updateIf("missing") { set(Entry::title, "gone") },
+        )
+
+        val replaced = repository.updateWhere("c1", created.copy(title = "closed", rank = 0, flag = false)) {
+            Entry::kind eq Kind.B
+        }
+        assertEquals(
+            io.github.basekt.data.TypedConditionalUpdate.Updated(created.copy(title = "closed", rank = 0, flag = false)),
+            replaced,
+        )
+        assertEquals(
+            io.github.basekt.data.TypedConditionalUpdate.ConditionFailed,
+            repository.updateWhere("c1", created) { Entry::flag eq true },
+        )
+    }
+
     /** Concurrent creates all land, with distinct ids. */
     @Test
     public fun concurrentCreatesAllLand(): Unit = runTest {

@@ -89,6 +89,8 @@ public data class AdminResource(
      * provided resource's are; `null` when every field takes every operator its type allows.
      */
     val filters: List<AdminFilter>? = null,
+    /** Optional presentation hints for the panel: card slots, inline detail layout and row ordering. */
+    val view: AdminView? = null,
 )
 
 /** A field a list may be filtered on, and the operators it takes. See [AdminResource.filters]. */

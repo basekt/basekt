@@ -199,6 +199,50 @@ class BaseKtAdminUiTest {
         assertContains(client.get("/staff/signed-in?code=c&state=s").bodyAsText(), "basekt-admin-config")
     }
 
+    // A studio whose staff sign in with Supabase Auth (password + OAuth providers).
+    @Test
+    fun `a Supabase sign-in goes to the panel with its type and validates its settings`() {
+        testApplication {
+            application {
+                install(BaseKtAdminUi) {
+                    supabase {
+                        url = "https://studio-ref.supabase.co/"
+                        anonKey = "sb-publishable-anon-key"
+                        providers = listOf("password", "google", "discord")
+                    }
+                }
+            }
+            assertEquals(
+                Json.parseToJsonElement(
+                    """
+                    {"type":"supabase","url":"https://studio-ref.supabase.co","anonKey":"sb-publishable-anon-key",
+                     "providers":["password","google","discord"]}
+                    """,
+                ),
+                shellConfig("/admin")["provider"],
+            )
+            assertContains(client.get("/admin/signed-in?code=pkce").bodyAsText(), "basekt-admin-config")
+        }
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            testApplication {
+                application {
+                    install(BaseKtAdminUi) {
+                        supabase {
+                            url = "http://remote.supabase.co"
+                            anonKey = " "
+                            providers = listOf("Google")
+                        }
+                    }
+                }
+                startApplication()
+            }
+        }
+        for (expected in listOf("Supabase url must be an https URL", "needs its public anonKey", "'Google' is not a Supabase provider name")) {
+            assertContains(error.message.orEmpty(), expected)
+        }
+    }
+
     @Test
     fun `sign-in settings that would send a secret elsewhere are refused, every problem at once`() {
         val error = assertFailsWith<IllegalArgumentException> {
@@ -329,6 +373,8 @@ class BaseKtAdminUiTest {
             { login { path = "https://elsewhere.test/login" } },
             { login { path = "//elsewhere.test/login" } },
             { login { path = "/auth/login"; tokenField = " " } },
+            { assetsRoot = "../escape" },
+            { assetsRoot = "   " },
         )) {
             assertFailsWith<IllegalArgumentException> {
                 testApplication {

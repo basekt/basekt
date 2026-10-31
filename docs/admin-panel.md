@@ -111,8 +111,24 @@ redirect URI. The panel reads the issuer's discovery document, sends the viewer 
 they were on. Ask for `offline_access` so the issuer gives a refresh token: without one, the panel signs the viewer out
 when the ID token expires. The issuer must allow the panel's origin for its token endpoint (CORS).
 
-Settings can come from `basekt.adminUi.firebase` and `basekt.adminUi.oidc` too. One provider at a time, and not with a
-login route.
+Settings can come from `basekt.adminUi.firebase`, `basekt.adminUi.oidc` and `basekt.adminUi.supabase` too. One provider
+at a time, and not with a login route.
+
+**Supabase Auth**, with password sign-in and PKCE OAuth redirects:
+
+```kotlin
+install(BaseKtAdminUi) {
+    supabase {
+        url = "https://xyzcompany.supabase.co"
+        anonKey = "eyJ…"                            // the project's public anon key
+        providers = listOf("password", "google", "discord")
+    }
+}
+```
+
+Pair this with `basekt-auth-supabase` on the server. Add `https://<your host>{path}/signed-in` to the Supabase project's
+allowed redirect URLs when enabling OAuth providers; `password` posts to `/auth/v1/token?grant_type=password` and
+refreshes through `/auth/v1/token?grant_type=refresh_token`.
 
 ### What is checked
 
@@ -188,6 +204,56 @@ install(BaseKtAdminUi) {
 ```
 
 Reports are drawn in the theme's `chart-1` to `chart-5` colours.
+
+## Resource view layouts
+
+A resource can declare presentation hints with `adminView` in `basekt-admin-api`:
+
+```kotlin
+model<Poster>("posters") {
+    field(Poster::title) { required() }
+    field(Poster::artist)
+    field(Poster::era)
+    field(Poster::imageUrl)
+    field(Poster::position) { required() }
+    adminView {
+        cards {
+            media(Poster::imageUrl)
+            title(Poster::title)
+            subtitle(Poster::artist)
+            badge(Poster::era)
+        }
+        detailLayout = DetailLayout.SPLIT   // PAGE (default), SPLIT, or SHEET
+        reorderable(Poster::position)
+    }
+}
+```
+
+- `cards` enables a **Grid / Table** toggle on the list view, rendering each record as a card with optional image/file
+  preview, title, subtitle and badge.
+- `DetailLayout.SPLIT` opens an inline inspector beside the list on wide viewports and a slide-over sheet on narrow
+  ones; `DetailLayout.SHEET` opens a slide-over sheet at every viewport width.
+- `reorderable` adds drag-and-drop and accessible up/down controls when the caller may update the resource, writing the
+  updated `Int` or `Long` position field through the admin API.
+
+`BaseKtAdmin` validates every `adminView` field reference and numeric type at startup.
+
+## Extending the panel
+
+For bespoke resource workspaces or standalone operator pages in React and TypeScript, `basekt-admin-ui.jar` bundles the
+TypeScript SDK under `basekt-admin-ui-sdk/` (`src/`, `wire/`, `package.json`). Unpack `basekt-admin-ui-sdk/` in Gradle,
+import `@basekt/admin-ui` (`App`, `usePanel`, `ListView`, `RecordInspector`, shadcn/ui primitives and `@wire` types),
+pass `customResourceViews` and `customPages` to `<App />`, build with Vite into `src/main/resources/<assetsRoot>/`, and
+point `BaseKtAdminUi` at `assetsRoot`:
+
+```kotlin
+install(BaseKtAdminUi) {
+    assetsRoot = "custom-admin-ui"
+}
+```
+
+`BaseKtAdminUi` continues to serve `theme.css`, `basekt-admin-config` (brand, sign-in provider, paths) and cache headers
+from the shell it builds out of your bundle's `.vite/manifest.json` (`build.manifest = true` in `vite.config.ts`).
 
 ## Working on the panel
 

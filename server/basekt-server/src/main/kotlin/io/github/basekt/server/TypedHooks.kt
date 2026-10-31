@@ -5,6 +5,7 @@ import io.github.basekt.schema.Model
 import io.github.basekt.schema.Resource
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
+import kotlin.reflect.KProperty1
 
 /*
  * Typed hooks: the same hooks as HooksBuilder's, seen through a Model's class. Each one converts the records to and
@@ -77,6 +78,12 @@ public inline fun <reified T> HooksBuilder.afterUpdate(noinline hook: suspend Ho
 public inline fun <reified T> HooksBuilder.afterDelete(noinline hook: suspend HookContext.(deleted: T) -> Unit) {
     typed(serializer<T>()) { afterDelete(it, hook) }
 }
+
+/** Returns a [Repository] of [model]'s records in this hook's transaction. */
+public fun <T> HookContext.repository(model: Model<T>): Repository<T> = Repository(model, data)
+
+/** Refuses the write because of [property]'s value, explained by [message]. */
+public fun HookContext.veto(property: KProperty1<*, *>, message: String): Verdict<Nothing> = veto(property.name, message)
 
 /** Returns a [Repository] of [model]'s records in BaseKt's data source. See [Repository] for what it skips. */
 public fun <T> BaseKtRuntime.repository(model: Model<T>): Repository<T> = Repository(model, dataSource)
