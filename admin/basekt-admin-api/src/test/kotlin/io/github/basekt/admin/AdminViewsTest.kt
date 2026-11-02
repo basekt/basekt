@@ -43,6 +43,8 @@ private val galleryAndRadio: Schema = schema {
         adminView {
             cards(media = "photo", title = "title", subtitle = "room", badge = "wing")
             detailLayout = DetailLayout.SPLIT
+            aside("room", "wing")
+            folded("photo")
         }
         permissions { read("curator"); write("curator") }
     }
@@ -99,6 +101,8 @@ class AdminViewsTest {
         assertEquals(JsonNull, exhibitView["orderField"])
         assertEquals("photo", exhibitView["cards"]!!.jsonObject["media"]!!.jsonPrimitive.content)
         assertEquals("wing", exhibitView["cards"]!!.jsonObject["badge"]!!.jsonPrimitive.content)
+        assertEquals(listOf("room", "wing"), exhibitView["aside"]!!.jsonArray.map { it.jsonPrimitive.content })
+        assertEquals(listOf("photo"), exhibitView["folded"]!!.jsonArray.map { it.jsonPrimitive.content })
 
         val trackView = resources.getValue("tracks").jsonObject["view"]!!.jsonObject
         assertEquals("sheet", trackView["detailLayout"]!!.jsonPrimitive.content)
@@ -116,6 +120,11 @@ class AdminViewsTest {
         assertTrue(problems { adminView { cards(subtitle = "secret") } }.single().contains("a hidden field"))
         assertEquals(emptyList(), problems { adminView { cards(title = "id") } })
 
+        assertTrue(problems { adminView { aside("missing") } }.single().contains("isn't a field"))
+        assertTrue(problems { adminView { folded("secret") } }.single().contains("a hidden field"))
+        assertTrue(problems { adminView { aside("seq") } }.single().contains("the server sets"))
+        assertTrue(problems { adminView { aside("title", "title") } }.single().contains("twice"))
+        assertTrue(problems { adminView { aside("title"); folded("title") } }.single().contains("both aside and folded"))
         assertTrue(problems { adminView { reorderable("title") } }.single().contains("must be an int or long"))
         assertTrue(problems { adminView { reorderable("secret") } }.single().contains("a hidden field"))
         assertTrue(problems { adminView { reorderable("seq") } }.single().contains("set automatically"))

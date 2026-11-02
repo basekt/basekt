@@ -42,8 +42,9 @@
   --crepe-font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+/* The editor starts at a few lines and grows with its text, up to max-height, so a short question takes little room. */
 .markdown-editor .milkdown .ProseMirror {
-  min-height: 14rem;
+  min-height: 5rem;
   max-height: 32rem;
   overflow-y: auto;
   padding: 1rem 1.25rem;
@@ -51,7 +52,7 @@
 
 /* An item of a list (an option, a hint) is usually a line or two: its editor starts small and grows. */
 [data-slot="list-item"] .markdown-editor .milkdown .ProseMirror {
-  min-height: 4.5rem;
+  min-height: 3rem;
   padding: 0.5rem 0.75rem;
 }
 

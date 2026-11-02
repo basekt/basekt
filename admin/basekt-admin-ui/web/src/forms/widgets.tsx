@@ -79,8 +79,8 @@ function MarkdownWidget({ field, id, value, onChange, invalid, describedBy }: Wi
     </button>
   )
   return (
-    <div className="space-y-1.5" id={id}>
-      <div role="tablist" aria-label="How to edit the text" className="flex gap-1">
+    <div className="space-y-1.5" id={id} data-slot="markdown-field">
+      <div role="tablist" aria-label="How to edit the text" data-slot="markdown-toolbar" className="flex gap-1">
         {tab("visual", "Visual")}
         {tab("source", "Markdown")}
       </div>

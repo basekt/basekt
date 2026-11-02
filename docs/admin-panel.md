@@ -235,8 +235,15 @@ model<Poster>("posters") {
   ones; `DetailLayout.SHEET` opens a slide-over sheet at every viewport width.
 - `reorderable` adds drag-and-drop and accessible up/down controls when the caller may update the resource, writing the
   updated `Int` or `Long` position field through the admin API.
+- `aside("era", "position")` puts those fields in a column beside the others in the record's form, once the form is wide
+  enough (it follows the form's own width, so it works in an inspector too). Put references, kinds and flags there, and
+  the text being written keeps the width.
+- `folded("notes")` keeps a rarely filled field closed behind an "Add notes" button until it has a value.
 
 `BaseKtAdmin` validates every `adminView` field reference and numeric type at startup.
+
+Every form keeps its Save button in reach at the bottom of the screen. A Markdown editor starts at a few lines and grows
+with its text, and shows its Visual and Markdown tabs, formula button and help only while it is being edited.
 
 ## Lists and embedded items
 

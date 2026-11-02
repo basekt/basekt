@@ -7,6 +7,43 @@ import { renderPanel } from "@/test/render"
 const dune = { id: "b1", title: "Dune", pages: 412, fee: "1.50", lendable: true, authorId: null }
 
 describe("record forms", () => {
+  // The library's books, with their flags and author beside the text, and the fee folded away.
+  const laidOut = {
+    ...librarySchema,
+    resources: librarySchema.resources.map((r) => r.name !== "books" ? r : {
+      ...r,
+      view: { cards: null, detailLayout: "page" as const, orderField: null, label: null, aside: ["lendable", "authorId"], folded: ["fee"] },
+    }),
+  }
+
+  it("puts the aside fields in a column of their own, and keeps a folded field closed until it is wanted", async () => {
+    const user = userEvent.setup()
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: laidOut }
+    })
+    renderPanel("/admin/r/books/new", fetch)
+
+    const title = await screen.findByLabelText("Title*")
+    const aside = document.querySelector('[data-slot="form-aside"]')!
+    expect(aside).toContainElement(screen.getByRole("switch"))
+    expect(aside).not.toContainElement(title)
+    expect(screen.queryByLabelText(/^Fee/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Add fee" }))
+    expect(screen.getByLabelText(/^Fee/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Create" }).parentElement).toHaveClass("sticky")
+  })
+
+  it("opens a folded field that has a value", async () => {
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: laidOut }
+      if (url.pathname === "/admin/api/resources/books/records/b1") return { body: dune }
+    })
+    renderPanel("/admin/r/books/b1", fetch)
+
+    expect(await screen.findByLabelText(/^Fee/)).toHaveValue("1.50")
+    expect(screen.queryByRole("button", { name: "Add fee" })).not.toBeInTheDocument()
+  })
+
   it("leaves out the fields the server sets", async () => {
     const stamped = {
       ...librarySchema,

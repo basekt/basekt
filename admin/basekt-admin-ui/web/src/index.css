@@ -53,3 +53,11 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * A Markdown field shows its tabs, its formula button and its help line while it is being edited (or its formula menu
+ * is open), and only its text otherwise, so a form of several of them stays short.
+ */
+[data-slot="markdown-field"]:not(:focus-within):not(:has([data-state="open"])) :is([data-slot="markdown-toolbar"], [data-slot="markdown-help"]) {
+  display: none;
+}

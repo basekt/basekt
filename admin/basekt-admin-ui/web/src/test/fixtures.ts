@@ -122,6 +122,8 @@ export const posters: AdminResource = {
     detailLayout: "split",
     orderField: null,
     label: null,
+    aside: [],
+    folded: [],
   },
 }
 
@@ -147,6 +149,8 @@ export const chapters: AdminResource = {
     detailLayout: "sheet",
     orderField: "position",
     label: null,
+    aside: [],
+    folded: [],
   },
 }
 
