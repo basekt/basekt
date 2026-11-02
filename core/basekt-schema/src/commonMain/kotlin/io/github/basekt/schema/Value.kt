@@ -79,8 +79,8 @@ public sealed interface Value : Comparable<Value> {
     }
 
     /**
-     * A list of values of one kind: the value of a [Field.list] input. Lists are never stored or compared, so they
-     * can't be a record's field, a filter or a sort key.
+     * A list of values of one kind: the value of a [Field.list] field or input, in order. Lists aren't compared, so
+     * they can't be a sort key; the `has` filter looks inside them.
      */
     public data class Items(
         /** The items, in order. */
@@ -88,6 +88,18 @@ public sealed interface Value : Comparable<Value> {
     ) : Value {
         override fun compareTo(other: Value): Int = throw IllegalArgumentException("Can't compare lists")
         override fun toString(): String = values.joinToString(prefix = "[", postfix = "]")
+    }
+
+    /**
+     * An item of a [FieldType.OBJECT] list: its fields' values, keyed by name, with its id in [Resource.ID] when the
+     * list has [Field.itemIds]. An absent key is a field that isn't set. Objects aren't compared.
+     */
+    public data class Object(
+        /** The item's values. */
+        val values: Map<String, Value?>,
+    ) : Value {
+        override fun compareTo(other: Value): Int = throw IllegalArgumentException("Can't compare objects")
+        override fun toString(): String = values.entries.joinToString(prefix = "{", postfix = "}") { "${it.key}=${it.value}" }
     }
 
     /** A point in time: the value of instant fields. */

@@ -238,6 +238,16 @@ model<Poster>("posters") {
 
 `BaseKtAdmin` validates every `adminView` field reference and numeric type at startup.
 
+## Lists and embedded items
+
+A [list or object list](schema.md#lists-and-embedded-items) is edited inside its record's form, item by item: each item
+with the widget of its type (a text box, a Markdown editor, a reference picker), or, for an object list, a card with
+the item's own fields. Items are added, removed and moved up or down, and the whole list is saved with the record. An
+item's id is kept but not shown. An error on an item (`steps.1.text`) appears under its list as "Step 2, text: …".
+
+In a table, an object list shows its count ("4 steps") and a reference list the labels of what it points to. The filter
+menu offers `has` for a list.
+
 ## Naming records
 
 Where a record points to another one (a list cell, a detail view, a reference picker), the panel shows the other

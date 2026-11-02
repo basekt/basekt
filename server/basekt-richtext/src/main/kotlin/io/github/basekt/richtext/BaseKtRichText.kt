@@ -1,6 +1,7 @@
 package io.github.basekt.richtext
 
 import io.github.basekt.data.DataSource
+import io.github.basekt.schema.Field
 import io.github.basekt.schema.FieldError
 import io.github.basekt.schema.FieldErrorCode
 import io.github.basekt.schema.Record
@@ -38,7 +39,7 @@ public val BaseKtRichText: ApplicationPlugin<BaseKtRichTextConfig> = createAppli
 ) {
     checkNotNull(application.pluginOrNull(BaseKt)) { "Install BaseKt before BaseKtRichText." }
     val baseKt = application.baseKt
-    val fields = baseKt.schema.resources.sumOf { resource -> resource.fields.count { it.markdown != null } }
+    val fields = baseKt.schema.resources.sumOf { resource -> resource.fields.sumOf { it.markdownCount() } }
     baseKt.service.extend(MarkdownFields(pluginConfig.mathValidator))
 
     on(MonitoringEvent(ApplicationStarted)) { app ->
@@ -46,12 +47,22 @@ public val BaseKtRichText: ApplicationPlugin<BaseKtRichTextConfig> = createAppli
     }
 }
 
+/** How many Markdown fields this field is, counting those inside an object list's items. */
+private fun Field.markdownCount(): Int = (if (markdown != null) 1 else 0) + fields.orEmpty().sumOf { it.markdownCount() }
+
 private class MarkdownFields(private val mathValidator: MathValidator) : WriteExtension {
     override suspend fun check(resource: Resource, record: Record, transaction: DataSource): List<FieldError> =
-        resource.fields.mapNotNull { field ->
-            val options = field.markdown ?: return@mapNotNull null
-            val text = (record[field.name] as? Value.Text)?.value ?: return@mapNotNull null
-            Markdown.check(text, options, mathValidator).takeIf { it.isNotEmpty() }
-                ?.let { FieldError(field.name, FieldErrorCode.CUSTOM, it.joinToString(" ")) }
+        resource.fields.flatMap { field -> record[field.name]?.let { check(field, it, field.name) }.orEmpty() }
+
+    /** Checks [value] of [field] at [path]: each item of a list at `path.i`, and each field of an item at `path.i.name`. */
+    private fun check(field: Field, value: Value, path: String): List<FieldError> = when (value) {
+        is Value.Items -> value.values.flatMapIndexed { i, item -> check(field.copy(list = false), item, "$path.$i") }
+        is Value.Object -> field.fields.orEmpty().flatMap { sub -> value.values[sub.name]?.let { check(sub, it, "$path.${sub.name}") }.orEmpty() }
+        is Value.Text -> {
+            val options = field.markdown
+            val problems = if (options == null) emptyList() else Markdown.check(value.value, options, mathValidator)
+            if (problems.isEmpty()) emptyList() else listOf(FieldError(path, FieldErrorCode.CUSTOM, problems.joinToString(" ")))
         }
+        else -> emptyList()
+    }
 }

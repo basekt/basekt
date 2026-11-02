@@ -9,6 +9,7 @@ import io.github.basekt.data.Comparison
 import io.github.basekt.data.ConditionalUpdate
 import io.github.basekt.data.ConditionalWrites
 import io.github.basekt.data.Counting
+import io.github.basekt.data.ListFields
 import io.github.basekt.data.CursorCodec
 import io.github.basekt.data.CursorKey
 import io.github.basekt.data.DataSource
@@ -40,13 +41,13 @@ import java.util.UUID
  * Operations run one at a time, and a transaction holds the source until it ends. Writes in a transaction go to a
  * private copy of each table they touch, so a rollback is just dropping it. It also implements [Counting],
  * [Sequencing], whose counters roll back with the tables, [ConditionalWrites], atomic because operations take
- * turns, and [Aggregating].
+ * turns, [Aggregating], and [ListFields].
  *
  * @param newId generates ids for records created without one. Random UUIDs by default.
  */
 public class InMemoryDataSource(
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : DataSource, Counting, Sequencing, ConditionalWrites, Aggregating {
+) : DataSource, Counting, Sequencing, ConditionalWrites, Aggregating, ListFields {
     private val mutex = Mutex()
     private var tables: Map<String, Map<String, Record>> = emptyMap()
     private var sequences: Map<String, Long> = emptyMap()
@@ -256,6 +257,7 @@ private fun Record.matches(filter: Filter): Boolean = when (filter) {
     } ?: false
     is Filter.In -> this[filter.field]?.let { it in filter.values } ?: false
     is Filter.Contains -> (this[filter.field] as Value.Text?)?.value?.contains(filter.text, ignoreCase = true) ?: false
+    is Filter.Has -> (this[filter.field] as? Value.Items)?.values?.any { it in filter.values } ?: false
     is Filter.IsNull -> (this[filter.field] == null) == filter.isNull
     is Filter.And -> filter.filters.all { matches(it) }
     is Filter.Or -> filter.filters.any { matches(it) }

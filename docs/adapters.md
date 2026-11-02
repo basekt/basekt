@@ -19,14 +19,15 @@ dataSource = ExposedDataSource(database, schema)  // or InMemoryDataSource(), or
 | `basekt-data-mongo` | MongoDB adapter: a collection per resource, ObjectId ids and references, transactions, indexes, and existing collections read as they are |
 | `basekt-data-firestore` | Cloud Firestore adapter: a collection per resource, document ids as record ids, Firestore transactions, aggregation counts, and existing collections read as they are |
 
-Some features need an optional capability of the data source. The in-memory, Exposed and MongoDB adapters offer all of them;
-the Firestore adapter offers all but `Aggregating`:
+Some features need an optional capability of the data source. The in-memory and MongoDB adapters offer all of them; the
+Exposed adapter all but `ListFields`, and the Firestore adapter all but `Aggregating` and `ListFields`:
 
 | Capability | Used by |
 |---|---|
 | `Sequencing` | [sequence numbers](automatic-fields.md#sequences); the Exposed adapter keeps counters in a `basekt_sequences` table |
 | `ConditionalWrites` | [conditional writes](concurrent-writes.md#conditional-writes); the Exposed adapter does one `UPDATE … WHERE` |
 | `Aggregating` | [aggregates and reports](aggregates-reports.md); the Exposed adapter runs one `SELECT … GROUP BY` |
+| `ListFields` | [lists and embedded items](schema.md#lists-and-embedded-items); MongoDB keeps a list as an array and an object list as an array of sub-documents, each item's id in its `_id` |
 
 Every adapter runs the `DataSourceContract` suite from `basekt-testing`.
 
@@ -62,6 +63,17 @@ val mapping = MongoMapping(
 
 An id or reference named in `objectIds` is an ObjectId when its value is 24 hexadecimal digits and a string otherwise;
 new ids are ObjectId hex strings, so they fit.
+
+**Lists** are arrays, and an object list's items are sub-documents with their id in `_id`, so a collection that embeds
+its parts is read as it is. Name a reference list in `objectIds` for its items to be ObjectIds, and `field.id` for an
+object list's item ids:
+
+```kotlin
+objectIds = mapOf("questions" to setOf("id", "options.id", "authorIds"))
+```
+
+A write replaces a list whole, so a key of an item that no field names is dropped when the list is written; a key of the
+document that no field names is left alone.
 
 **Transactions** are MongoDB's. A transient failure, such as two transactions writing the same document, runs the block
 again for up to `transactionRetryTimeout` (30 seconds), so a block must be safe to repeat. MongoDB has no savepoints, so

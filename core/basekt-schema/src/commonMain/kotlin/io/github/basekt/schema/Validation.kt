@@ -132,11 +132,13 @@ public fun Resource.decodeRecord(
             continue
         }
         when (val decoded = field.decode(element)) {
-            null -> errors += FieldError(name, FieldErrorCode.TYPE, "Expected ${field.typeDescription()}.")
+            null -> errors += field.decodeError(element, name)
             else -> record[name] = decoded
         }
     }
-    errors += validateRecord(record, mode, validators).filter { error -> errors.none { it.field == error.field } }
+    // A field that didn't decode has its error already; validating what's left of it would only repeat it.
+    val failed = errors.map { it.field.substringBefore('.') }.toSet()
+    errors += validateRecord(record, mode, validators).filter { error -> error.field.substringBefore('.') !in failed }
     return if (errors.isEmpty()) DecodeResult.Valid(record) else DecodeResult.Invalid(errors)
 }
 
@@ -177,7 +179,7 @@ public fun Resource.validateRecord(
             }
             continue
         }
-        field.check(value, validators)?.let { errors += it }
+        errors += field.checkAll(value, validators, field.name)
     }
     return errors
 }
@@ -198,6 +200,7 @@ public fun Value.toJson(): JsonElement = when (this) {
     is Value.Bool -> JsonPrimitive(value)
     is Value.Timestamp -> JsonPrimitive(value.toString())
     is Value.Items -> JsonArray(values.map { it.toJson() })
+    is Value.Object -> JsonObject(values.mapValues { (_, value) -> value?.toJson() ?: JsonNull })
 }
 
 /**
@@ -209,6 +212,7 @@ public fun Field.decode(json: JsonElement): Value? {
         val items = (json as? JsonArray)?.map { copy(list = false).decode(it) ?: return null } ?: return null
         return Value.Items(items)
     }
+    if (type == FieldType.OBJECT) return decodeObject(json)
     val primitive = json as? JsonPrimitive ?: return null
     if (primitive is JsonNull) return null
     return when (type) {
@@ -219,7 +223,83 @@ public fun Field.decode(json: JsonElement): Value? {
         FieldType.DECIMAL -> Value.Decimal.parseOrNull(primitive.content)
         FieldType.BOOL -> primitive.takeUnless { it.isString }?.booleanOrNull?.let(Value::Bool)
         FieldType.INSTANT -> if (primitive.isString) parse(primitive.content) else null
+        FieldType.OBJECT -> null
     }
+}
+
+/** Decodes one item of an object list, or returns `null` if it isn't an object of this field's [Field.fields]. */
+private fun Field.decodeObject(json: JsonElement): Value.Object? {
+    val item = json as? JsonObject ?: return null
+    val values = linkedMapOf<String, Value?>()
+    for ((key, element) in item) {
+        if (key == Resource.ID && itemIds) {
+            if (element is JsonNull) continue
+            val id = (element as? JsonPrimitive)?.takeIf { it.isString && it.content.isNotEmpty() } ?: return null
+            values[key] = Value.Text(id.content)
+            continue
+        }
+        val sub = fields.orEmpty().firstOrNull { it.name == key } ?: return null
+        values[key] = if (element is JsonNull) null else sub.decode(element) ?: return null
+    }
+    return Value.Object(values)
+}
+
+/** Why [json] can't be decoded for this field, at [path] such as `options.1.text`: the first problem found. */
+private fun Field.decodeError(json: JsonElement, path: String): FieldError {
+    fun type(at: String, field: Field) = FieldError(at, FieldErrorCode.TYPE, "Expected ${field.typeDescription()}.")
+    if (list) {
+        val items = json as? JsonArray ?: return FieldError(path, FieldErrorCode.TYPE, "Expected a list of ${copy(list = false).typeDescription()}.")
+        val each = copy(list = false)
+        items.forEachIndexed { i, element -> if (each.decode(element) == null) return each.decodeError(element, "$path.$i") }
+        return type(path, this)
+    }
+    if (type != FieldType.OBJECT) return type(path, this)
+    val item = json as? JsonObject ?: return type(path, this)
+    for ((key, element) in item) {
+        if (key == Resource.ID && itemIds) {
+            if (element !is JsonNull && (element !is JsonPrimitive || !element.isString || element.content.isEmpty())) {
+                return FieldError("$path.$key", FieldErrorCode.TYPE, "An item's id must be a non-empty string.")
+            }
+            continue
+        }
+        val sub = fields.orEmpty().firstOrNull { it.name == key }
+            ?: return FieldError("$path.$key", FieldErrorCode.UNKNOWN_FIELD, "An item of '$name' has no field '$key'.")
+        if (element !is JsonNull && sub.decode(element) == null) return sub.decodeError(element, "$path.$key")
+    }
+    return type(path, this)
+}
+
+/**
+ * Checks [value] against this field's rules, at [path]: each item of a list at `path.i`, and each field of an object
+ * at `path.i.name`, so an error names the item it is about. Two items of a list with [Field.itemIds] can't share an id.
+ */
+private fun Field.checkAll(value: Value, validators: Map<String, FieldValidator>, path: String): List<FieldError> {
+    if (value is Value.Items) {
+        val each = copy(list = false)
+        val errors = mutableListOf<FieldError>()
+        val seen = mutableSetOf<String>()
+        value.values.forEachIndexed { i, item ->
+            errors += each.checkAll(item, validators, "$path.$i")
+            val id = ((item as? Value.Object)?.values?.get(Resource.ID) as? Value.Text)?.value
+            if (itemIds && id != null && !seen.add(id)) {
+                errors += FieldError("$path.$i.${Resource.ID}", FieldErrorCode.UNIQUE, "Two items of '$name' have the id '$id'.")
+            }
+        }
+        return errors
+    }
+    if (value is Value.Object) {
+        return fields.orEmpty().flatMap { sub ->
+            val subValue = value.values[sub.name]
+            when {
+                subValue is Value.Items && sub.required && subValue.values.isEmpty() ->
+                    listOf(FieldError("$path.${sub.name}", FieldErrorCode.REQUIRED, "'${sub.name}' needs at least one item."))
+                subValue == null ->
+                    if (sub.required) listOf(FieldError("$path.${sub.name}", FieldErrorCode.REQUIRED, "'${sub.name}' is required.")) else emptyList()
+                else -> sub.checkAll(subValue, validators, "$path.${sub.name}")
+            }
+        }
+    }
+    return listOfNotNull(check(value, validators)?.copy(field = path))
 }
 
 /**
@@ -233,6 +313,7 @@ public fun Field.parse(text: String): Value? = when (type) {
     FieldType.DECIMAL -> Value.Decimal.parseOrNull(text)
     FieldType.BOOL -> text.toBooleanStrictOrNull()?.let(Value::Bool)
     FieldType.INSTANT -> runCatching { Instant.parse(text) }.getOrNull()?.let(Value::Timestamp)
+    FieldType.OBJECT -> null
 }
 
 /** Returns the [Rule.Custom] validator names this schema uses that [validators] don't provide. */
@@ -300,6 +381,7 @@ private fun Field.typeDescription(): String = when (type) {
     FieldType.ENUM -> "one of ${values.orEmpty().joinToString()}"
     FieldType.REFERENCE -> "the id of a '$target' record"
     FieldType.FILE -> "the key of a file in the '$bucket' bucket, such as $bucket/…/name.jpg"
+    FieldType.OBJECT -> "an object with ${fields.orEmpty().joinToString { it.name }}"
 }
 
 private val fileKeySegment = Regex("[A-Za-z0-9][A-Za-z0-9._-]*")

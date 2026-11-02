@@ -4,6 +4,7 @@ import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Value
+import io.github.basekt.schema.isStructured
 
 /**
  * What [DataSource.list] returns: records that match [filter], ordered by [sort], at most [limit] of them, starting
@@ -107,6 +108,14 @@ public sealed interface Filter {
         val text: String,
     ) : Filter
 
+    /** The list field holds at least one of [values]. Only a list field of scalars can be asked this. */
+    public data class Has(
+        /** The list field. */
+        val field: String,
+        /** The values to look for, of the list's item type. */
+        val values: List<Value>,
+    ) : Filter
+
     /** The field is null or unset when [isNull] is true, and set otherwise. */
     public data class IsNull(
         /** The field. */
@@ -140,7 +149,10 @@ public sealed interface Filter {
  */
 public fun Resource.checkQuery(query: Query) {
     query.filter?.let { checkFilter(it) }
-    for (sort in query.sort) fieldType(sort.field)
+    for (sort in query.sort) {
+        fieldType(sort.field)
+        if (field(sort.field)?.isStructured == true) throw InvalidQueryException("'${sort.field}' is a list, so it can't be sorted on.")
+    }
 }
 
 /** Returns the type of [field] on this resource, treating [Resource.ID] as a string, or throws [InvalidQueryException]. */
@@ -149,11 +161,32 @@ public fun Resource.fieldType(field: String): FieldType =
     else field(field)?.type ?: throw InvalidQueryException("'$name' has no field '$field'.")
 
 private fun Resource.checkFilter(filter: Filter) {
+    fun scalar(name: String) {
+        if (field(name)?.isStructured == true) {
+            throw InvalidQueryException("'$name' is a list: ask whether it has a value with the has filter.")
+        }
+    }
     when (filter) {
-        is Filter.Compare -> checkValue(filter.field, filter.value)
-        is Filter.In -> filter.values.forEach { checkValue(filter.field, it) }
-        is Filter.Contains -> if (!fieldType(filter.field).isText()) {
-            throw InvalidQueryException("'${filter.field}' is not a text field, so it can't be searched.")
+        is Filter.Compare -> {
+            scalar(filter.field)
+            checkValue(filter.field, filter.value)
+        }
+        is Filter.In -> {
+            scalar(filter.field)
+            filter.values.forEach { checkValue(filter.field, it) }
+        }
+        is Filter.Contains -> {
+            scalar(filter.field)
+            if (!fieldType(filter.field).isText()) {
+                throw InvalidQueryException("'${filter.field}' is not a text field, so it can't be searched.")
+            }
+        }
+        is Filter.Has -> {
+            val field = field(filter.field)
+            if (field == null || !field.list || field.type == FieldType.OBJECT) {
+                throw InvalidQueryException("'${filter.field}' is not a list of values, so has doesn't apply to it.")
+            }
+            filter.values.forEach { checkValue(filter.field, it) }
         }
         is Filter.IsNull -> fieldType(filter.field)
         is Filter.And -> filter.filters.forEach { checkFilter(it) }
@@ -170,6 +203,7 @@ private fun Resource.checkValue(field: String, value: Value) {
         FieldType.DECIMAL -> value is Value.Decimal
         FieldType.BOOL -> value is Value.Bool
         FieldType.INSTANT -> value is Value.Timestamp
+        FieldType.OBJECT -> false
     }
     if (!fits) throw InvalidQueryException("'$field' can't be compared with '$value'.")
 }

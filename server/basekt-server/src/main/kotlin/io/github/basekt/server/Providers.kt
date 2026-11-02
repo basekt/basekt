@@ -78,6 +78,9 @@ public enum class FilterOperator {
 
     /** Is null, or is set. */
     @SerialName("null") NULL,
+
+    /** A list field holds one of several values: `field[has]=a,b`. */
+    @SerialName("has") HAS,
 }
 
 /** Registers the providers of a schema's [Resource.provided] resources. */
@@ -160,6 +163,7 @@ private fun checkProvidedFilter(resource: Resource, provider: RecordProvider, fi
         is Filter.In -> filter.field to FilterOperator.IN
         is Filter.Contains -> filter.field to FilterOperator.CONTAINS
         is Filter.IsNull -> filter.field to FilterOperator.NULL
+        is Filter.Has -> filter.field to FilterOperator.HAS
     }
     val supported = provider.filters[field].orEmpty()
     if (operator !in supported) {
@@ -191,7 +195,8 @@ internal fun Resource.providedRecord(record: Record): Record {
     check(unknown.isEmpty()) { "The provider of '$name' returned fields the resource doesn't have: ${unknown.sorted().joinToString()}." }
     for (field in fields) {
         val value = record[field.name] ?: continue
-        check(value.fits(field.type)) { "The provider of '$name' returned '${field.name}' as '$value', which isn't a ${field.type.name.lowercase()}." }
+        val fits = if (field.list) value is Value.Items && value.values.all { it.fits(field.type) } else value.fits(field.type)
+        check(fits) { "The provider of '$name' returned '${field.name}' as '$value', which isn't a ${field.type.name.lowercase()}." }
     }
     return fields.associate { it.name to record[it.name] } + (Resource.ID to record[Resource.ID])
 }
@@ -203,6 +208,7 @@ internal fun Value.fits(type: FieldType): Boolean = when (type) {
     FieldType.DECIMAL -> this is Value.Decimal
     FieldType.BOOL -> this is Value.Bool
     FieldType.INSTANT -> this is Value.Timestamp
+    FieldType.OBJECT -> this is Value.Object
 }
 
 /** Whether [filter] matches no record at all: an empty [Filter.Or], as a scope makes for a caller with no values. */

@@ -48,6 +48,7 @@ internal fun predicate(table: ResourceTable, filter: Filter): Op<Boolean> = when
         val column = table.column(filter.field) as Column<String?>
         column.isNotNull() and (column.lowerCase() like LikePattern("%${escapeLike(filter.text.lowercase())}%", '\\'))
     }
+    is Filter.Has -> throw InvalidQueryException("'${filter.field}' is a list, and list and object fields aren't stored by basekt-data-exposed yet." )
     is Filter.IsNull -> isNull(table, filter.field, filter.isNull)
     is Filter.And -> filter.filters.map { predicate(table, it) }.allOf()
     is Filter.Or -> filter.filters.map { predicate(table, it) }.anyOf()

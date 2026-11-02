@@ -53,9 +53,11 @@ export interface AdminField {
   auto: Auto | null;
   list: boolean;
   markdown: MarkdownOptions | null;
+  fields: AdminField[] | null;
+  itemIds: boolean;
 }
 
-export type FieldType = "string" | "int" | "long" | "decimal" | "bool" | "instant" | "enum" | "reference" | "file";
+export type FieldType = "string" | "int" | "long" | "decimal" | "bool" | "instant" | "enum" | "reference" | "file" | "object";
 
 export type Rule = RuleCustom | RuleLength | RuleMax | RuleMin | RulePattern;
 
@@ -211,7 +213,7 @@ export interface AdminFilter {
   operators: FilterOperator[];
 }
 
-export type FilterOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "contains" | "null";
+export type FilterOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "in" | "contains" | "null" | "has";
 
 export interface AdminView {
   cards: AdminCardView | null;

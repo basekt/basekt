@@ -75,10 +75,40 @@ internal object SchemaChecker {
         return problems
     }
 
-    private fun checkField(schema: Schema, field: Field, at: String, problem: (String, String) -> Unit, input: Boolean = false) {
-        if (field.list && !input) problem(at, "Only the input of an action or a transition can be a list.")
+    private fun checkField(
+        schema: Schema,
+        field: Field,
+        at: String,
+        problem: (String, String) -> Unit,
+        input: Boolean = false,
+        item: Boolean = false,
+    ) {
         if (field.list && field.type == FieldType.FILE) problem(at, "A list can't hold files.")
         if (field.list && field.unique) problem(at, "A list can't be unique.")
+        if (field.list && field.auto != null) problem(at, "A list can't be set automatically.")
+        if (field.type == FieldType.OBJECT) {
+            when {
+                input -> problem(at, "An action's input can't hold objects.")
+                item -> problem(at, "An object's item can't hold objects.")
+                !field.list -> problem(at, "An object field is a list: declare it with objects().")
+            }
+            val subFields = field.fields.orEmpty()
+            if (subFields.isEmpty()) problem(at, "An object field needs at least one field of its own.")
+            duplicates(subFields.map { it.name }).forEach { problem("$at.fields.$it", "Field '$it' is declared twice.") }
+            for (sub in subFields) checkField(schema, sub, "$at.fields.${sub.name}", problem, item = true)
+            if (field.unique) problem(at, "An object field can't be unique.")
+            if (field.hidden) problem(at, "An object field can't be hidden.")
+        } else {
+            if (field.fields != null) problem(at, "Only an object field has fields of its own.")
+            if (field.itemIds) problem(at, "Only an object field's items can have ids.")
+        }
+        if (item) {
+            if (field.type == FieldType.FILE) problem(at, "An object's item can't hold files.")
+            if (field.type == FieldType.REFERENCE) problem(at, "An object's item can't hold references.")
+            if (field.unique) problem(at, "An object's field can't be unique.")
+            if (field.auto != null) problem(at, "An object's field can't be set automatically.")
+            if (field.hidden) problem(at, "An object's field can't be hidden.")
+        }
         if (!namePattern.matches(field.name)) problem(at, "'${field.name}' is not a valid name: use letters, digits and '_', starting with a letter.")
         if (field.name == Resource.ID) problem(at, "'${Resource.ID}' is reserved: every record has it already.")
         when (field.type) {
@@ -100,7 +130,6 @@ internal object SchemaChecker {
         if (field.type != FieldType.FILE && field.bucket != null) problem(at, "Only a file field has a bucket.")
         field.markdown?.let { options ->
             if (field.type != FieldType.STRING) problem(at, "Only a string field can be Markdown, not ${field.type.name.lowercase()}.")
-            if (field.list) problem(at, "A Markdown field can't be a list.")
             if (field.unique) problem(at, "A Markdown field can't be unique.")
             if (options.maxLength !in 1..MarkdownOptions.LIMIT) {
                 problem(at, "A Markdown field's maxLength must be between 1 and ${MarkdownOptions.LIMIT}, not ${options.maxLength}.")
@@ -190,6 +219,8 @@ internal object SchemaChecker {
                 val field = resource.field(relation.field)
                 if (field?.type != FieldType.REFERENCE || field.target != target.name) {
                     problem(at, "'${relation.field}' must be a reference field on '${resource.name}' that targets '${target.name}'.")
+                } else if (field.list) {
+                    problem(at, "'${relation.field}' is a list of references, which a relation can't use yet.")
                 } else if (relation.onDelete == OnDelete.SET_NULL) {
                     if (field.required) problem(at, "'${relation.field}' is required, so deleting the target can't set it to null.")
                     if (field.name in resource.id.key) problem(at, "'${relation.field}' is part of the id, so deleting the target can't set it to null.")
@@ -199,6 +230,8 @@ internal object SchemaChecker {
                 val field = target.field(relation.foreignField)
                 if (field?.type != FieldType.REFERENCE || field.target != resource.name) {
                     problem(at, "'${relation.foreignField}' must be a reference field on '${target.name}' that targets '${resource.name}'.")
+                } else if (field.list) {
+                    problem(at, "'${relation.foreignField}' is a list of references, which a relation can't use yet.")
                 }
             }
         }
@@ -226,6 +259,7 @@ internal object SchemaChecker {
                 field.auto != null && field.auto != Auto.CreatedBy && field.auto !is Auto.Inherited ->
                     problem("$at.key", "'$name' changes on its own, so it can't be part of the key.")
                 field.hidden -> problem("$at.key", "'$name' is hidden, so it can't be part of an id the API shows.")
+                field.list -> problem("$at.key", "'$name' is a list, so it can't be part of the key.")
             }
         }
     }
@@ -289,8 +323,8 @@ internal object SchemaChecker {
 
     private fun checkReport(resource: Resource, report: Report, at: String, problem: (String, String) -> Unit) {
         if (!namePattern.matches(report.name)) problem(at, "'${report.name}' is not a valid name: use letters, digits and '_', starting with a letter.")
-        // A report shows what the API serves, so it can't total a hidden field.
-        fun visible(name: String): Field? = resource.field(name)?.takeUnless { it.hidden }
+        // A report shows what the API serves, so it can't total a hidden field; nor group by or total a list.
+        fun visible(name: String): Field? = resource.field(name)?.takeUnless { it.hidden || it.list }
         when {
             report.chart == Chart.NUMBER && report.groupBy != null -> problem(at, "A number has no groups, so it can't group by '${report.groupBy}'.")
             report.chart != Chart.NUMBER && report.groupBy == null -> problem(at, "A ${report.chart.name.lowercase()} chart needs a field to group by.")
@@ -352,6 +386,7 @@ internal object SchemaChecker {
                 val field = resource.field(clause.field)
                 when {
                     field == null -> problem(at, "The scoped field '${clause.field}' doesn't exist on '${resource.name}'.")
+                    field.list -> problem(at, "The scoped field '${clause.field}' is a list; a scope needs one value per record.")
                     field.type != FieldType.STRING && field.type != FieldType.ENUM && field.type != FieldType.REFERENCE ->
                         problem(at, "The scoped field '${clause.field}' must be a string, enum or reference field.")
                 }

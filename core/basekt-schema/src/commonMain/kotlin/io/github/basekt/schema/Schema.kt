@@ -203,8 +203,9 @@ public data class Field(
      */
     val unique: Boolean = false,
     /**
-     * Whether the field holds a list of values of its [type], as [Value.Items]. Only the input of an action or a
-     * transition may be a list. [rules] and [values] apply to each item, and a required list needs at least one.
+     * Whether the field holds a list of values of its [type], as [Value.Items], kept in order. [rules] and [values]
+     * apply to each item, and a required list needs at least one. A list can't be unique, set automatically, sorted on
+     * or hold files; the `has` filter finds records whose list holds a value.
      */
     val list: Boolean = false,
     /**
@@ -219,6 +220,17 @@ public data class Field(
      * admin panel edits the field as rich text. Only a string field may be Markdown.
      */
     val markdown: MarkdownOptions? = null,
+    /**
+     * The fields of each item, for a [FieldType.OBJECT] field only: scalars, scalar lists and Markdown, with their own
+     * `required` and [rules]. An item is kept inside its record, as [Value.Object].
+     */
+    val fields: List<Field>? = null,
+    /**
+     * Whether each item of a [FieldType.OBJECT] list has an id of its own, in [Resource.ID]. The server gives one to
+     * an item that comes without it and keeps the one it comes with, so an item keeps its id through every edit and
+     * reorder, and another record can point at it.
+     */
+    val itemIds: Boolean = false,
 )
 
 /**
@@ -356,6 +368,12 @@ public enum class FieldType {
      * bytes live elsewhere; `basekt-files` stores and serves them.
      */
     @SerialName("file") FILE,
+
+    /**
+     * An object with the field's [Field.fields], as [Value.Object]. It is always a [Field.list]: a record's items, such
+     * as a question's options, kept inside the record.
+     */
+    @SerialName("object") OBJECT,
 }
 
 /** A named link from one resource to another. */

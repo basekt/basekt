@@ -41,6 +41,13 @@ private val school: Schema = schema {
         string("plain")
         permissions { read(authenticated); write("teacher") }
     }
+    resource("quizzes") {
+        objects("choices") {
+            string("text") { required(); markdown { math() } }
+        }
+        string("hints") { list(); markdown() }
+        permissions { read(authenticated); write("teacher") }
+    }
 }
 
 private val identities = IdentityResolver { call ->
@@ -70,6 +77,16 @@ class RichTextTest {
             install(BaseKtRichText, config)
         }
         test()
+    }
+
+    @Test
+    fun `Markdown inside a list or an item is checked too, and the error names the item`() = app {
+        val ok = client.post("/api/quizzes") { teacher("""{"choices": [{"text": "${'$'}x^2${'$'}"}], "hints": ["Think **halves**."]}""") }
+        assertEquals(HttpStatusCode.Created, ok.status, ok.bodyAsText())
+
+        val bad = client.post("/api/quizzes") { teacher("""{"choices": [{"text": "fine"}, {"text": "${'$'}${'$'}x^2"}], "hints": ["<b>bold</b>"]}""") }
+        assertEquals(HttpStatusCode.UnprocessableEntity, bad.status)
+        assertEquals(setOf("choices.1.text", "hints.0"), bad.fields().keys)
     }
 
     @Test

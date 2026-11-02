@@ -7,11 +7,11 @@ import type { PanelConfig } from "@/config"
 export const books: AdminResource = {
   name: "books",
   fields: [
-    { name: "title", type: "string", required: true, values: null, target: null, rules: [{ kind: "length", min: 1, max: 200 }], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "pages", type: "int", required: false, values: null, target: null, rules: [{ kind: "min", value: "1" }], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "fee", type: "decimal", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "lendable", type: "bool", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "authorId", type: "reference", required: false, values: null, target: "authors", rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "title", type: "string", required: true, values: null, target: null, rules: [{ kind: "length", min: 1, max: 200 }], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "pages", type: "int", required: false, values: null, target: null, rules: [{ kind: "min", value: "1" }], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "fee", type: "decimal", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "lendable", type: "bool", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "authorId", type: "reference", required: false, values: null, target: "authors", rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
   ],
   relations: [{ name: "author", kind: "belongsTo", target: "authors", field: "authorId" }],
   operations: ["read", "create", "update", "delete"],
@@ -29,7 +29,7 @@ export const books: AdminResource = {
 
 export const authors: AdminResource = {
   name: "authors",
-  fields: [{ name: "name", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null }],
+  fields: [{ name: "name", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false }],
   relations: [{ name: "books", kind: "hasMany", target: "books", field: "authorId" }],
   operations: ["read", "create", "update", "delete"],
   searchable: ["name"],
@@ -49,11 +49,11 @@ export const librarySchema: AdminSchema = { version: 1, caller: { id: "librarian
 export const tickets: AdminResource = {
   name: "tickets",
   fields: [
-    { name: "subject", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "state", type: "enum", required: true, values: ["open", "waiting", "closed"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "openedAt", type: "instant", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "views", type: "long", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "screenshot", type: "file", required: false, values: null, target: null, rules: [], bucket: "screens", scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "subject", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "state", type: "enum", required: true, values: ["open", "waiting", "closed"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "openedAt", type: "instant", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "views", type: "long", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "screenshot", type: "file", required: false, values: null, target: null, rules: [], bucket: "screens", scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
   ],
   relations: [],
   operations: ["read"],
@@ -77,9 +77,9 @@ export const tickets: AdminResource = {
 export const callers: AdminResource = {
   name: "callers",
   fields: [
-    { name: "name", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "line", type: "enum", required: false, values: ["sales", "support"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "waitedSeconds", type: "int", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "name", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "line", type: "enum", required: false, values: ["sales", "support"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "waitedSeconds", type: "int", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
   ],
   relations: [],
   operations: ["read"],
@@ -101,10 +101,10 @@ export const callers: AdminResource = {
 export const posters: AdminResource = {
   name: "posters",
   fields: [
-    { name: "title", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "artist", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "era", type: "enum", required: false, values: ["deco", "modern", "minimal"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "imageUrl", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "title", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "artist", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "era", type: "enum", required: false, values: ["deco", "modern", "minimal"], target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "imageUrl", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
   ],
   relations: [],
   operations: ["read", "create", "update", "delete"],
@@ -128,8 +128,8 @@ export const posters: AdminResource = {
 export const chapters: AdminResource = {
   name: "chapters",
   fields: [
-    { name: "heading", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
-    { name: "position", type: "int", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null },
+    { name: "heading", type: "string", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
+    { name: "position", type: "int", required: true, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false },
   ],
   relations: [],
   operations: ["read", "create", "update", "delete"],

@@ -11,9 +11,9 @@ import com.mongodb.client.model.ReturnDocument
 import com.mongodb.kotlin.client.coroutine.ClientSession
 import com.mongodb.kotlin.client.coroutine.MongoClient
 import com.mongodb.kotlin.client.coroutine.MongoCollection
-import io.github.basekt.data.Aggregating
 import io.github.basekt.data.AggregatePage
 import io.github.basekt.data.AggregateQuery
+import io.github.basekt.data.Aggregating
 import io.github.basekt.data.ConditionalUpdate
 import io.github.basekt.data.ConditionalWrites
 import io.github.basekt.data.Counting
@@ -21,6 +21,7 @@ import io.github.basekt.data.CursorCodec
 import io.github.basekt.data.DataSource
 import io.github.basekt.data.DuplicateIdException
 import io.github.basekt.data.Filter
+import io.github.basekt.data.ListFields
 import io.github.basekt.data.Page
 import io.github.basekt.data.Query
 import io.github.basekt.data.Sequencing
@@ -32,6 +33,10 @@ import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.Value
+import kotlin.random.Random
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.firstOrNull
@@ -46,14 +51,10 @@ import org.bson.BsonString
 import org.bson.BsonValue
 import org.bson.conversions.Bson
 import org.bson.types.ObjectId
-import kotlin.random.Random
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeSource
 
 /**
  * A [DataSource] over MongoDB, in [databaseName] of [client]: one collection per resource, laid out as [mapping] says.
- * It offers [Counting], [Sequencing], [ConditionalWrites] and [Aggregating], and passes the same contract suite as the other adapters.
+ * It offers [Counting], [Sequencing], [ConditionalWrites], [Aggregating] and [ListFields], and passes the same contract suite as the other adapters.
  *
  * Needs MongoDB 5.0 or later (4.2 without time buckets in aggregates), and a replica set (a single node will do) for [transaction]s.
  *
@@ -77,7 +78,7 @@ public class MongoDataSource(
     private val mapping: MongoMapping = MongoMapping(),
     private val newId: () -> String = { ObjectId().toHexString() },
     private val transactionRetryTimeout: Duration = 30.seconds,
-) : DataSource, Counting, Sequencing, ConditionalWrites, Aggregating {
+) : DataSource, Counting, Sequencing, ConditionalWrites, Aggregating, ListFields {
     private val database = client.getDatabase(databaseName)
     private val documents: Map<String, DocumentMapping>
     private val root: Session

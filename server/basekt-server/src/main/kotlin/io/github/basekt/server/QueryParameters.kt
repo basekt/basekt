@@ -142,6 +142,7 @@ private fun parseFilter(resource: Resource, name: String, text: String): Filter 
         "lte" -> Filter.Compare(fieldName, Comparison.LTE, value(text))
         "in" -> Filter.In(fieldName, text.split(',').map(::value))
         "contains" -> Filter.Contains(fieldName, text)
+        "has" -> Filter.Has(fieldName, text.split(',').map(::value))
         "null" -> Filter.IsNull(fieldName, text.toBooleanStrictOrNull() ?: invalidQuery("[null] takes true or false."))
         else -> invalidQuery("'$op' is not a filter operator.")
     }

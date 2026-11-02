@@ -9,7 +9,8 @@ import io.github.basekt.schema.Schema
  * - `_id`, the record's id;
  * - one value per field under the field's name, `null` when it isn't set: strings, enums, references and file keys as
  *   strings, `int` as an int32, `long` as an int64, decimals as Decimal128, booleans, and instants as dates. A date
- *   has millisecond precision, so an instant's finer digits are dropped.
+ *   has millisecond precision, so an instant's finer digits are dropped;
+ * - a list as an array of its items, and an object list as an array of sub-documents, each item's id in its `_id`.
  *
  * A collection that already exists, as it does when a schema describes documents another program wrote, is read as it
  * is: a number may be any numeric type, an id or a reference may be an ObjectId or a string, and a missing field is
@@ -24,7 +25,10 @@ public data class MongoMapping(
     val collectionPrefix: String = "",
     /** Collections that are not called after their resource: resource name to collection name. The prefix is not added. */
     val collections: Map<String, String> = emptyMap(),
-    /** Per resource, the fields stored as ObjectIds. Name [Resource.ID] for `_id`. */
+    /**
+     * Per resource, the fields stored as ObjectIds. Name [Resource.ID] for `_id`, a list of references for its items,
+     * and `field.id` for the ids of an object list's items.
+     */
     val objectIds: Map<String, Set<String>> = emptyMap(),
     /** Extra indexes, each on some fields of one resource. */
     val indexes: List<IndexSpec> = emptyList(),
@@ -39,9 +43,13 @@ public data class MongoMapping(
         for ((name, fields) in objectIds) {
             val resource = schema.resource(name)!!
             for (field in fields) {
-                require(field == Resource.ID || resource.field(field) != null) {
-                    "The mapping stores '$name.$field' as an ObjectId, but '$name' has no such field."
+                val list = resource.field(field.substringBefore('.'))
+                val known = when {
+                    field == Resource.ID -> true
+                    '.' in field -> list?.itemIds == true && field.substringAfter('.') == Resource.ID
+                    else -> list != null
                 }
+                require(known) { "The mapping stores '$name.$field' as an ObjectId, but '$name' has no such field." }
             }
         }
         for (index in indexes) {

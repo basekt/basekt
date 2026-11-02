@@ -1,6 +1,8 @@
 package io.github.basekt.server
 
 import io.github.basekt.data.DataSource
+import io.github.basekt.data.ListFields
+import io.github.basekt.data.structuredFields
 import io.github.basekt.schema.FieldValidator
 import io.github.basekt.schema.Model
 import io.github.basekt.schema.Schema
@@ -12,13 +14,13 @@ import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.ApplicationStarted
 import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.createApplicationPlugin
-import io.ktor.server.application.log
 import io.ktor.server.application.hooks.MonitoringEvent
+import io.ktor.server.application.log
 import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.routing.routing
 import io.ktor.util.AttributeKey
-import kotlinx.coroutines.withContext
 import kotlin.time.Clock
+import kotlinx.coroutines.withContext
 
 /**
  * The configuration of [BaseKt]. Settings can come from the `basekt` section of the application's configuration:
@@ -180,6 +182,10 @@ public val BaseKt: io.ktor.server.application.ApplicationPlugin<BaseKtConfig> = 
     require(schema.resource(SCHEMA_PATH) == null) { "A resource can't be called '$SCHEMA_PATH': GET $SCHEMA_PATH serves the schema." }
     require(schema.resource(AGGREGATE_PATH) == null) { "A resource can't be called '$AGGREGATE_PATH': GET $AGGREGATE_PATH/{resource} serves aggregates." }
     require(pluginConfig.maxAggregateGroups >= 1) { "maxAggregateGroups must be at least 1." }
+    val structured = schema.structuredFields()
+    require(structured.isEmpty() || dataSource is ListFields) {
+        "The data source ${dataSource::class.simpleName} can't store list or object fields, which ${structured.joinToString()} are."
+    }
     val defaultPageSize = pluginConfig.defaultPageSize
     val maxPageSize = pluginConfig.maxPageSize
     require(maxPageSize >= 1 && defaultPageSize in 1..maxPageSize) {
