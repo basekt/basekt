@@ -121,6 +121,7 @@ export const posters: AdminResource = {
     cards: { media: "imageUrl", title: "title", subtitle: "artist", badge: "era" },
     detailLayout: "split",
     orderField: null,
+    label: null,
   },
 }
 
@@ -145,6 +146,7 @@ export const chapters: AdminResource = {
     cards: null,
     detailLayout: "sheet",
     orderField: "position",
+    label: null,
   },
 }
 
@@ -156,8 +158,13 @@ export const switchboardSchema: AdminSchema = { version: 1, caller: { id: "agent
 
 export const config: PanelConfig = { path: "/admin", apiPath: "/admin/api", filesPath: "/files", brand: { name: "Test", logo: null }, defaultMode: "light", login: null, provider: null, siteLink: null }
 
-export function page(items: JsonObject[], total: number | null = items.length, nextCursor: string | null = null): AdminPage {
-  return { items, nextCursor, hasNext: nextCursor != null, total }
+export function page(
+  items: JsonObject[],
+  total: number | null = items.length,
+  nextCursor: string | null = null,
+  labels: AdminPage["labels"] = {},
+): AdminPage {
+  return { items, nextCursor, hasNext: nextCursor != null, total, labels }
 }
 
 export function apiError(error: ApiError["error"], message: string, fields: ApiError["fields"] = []): ApiError {

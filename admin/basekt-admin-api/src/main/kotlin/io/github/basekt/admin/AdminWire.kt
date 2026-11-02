@@ -251,6 +251,18 @@ public data class AdminPage(
     val hasNext: Boolean,
     /** How many records match, ignoring the cursor, or `null` if the data source can't count. */
     val total: Long?,
+    /**
+     * How to name records, keyed by resource and then id: this page's own records, and the records their reference
+     * fields point to. A record the caller may not read has none; show its id.
+     */
+    val labels: Map<String, Map<String, String>> = emptyMap(),
+)
+
+/** The answer of `GET {path}/resources/{name}/labels?id=…`. */
+@Serializable
+public data class AdminLabels(
+    /** The label of each named record the caller may read, keyed by id. */
+    val labels: Map<String, String>,
 )
 
 /** The body of `POST {path}/resources/{name}/bulk-delete`. */

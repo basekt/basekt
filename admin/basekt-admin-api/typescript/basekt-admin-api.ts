@@ -217,6 +217,7 @@ export interface AdminView {
   cards: AdminCardView | null;
   detailLayout: DetailLayout;
   orderField: string | null;
+  label: string | null;
 }
 
 export interface AdminCardView {
@@ -233,6 +234,7 @@ export interface AdminPage {
   nextCursor: string | null;
   hasNext: boolean;
   total: number | null;
+  labels: Record<string, Record<string, string>>;
 }
 
 export interface AdminAggregatePage {
@@ -243,6 +245,10 @@ export interface AdminAggregatePage {
 export interface AdminAggregateGroup {
   key: JsonObject;
   values: JsonObject;
+}
+
+export interface AdminLabels {
+  labels: Record<string, string>;
 }
 
 export interface BulkDeleteRequest {

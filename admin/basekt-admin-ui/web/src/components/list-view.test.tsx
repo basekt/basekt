@@ -28,6 +28,33 @@ describe("the list view", () => {
     expect(screen.getByRole("navigation", { name: "Resources" })).toHaveTextContent("BooksAuthors")
   })
 
+  it("names a referenced record by the label the page sent, and keeps its id as the link's title", async () => {
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: librarySchema }
+      if (url.pathname === "/admin/api/resources/books/records") {
+        return { body: page(library, 2, null, { authors: { a1: "Herbert, Frank" } }) }
+      }
+    })
+    renderPanel("/admin/r/books", fetch)
+
+    const table = await screen.findByRole("table")
+    const author = await within(table).findByRole("link", { name: "Herbert, Frank" })
+    expect(author).toHaveAttribute("href", "/admin/r/authors/a1")
+    expect(author).toHaveAttribute("title", "a1")
+  })
+
+  it("names a record's references on its own page, asking the labels route", async () => {
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: librarySchema }
+      if (url.pathname === "/admin/api/resources/books/records/b1") return { body: library[0] }
+      if (url.pathname === "/admin/api/resources/authors/labels") return { body: { labels: { a1: "Herbert, Frank" } } }
+    })
+    renderPanel("/admin/r/books/b1", fetch)
+
+    expect(await screen.findByText(/Herbert, Frank/)).toBeInTheDocument()
+    expect(fetch.calls.some((call) => call.url.pathname === "/admin/api/resources/authors/labels" && call.url.searchParams.getAll("id").includes("a1"))).toBe(true)
+  })
+
   it("pages with the cursor, and searches, sorts and filters through the URL", async () => {
     const user = userEvent.setup()
     const fetch = fakeFetch(({ url }) => {

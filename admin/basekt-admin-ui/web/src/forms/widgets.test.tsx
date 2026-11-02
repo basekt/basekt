@@ -153,23 +153,27 @@ describe("the widget registry", () => {
     expect(state.value()).toBe("closed")
   })
 
-  it("searches the referenced resource for a reference", async () => {
+  it("searches the referenced resource for a reference, naming records by the server's labels", async () => {
+    const named = { a1: "Herbert, Frank", a2: "Austen, Jane" }
     const fetch = fakeFetch(({ url }) => {
-      if (url.pathname === "/admin/api/resources/authors/records/a1") return { body: { id: "a1", name: "Frank Herbert" } }
+      if (url.pathname === "/admin/api/resources/authors/labels") {
+        const ids = url.searchParams.getAll("id") as (keyof typeof named)[]
+        return { body: { labels: Object.fromEntries(ids.map((id) => [id, named[id]])) } }
+      }
       if (url.pathname === "/admin/api/resources/authors/records") {
         const all = [{ id: "a1", name: "Frank Herbert" }, { id: "a2", name: "Jane Austen" }]
         const search = url.searchParams.get("search")?.toLowerCase()
-        return { body: page(all.filter((a) => !search || a.name.toLowerCase().includes(search))) }
+        return { body: page(all.filter((a) => !search || a.name.toLowerCase().includes(search)), undefined, null, { authors: named }) }
       }
     })
     const author = renderWidget(fieldOf(books, "authorId"), "a1", fetch)
     const picker = screen.getByRole("combobox", { name: "authorId" })
-    await waitFor(() => expect(picker).toHaveTextContent("Frank Herbert (a1)"))
+    await waitFor(() => expect(picker).toHaveTextContent("Herbert, Frank (a1)"))
 
     await userEvent.click(picker)
     await userEvent.type(await screen.findByPlaceholderText("Search…"), "jane")
     await waitFor(() => expect(fetch.calls.at(-1)!.url.searchParams.get("search")).toBe("jane"))
-    await userEvent.click(await screen.findByRole("option", { name: /Jane Austen/ }))
+    await userEvent.click(await screen.findByRole("option", { name: /Austen, Jane/ }))
     expect(author.value()).toBe("a2")
   })
 

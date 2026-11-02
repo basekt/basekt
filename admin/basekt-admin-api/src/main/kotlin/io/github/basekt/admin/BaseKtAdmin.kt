@@ -31,6 +31,17 @@ public class BaseKtAdminConfig internal constructor(config: ApplicationConfig) {
 
     /** The most rows one CSV export may have. `basekt.admin.maxExportRows`, 100 000 by default. */
     public var maxExportRows: Int = config.propertyOrNull("maxExportRows")?.getString()?.toInt() ?: 100_000
+
+    internal val labelFunctions = linkedMapOf<String, LabelFunction>()
+
+    /**
+     * Names [resource]'s records with [function] where another record points to them, instead of the schema's
+     * `adminView { label(...) }`. Use it when a template isn't enough, such as to shorten a Markdown text. Returning
+     * `null` or blank falls back to the schema's label.
+     */
+    public fun label(resource: String, function: LabelFunction) {
+        labelFunctions[resource] = function
+    }
 }
 
 /**
@@ -41,6 +52,7 @@ public class BaseKtAdminConfig internal constructor(config: ApplicationConfig) {
  * |---|---|
  * | `GET /schema` | the [AdminSchema] for the caller: the resources and operations their roles allow |
  * | `GET /resources/{name}/records` | a page ([AdminPage]): `field[op]=` filters, `sort`, `search`, `limit`, `cursor` |
+ * | `GET /resources/{name}/labels?id=…` | the labels of the named records ([AdminLabels]) |
  * | `POST /resources/{name}/records` | creates a record |
  * | `GET`, `PATCH`, `DELETE /resources/{name}/records/{id}` | reads, patches or deletes one record |
  * | `POST /resources/{name}/bulk-delete` | deletes several records ([BulkDeleteRequest] → [BulkDeleteResult]) |
@@ -77,8 +89,11 @@ public val BaseKtAdmin: ApplicationPlugin<BaseKtAdminConfig> = createApplication
     require(settings.maxBulkDelete >= 1 && settings.maxExportRows >= 1) {
         "maxBulkDelete and maxExportRows must be at least 1."
     }
+    val unknown = pluginConfig.labelFunctions.keys.filter { runtime.schema.resource(it) == null }
+    require(unknown.isEmpty()) { "BaseKtAdmin has label functions for resources the schema doesn't have: ${unknown.joinToString()}." }
+    val labels = Labels(runtime, pluginConfig.labelFunctions.toMap())
 
-    application.routing { withIdentities(runtime.identities) { adminRoutes(runtime, settings) } }
+    application.routing { withIdentities(runtime.identities) { adminRoutes(runtime, settings, labels) } }
 
     on(MonitoringEvent(ApplicationStarted)) { app ->
         app.log.info("BaseKt admin API serves ${runtime.schema.resources.size} resources under ${settings.path}")

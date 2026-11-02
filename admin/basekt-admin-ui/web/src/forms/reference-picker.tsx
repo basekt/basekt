@@ -11,7 +11,10 @@ import { useAsync } from "@/lib/use-async"
 import { cn } from "@/lib/utils"
 import { usePanel, useResource } from "@/panel"
 
-/** A record's label in a picker: its first searchable field, or else its first text value. */
+/**
+ * A record's label when the server sent none: its first searchable field, or else its first text value. The server's
+ * labels follow the resource's `adminView { label(...) }`, so they come first.
+ */
 export function labelOf(resource: AdminResource, record: JsonObject): string | null {
   for (const name of [...resource.searchable, ...resource.fields.map((f) => f.name)]) {
     const value = record[name]
@@ -58,8 +61,11 @@ function Picker({ target, id, value, onChange, invalid, describedBy, required }:
     () => (open ? api.list(target.name, { limit: "20", ...(searchable && query.trim() ? { search: query.trim() } : {}) }) : Promise.resolve(null)),
     [api, target.name, open, query],
   )
-  const selected = useAsync(() => (value ? api.get(target.name, value).catch(() => null) : Promise.resolve(null)), [api, target.name, value])
-  const selectedLabel = selected.data ? labelOf(target, selected.data) : null
+  const selected = useAsync(
+    () => (value ? api.labels(target.name, [value]).then((answer) => answer.labels[value] ?? null).catch(() => null) : Promise.resolve(null)),
+    [api, target.name, value],
+  )
+  const selectedLabel = selected.data ?? null
 
   return (
     <div className="flex items-center gap-1">
@@ -99,7 +105,7 @@ function Picker({ target, id, value, onChange, invalid, describedBy, required }:
                       }}
                     >
                       <Check className={cn(recordKey === value ? "opacity-100" : "opacity-0")} />
-                      <span className="truncate">{labelOf(target, record) ?? recordKey}</span>
+                      <span className="truncate">{options.data?.labels?.[target.name]?.[recordKey] ?? labelOf(target, record) ?? recordKey}</span>
                       <span className="ml-auto font-mono text-xs text-muted-foreground">{recordKey}</span>
                     </CommandItem>
                   )

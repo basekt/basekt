@@ -2,6 +2,7 @@ package io.github.basekt.admin.typescript
 
 import io.github.basekt.admin.ADMIN_SCHEMA_VERSION
 import io.github.basekt.admin.AdminAggregatePage
+import io.github.basekt.admin.AdminLabels
 import io.github.basekt.admin.AdminPage
 import io.github.basekt.admin.AdminSchema
 import io.github.basekt.admin.BulkDeleteRequest
@@ -24,6 +25,7 @@ private val roots = listOf(
     AdminSchema.serializer().descriptor,
     AdminPage.serializer().descriptor,
     AdminAggregatePage.serializer().descriptor,
+    AdminLabels.serializer().descriptor,
     BulkDeleteRequest.serializer().descriptor,
     BulkDeleteResult.serializer().descriptor,
     ApiError.serializer().descriptor,
