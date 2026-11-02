@@ -22,6 +22,7 @@ import { RecordForm } from "@/forms/record-form"
 import { formatValue, humanize, recordId } from "@/lib/fields"
 import { recordLinks } from "@/lib/links"
 import { useAsync } from "@/lib/use-async"
+import { cn } from "@/lib/utils"
 import { can, usePanel } from "@/panel"
 import { Link, useRouter } from "@/router"
 
@@ -34,7 +35,7 @@ export function RecordView({ resource, id }: { resource: AdminResource; id: stri
   const { navigate } = useRouter()
   const record = useAsync(() => api.get(resource.name, id), [api, resource.name, id])
   return (
-    <div className="grid max-w-3xl gap-6">
+    <div className={cn("grid gap-6", pageWidth(resource))}>
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <BackToList resource={resource} />
@@ -178,7 +179,7 @@ export function CreateView({ resource }: { resource: AdminResource }) {
   }
   const toList = () => navigate({ screen: "list", resource: resource.name, search: new URLSearchParams() })
   return (
-    <div className="grid max-w-3xl gap-6">
+    <div className={cn("grid gap-6", pageWidth(resource))}>
       <div>
         <BackToList resource={resource} />
         <h1 className="text-2xl font-semibold tracking-tight">New {humanize(resource.name).toLowerCase()}</h1>
@@ -210,6 +211,11 @@ function SiteLinks({ resource, record }: { resource: AdminResource; record: Json
       ))}
     </>
   )
+}
+
+/** A form with a side column needs the room for both; a form of one column reads best narrow. */
+function pageWidth(resource: AdminResource): string {
+  return (resource.view?.aside?.length ?? 0) > 0 ? "max-w-6xl" : "max-w-3xl"
 }
 
 function BackToList({ resource }: { resource: AdminResource }) {

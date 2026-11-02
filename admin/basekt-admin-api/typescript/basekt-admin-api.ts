@@ -220,6 +220,8 @@ export interface AdminView {
   detailLayout: DetailLayout;
   orderField: string | null;
   label: string | null;
+  aside: string[];
+  folded: string[];
 }
 
 export interface AdminCardView {

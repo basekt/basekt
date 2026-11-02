@@ -71,7 +71,11 @@ export default function MarkdownEditor({ value, math, invalid, describedBy, onCh
 
   return (
     <div className="markdown-editor-frame space-y-1.5">
-      {math && <FormulaMenu onInsert={insertFormula} />}
+      {math && (
+        <div data-slot="markdown-toolbar">
+          <FormulaMenu onInsert={insertFormula} />
+        </div>
+      )}
       <div ref={host} className="markdown-editor" data-invalid={invalid || undefined} aria-describedby={describedBy} />
     </div>
   )

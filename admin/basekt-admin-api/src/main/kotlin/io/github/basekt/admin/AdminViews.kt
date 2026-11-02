@@ -31,6 +31,13 @@ public data class AdminView(
      * label function given to `BaseKtAdmin` wins over it.
      */
     val label: String? = null,
+    /**
+     * The fields a record's form shows in a column beside the others on a wide screen, such as its references, kind and
+     * flags, so the text being written keeps the width and the page stays short. On a narrow screen they follow the rest.
+     */
+    val aside: List<String> = emptyList(),
+    /** The fields a record's form keeps closed until they have a value, behind an "Add" button: ones rarely filled in. */
+    val folded: List<String> = emptyList(),
 )
 
 /** Which fields of a record populate each card when a resource's list is switched to grid view. */
@@ -114,6 +121,8 @@ public class AdminViewBuilder internal constructor() {
     private var cards: AdminCardView? = null
     private var orderField: String? = null
     private var label: String? = null
+    private val aside = mutableListOf<String>()
+    private val folded = mutableListOf<String>()
 
     /** How selecting a record opens its detail view. [DetailLayout.PAGE] by default. */
     public var detailLayout: DetailLayout = DetailLayout.PAGE
@@ -151,7 +160,17 @@ public class AdminViewBuilder internal constructor() {
         label = template
     }
 
-    internal fun build(): AdminView = AdminView(cards, detailLayout, orderField, label)
+    /** Shows [fields] in a column beside the others in a record's form, on a wide screen. See [AdminView.aside]. */
+    public fun aside(vararg fields: String) {
+        aside += fields
+    }
+
+    /** Keeps [fields] closed in a record's form until they have a value. See [AdminView.folded]. */
+    public fun folded(vararg fields: String) {
+        folded += fields
+    }
+
+    internal fun build(): AdminView = AdminView(cards, detailLayout, orderField, label, aside.toList(), folded.toList())
 }
 
 /**
@@ -218,6 +237,18 @@ public fun Schema.adminViewProblems(): List<String> {
                 }
             }
         }
+        for ((kind, names) in listOf("aside" to view.aside, "folded" to view.folded)) {
+            for (name in names) {
+                val field = resource.field(name)
+                when {
+                    field == null -> problems += "$at puts '$name' $kind, which isn't a field of '${resource.name}'."
+                    field.hidden -> problems += "$at puts '$name' $kind, a hidden field."
+                    field.auto != null -> problems += "$at puts '$name' $kind, which the server sets, so a form never shows it."
+                }
+            }
+            names.groupBy { it }.filter { it.value.size > 1 }.keys.forEach { problems += "$at puts '$it' $kind twice." }
+        }
+        if (view.folded.any { it in view.aside }) problems += "$at puts ${view.folded.filter { it in view.aside }.joinToString()} both aside and folded."
         view.orderField?.let { name ->
             val field = resource.field(name)
             when {

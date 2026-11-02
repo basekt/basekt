@@ -79,7 +79,7 @@ function Picker({ target, id, value, onChange, invalid, describedBy, required }:
             aria-expanded={open}
             aria-invalid={invalid}
             aria-describedby={describedBy}
-            className="w-full justify-between font-normal sm:w-72"
+            className="w-full min-w-0 shrink justify-between font-normal sm:max-w-72"
           >
             <span className={cn("truncate", !value && "text-muted-foreground")}>
               {value ? (selectedLabel ? `${selectedLabel} (${value})` : value) : "Choose…"}

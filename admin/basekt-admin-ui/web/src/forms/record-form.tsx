@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { CircleAlert } from "lucide-react"
+import { CircleAlert, Plus } from "lucide-react"
 import type { AdminField, AdminResource, FieldError, JsonObject, JsonValue } from "@wire"
 import { ApiFailure } from "@/api/client"
 import { ErrorState } from "@/components/error-state"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { widgetFor } from "@/forms/widgets"
 import { humanize, itemNoun } from "@/lib/fields"
+import { cn } from "@/lib/utils"
 import { usePanel } from "@/panel"
 
 /** Errors from a failed save, split into those a field shows and those the form shows above its fields. */
@@ -71,6 +72,7 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
   const [errors, setErrors] = useState<FormErrors>(noErrors)
   const [failure, setFailure] = useState<unknown>(null)
   const [saving, setSaving] = useState(false)
+  const [opened, setOpened] = useState<Set<string>>(() => new Set())
 
   const set = (field: AdminField, value: JsonValue) => {
     setValues((current) => ({ ...current, [field.name]: value }))
@@ -98,8 +100,51 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
   const fieldErrorCount = Object.values(errors.fields).reduce((n, list) => n + list.length, 0)
   const chosenId = mode === "create" ? idField(resource) : null
   const fields = [...(chosenId ? [chosenId] : []), ...resource.fields.filter((field) => field.auto == null)]
+  const aside = new Set(resource.view?.aside ?? [])
+  const folded = new Set(resource.view?.folded ?? [])
+  const main = fields.filter((field) => !aside.has(field.name))
+  const side = fields.filter((field) => aside.has(field.name))
+  // A folded field opens when the viewer asks, and is open already when it has a value or an error.
+  const isOpen = (field: AdminField) => !folded.has(field.name) || opened.has(field.name) || hasValue(initial[field.name]) || (errors.fields[field.name]?.length ?? 0) > 0
+
+  const fieldBlock = (field: AdminField) => {
+    const id = `field-${field.name}`
+    if (!isOpen(field)) {
+      return (
+        <div key={field.name}>
+          <Button type="button" variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setOpened((current) => new Set(current).add(field.name))}>
+            <Plus /> Add {humanize(field.name).toLowerCase()}
+          </Button>
+        </div>
+      )
+    }
+    const fieldErrors = errors.fields[field.name] ?? []
+    const Widget = widgetFor(field)
+    return (
+      <div key={field.name} className="grid min-w-0 grid-cols-1 gap-2">
+        <Label htmlFor={id}>
+          {humanize(field.name)}
+          {field.required && <span className="text-destructive" aria-hidden>*</span>}
+        </Label>
+        <Widget
+          field={field}
+          id={id}
+          value={values[field.name]}
+          onChange={(value) => set(field, value)}
+          invalid={fieldErrors.length > 0}
+          describedBy={fieldErrors.length > 0 ? `${id}-error` : undefined}
+        />
+        {fieldErrors.length > 0 && (
+          <p id={`${id}-error`} className="text-sm text-destructive">
+            {fieldErrors.map((e) => e.message).join(" ")}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <form onSubmit={submit} noValidate aria-label={`${mode === "create" ? "New" : "Edit"} ${humanize(resource.name)}`} className="grid gap-5">
+    <form onSubmit={submit} noValidate aria-label={`${mode === "create" ? "New" : "Edit"} ${humanize(resource.name)}`} className="@container grid gap-5">
       {failure != null && <ErrorState error={failure} />}
       {errors.message && (
         <Alert variant="destructive">
@@ -115,33 +160,17 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
           )}
         </Alert>
       )}
-      {fields.map((field) => {
-        const id = `field-${field.name}`
-        const fieldErrors = errors.fields[field.name] ?? []
-        const Widget = widgetFor(field)
-        return (
-          <div key={field.name} className="grid gap-2">
-            <Label htmlFor={id}>
-              {humanize(field.name)}
-              {field.required && <span className="text-destructive" aria-hidden>*</span>}
-            </Label>
-            <Widget
-              field={field}
-              id={id}
-              value={values[field.name]}
-              onChange={(value) => set(field, value)}
-              invalid={fieldErrors.length > 0}
-              describedBy={fieldErrors.length > 0 ? `${id}-error` : undefined}
-            />
-            {fieldErrors.length > 0 && (
-              <p id={`${id}-error`} className="text-sm text-destructive">
-                {fieldErrors.map((e) => e.message).join(" ")}
-              </p>
-            )}
+      {/* On a wide form the aside fields sit in a column of their own, so the text being written keeps the width. */}
+      <div className={cn("grid gap-5", side.length > 0 && "@3xl:grid-cols-[minmax(0,1fr)_18rem] @3xl:items-start")}>
+        <div className="grid min-w-0 grid-cols-1 gap-5">{main.map(fieldBlock)}</div>
+        {side.length > 0 && (
+          <div data-slot="form-aside" className="grid min-w-0 grid-cols-1 gap-5 @3xl:sticky @3xl:top-4 @3xl:rounded-md @3xl:border @3xl:p-4">
+            {side.map(fieldBlock)}
           </div>
-        )
-      })}
-      <div className="flex gap-2">
+        )}
+      </div>
+      {/* Save stays in reach at the bottom of the screen, however long the form. */}
+      <div className="bg-background/95 sticky bottom-0 z-10 -mx-1 flex gap-2 border-t px-1 py-3 backdrop-blur">
         <Button type="submit" disabled={saving}>
           {mode === "create" ? "Create" : "Save"}
         </Button>
@@ -153,6 +182,11 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
       </div>
     </form>
   )
+}
+
+/** Whether [value] is something a person entered: not empty, and not an empty list. */
+function hasValue(value: JsonValue | undefined): boolean {
+  return value !== null && value !== undefined && value !== "" && !(Array.isArray(value) && value.length === 0)
 }
 
 /** The fields that have a value: a create leaves the rest to the server's defaults. */
