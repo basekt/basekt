@@ -107,7 +107,7 @@ function MarkdownWidget({ field, id, value, onChange, invalid, describedBy }: Wi
           className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-32 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:ring-[3px]"
         />
       )}
-      <p className="text-muted-foreground text-xs">{`Markdown${formulas}. ${text.length} of ${options.maxLength} characters.`}</p>
+      <p data-slot="markdown-help" className="text-muted-foreground text-xs">{`Markdown${formulas}. ${text.length} of ${options.maxLength} characters.`}</p>
     </div>
   )
 }

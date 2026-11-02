@@ -3,9 +3,13 @@ import type { AdminField, AdminResource, FieldType, JsonValue } from "@wire"
 /** The record id every resource has, which the schema's field list leaves out. */
 export const ID = "id"
 
-/** A label for a field or resource name: `categoryId` → "Category", `placedAt` → "Placed at", `order_items` → "Order items". */
+/**
+ * A label for a field or resource name: `categoryId` → "Category", `authorIds` → "Authors", `placedAt` → "Placed at",
+ * `order_items` → "Order items".
+ */
 export function humanize(name: string): string {
   const words = name
+    .replace(/Ids$/, "s")
     .replace(/Id$/, "")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")

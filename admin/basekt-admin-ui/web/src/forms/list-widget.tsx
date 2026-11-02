@@ -58,7 +58,7 @@ export function ListWidget({ field, id, value, onChange, invalid, describedBy }:
           {items.map((item, index) => {
             const itemId = `${id}-${keys[index]}`
             return (
-              <li key={keys[index]} aria-label={`${humanize(noun)} ${index + 1}`} className={cn("rounded-md border p-3", invalid && "border-destructive/50")}>
+              <li key={keys[index]} data-slot="list-item" aria-label={`${humanize(noun)} ${index + 1}`} className={cn("rounded-md border p-3", invalid && "border-destructive/50")}>
                 <div className="flex items-start gap-2">
                   <span className="text-muted-foreground mt-2 w-5 shrink-0 text-xs tabular-nums">{index + 1}</span>
                   <div className="min-w-0 flex-1 space-y-3">
