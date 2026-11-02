@@ -243,7 +243,10 @@ model<Poster>("posters") {
 `BaseKtAdmin` validates every `adminView` field reference and numeric type at startup.
 
 Every form keeps its Save button in reach at the bottom of the screen. A Markdown editor starts at a few lines and grows
-with its text, and shows its Visual and Markdown tabs, formula button and help only while it is being edited.
+with its text. While it is being edited, it shows one row of formatting buttons: bold, italic, strikethrough, code,
+heading and subheading, bulleted and numbered lists, quote, link, picture (where the field allows pictures), table,
+undo and redo, the formula menu (where it allows formulas), and the Visual and Markdown tabs. Each button runs the
+editor's own command, so it writes the same Markdown as typing would; selecting text and typing `/` work as before.
 
 ## Lists and embedded items
 

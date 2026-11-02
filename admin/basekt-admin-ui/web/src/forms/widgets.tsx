@@ -78,34 +78,49 @@ function MarkdownWidget({ field, id, value, onChange, invalid, describedBy }: Wi
       {label}
     </button>
   )
+  const tabs = (
+    <div role="tablist" aria-label="How to edit the text" data-slot="markdown-toolbar" className="flex gap-1">
+      {tab("visual", "Visual")}
+      {tab("source", "Markdown")}
+    </div>
+  )
   return (
     <div className="space-y-1.5" id={id} data-slot="markdown-field">
-      <div role="tablist" aria-label="How to edit the text" data-slot="markdown-toolbar" className="flex gap-1">
-        {tab("visual", "Visual")}
-        {tab("source", "Markdown")}
-      </div>
       {mode === "visual" ? (
-        <Suspense fallback={<p className="text-muted-foreground text-sm">Loading the editor...</p>}>
+        <Suspense
+          fallback={
+            <>
+              {tabs}
+              <p className="text-muted-foreground text-sm">Loading the editor...</p>
+            </>
+          }
+        >
+          {/* The tabs end the editor's formatting row, so the toolbar takes one line. */}
           <MarkdownEditor
             key={revision}
             value={text}
             math={options.math}
+            images={options.images}
+            trailing={tabs}
             invalid={invalid}
             describedBy={describedBy}
             onChange={set}
           />
         </Suspense>
       ) : (
-        <textarea
-          aria-label="Markdown source"
-          rows={12}
-          value={text}
-          onChange={(e) => set(e.target.value)}
-          aria-invalid={invalid}
-          aria-describedby={describedBy}
-          maxLength={options.maxLength}
-          className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-32 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-        />
+        <>
+          {tabs}
+          <textarea
+            aria-label="Markdown source"
+            rows={12}
+            value={text}
+            onChange={(e) => set(e.target.value)}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
+            maxLength={options.maxLength}
+            className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-32 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+          />
+        </>
       )}
       <p data-slot="markdown-help" className="text-muted-foreground text-xs">{`Markdown${formulas}. ${text.length} of ${options.maxLength} characters.`}</p>
     </div>

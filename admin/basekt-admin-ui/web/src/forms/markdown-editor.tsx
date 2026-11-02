@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Crepe, CrepeFeature } from "@milkdown/crepe"
-import { insert } from "@milkdown/kit/utils"
+import { callCommand, insert } from "@milkdown/kit/utils"
 import katex from "katex"
 import { Sigma } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { formulaCategories, type FormulaPreset } from "@/forms/formula-presets"
+import { FormatToolbar, type RunCommand } from "@/forms/markdown-toolbar"
 import "@milkdown/crepe/theme/common/style.css"
 import "katex/dist/katex.min.css"
 import "@/forms/markdown-editor.css"
@@ -15,6 +16,10 @@ export interface MarkdownEditorProps {
   value: string
   /** Whether formulas are allowed: `$x^2$` inline and `$$ ... $$` as a block. */
   math: boolean
+  /** Whether pictures are allowed, so the toolbar offers to add one. */
+  images: boolean
+  /** What ends the toolbar's row, such as the visual and source tabs. */
+  trailing?: ReactNode
   invalid: boolean
   describedBy?: string
   onChange: (markdown: string) => void
@@ -25,7 +30,7 @@ export interface MarkdownEditorProps {
  * as they are typed, with a menu of formulas to start from. It reads and writes Markdown, so what it saves is the same
  * text the source box shows. It is a separate chunk, loaded only when a form has a Markdown field.
  */
-export default function MarkdownEditor({ value, math, invalid, describedBy, onChange }: MarkdownEditorProps) {
+export default function MarkdownEditor({ value, math, images, trailing, invalid, describedBy, onChange }: MarkdownEditorProps) {
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<Crepe | null>(null)
   const report = useRef(onChange)
@@ -64,6 +69,10 @@ export default function MarkdownEditor({ value, math, invalid, describedBy, onCh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const run: RunCommand = (command, payload) => {
+    editor.current?.editor.action(callCommand(command, payload))
+  }
+
   /** Puts [latex] at the cursor, as `$...$` in the line or as a `$$` block of its own. */
   const insertFormula = (latex: string, block: boolean) => {
     editor.current?.editor.action(insert(block ? `$$\n${latex}\n$$` : `$${latex}$`, !block))
@@ -71,11 +80,7 @@ export default function MarkdownEditor({ value, math, invalid, describedBy, onCh
 
   return (
     <div className="markdown-editor-frame space-y-1.5">
-      {math && (
-        <div data-slot="markdown-toolbar">
-          <FormulaMenu onInsert={insertFormula} />
-        </div>
-      )}
+      <FormatToolbar run={run} images={images} formula={math ? <FormulaMenu onInsert={insertFormula} /> : undefined} trailing={trailing} />
       <div ref={host} className="markdown-editor" data-invalid={invalid || undefined} aria-describedby={describedBy} />
     </div>
   )
