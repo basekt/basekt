@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import type { AdminField, FieldType, JsonValue } from "@wire"
 import { fallbackWidget, fromLocalInput, toLocalInput, widgetFor, widgets } from "@/forms/widgets"
@@ -28,8 +28,11 @@ function renderWidget(field: AdminField, initial: JsonValue = null, fetch = fake
 
 // The visual editor is ProseMirror, which jsdom can't run: a text box that follows the same contract stands in for it.
 vi.mock("@/forms/markdown-editor", () => ({
-  default: (props: { value: string; math: boolean; onChange: (markdown: string) => void }) => (
-    <textarea aria-label="Visual editor" data-math={String(props.math)} defaultValue={props.value} onChange={(e) => props.onChange(e.target.value)} />
+  default: (props: { value: string; math: boolean; images: boolean; trailing?: ReactNode; onChange: (markdown: string) => void }) => (
+    <>
+      {props.trailing}
+      <textarea aria-label="Visual editor" data-math={String(props.math)} data-images={String(props.images)} defaultValue={props.value} onChange={(e) => props.onChange(e.target.value)} />
+    </>
   ),
 }))
 
