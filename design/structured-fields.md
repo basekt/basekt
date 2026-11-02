@@ -53,20 +53,25 @@ The second option has no id, so the server gives it one; the first keeps its own
 
 ## Part 1: labels for references
 
-Small, panel-only, and useful on its own, so it goes first.
+Small, panel-only, and useful on its own, so it goes first. Built in the `feat/admin-reference-labels` branch.
 
-- `adminView { label("name") }` names the field that names a record (a string or enum field, or `id`). Without one,
-  the panel keeps today's guess.
-- The admin API's list and detail responses carry the labels of the records the page refers to:
-  `"labels": {"subjects": {"67b1…30": "Programming"}}`, keyed by target resource. The server reads them with one
-  read of the ids per target resource per page, through the resource service so the caller's permissions and scopes
-  apply: a record the caller couldn't open gets no label, and its cell shows the id.
-- The panel shows the label in list cells (`list-view.tsx` `Cell`), the detail view (`record-view.tsx` `ReadOnly`) and
-  the picker (`labelOf` uses the declared field first), linked to the record as now.
+- `adminView { label(...) }` says how a record is named: a field (`label("name")`) or a template whose `{field}`
+  placeholders are filled in (`label("{lastName}, {firstName}")`). A placeholder with no value is left out with the
+  separator it leaves dangling. Without one, a record is named by its first text field.
+- When a template isn't enough (shortening a Markdown text, say), `BaseKtAdmin { label("questions") { record -> … } }`
+  takes a function. It wins over the schema, and returning `null` falls back to it.
+- A list page (`AdminPage.labels`) carries the labels of its own records (for a picker) and of the records its
+  reference fields point to (for the cells): `"labels": {"subjects": {"67b1…30": "Programming"}}`, keyed by resource.
+  The detail response stays the bare record, so `GET /resources/{name}/labels?id=…` names records for a detail view
+  and a picker's selected value.
+- Both read through the resource service, once per target resource per page, so the caller's permissions and scopes
+  apply: a record the caller couldn't open gets no label, and shows its id. A label is at most 120 characters.
+- The panel shows labels in list cells, the detail view and the picker, linked to the record as before, with the id in
+  the link's tooltip.
 - The public API is unchanged. An `expand=` parameter for API clients is a separate question.
 
-Wire change: `AdminView.label`, `labels` on list and detail responses. Regenerate the TypeScript types and the panel
-fixtures.
+Wire change: `AdminView.label`, `AdminPage.labels`, `AdminLabels`. The TypeScript types and the panel fixtures are
+regenerated with it.
 
 ## Part 2: lists on resource fields
 
