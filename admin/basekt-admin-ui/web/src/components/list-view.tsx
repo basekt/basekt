@@ -107,6 +107,7 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
 
   const fields: (AdminField | { name: string; type: "id" })[] = [{ name: ID, type: "id" }, ...resource.fields]
   const items = page.data?.items ?? []
+  const labels = page.data?.labels ?? {}
   // Selection is per page: moving to another page or reloading starts with none.
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkFailed, setBulkFailed] = useState<BulkFailure[]>([])
@@ -252,6 +253,7 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
                     key={recordId(record)}
                     resource={resource}
                     record={record}
+                    labels={labels}
                     index={index}
                     totalCount={items.length}
                     selected={selectable ? selected.has(recordId(record)) : undefined}
@@ -585,6 +587,7 @@ function CardGrid({
 function RecordRow({
   resource,
   record,
+  labels,
   index,
   totalCount,
   selected,
@@ -600,6 +603,7 @@ function RecordRow({
 }: {
   resource: AdminResource
   record: JsonObject
+  labels: Labels
   index: number
   totalCount: number
   selected?: boolean
@@ -663,7 +667,7 @@ function RecordRow({
       </TableCell>
       {resource.fields.map((field) => (
         <TableCell key={field.name} className="max-w-64 truncate">
-          <Cell field={field} record={record} />
+          <Cell field={field} record={record} labels={labels} />
         </TableCell>
       ))}
       {reorderable && (
@@ -734,15 +738,18 @@ function ReorderControls({
   )
 }
 
-function Cell({ field, record }: { field: AdminField; record: JsonObject }) {
+/** How to name records, by resource and id: the `labels` of the page they came with. */
+type Labels = Record<string, Record<string, string>>
+
+function Cell({ field, record, labels }: { field: AdminField; record: JsonObject; labels: Labels }) {
   const value = record[field.name]
   if (value === null || value === undefined) return <span className="text-muted-foreground">—</span>
   if (field.type === "enum") return <Badge variant="outline">{String(value)}</Badge>
   if (field.type === "file" && typeof value === "string") return <FilePreview fileKey={value} />
   if (field.type === "reference" && field.target) {
     return (
-      <Link to={{ screen: "detail", resource: field.target, id: String(value) }} className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground">
-        {String(value)}
+      <Link to={{ screen: "detail", resource: field.target, id: String(value) }} title={String(value)} className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground">
+        {labels[field.target]?.[String(value)] ?? String(value)}
       </Link>
     )
   }

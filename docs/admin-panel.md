@@ -238,6 +238,34 @@ model<Poster>("posters") {
 
 `BaseKtAdmin` validates every `adminView` field reference and numeric type at startup.
 
+## Naming records
+
+Where a record points to another one (a list cell, a detail view, a reference picker), the panel shows the other
+record's label, not its id. The id stays in the link's tooltip. `label` in `adminView` says how a record is named: a
+field, or a template whose `{field}` placeholders are filled in.
+
+```kotlin
+resource("writers") {
+    string("firstName")
+    string("lastName") { required() }
+    adminView { label("{lastName}, {firstName}") }   // or label("lastName")
+}
+```
+
+A placeholder with no value is left out, with the separator it leaves dangling: a writer with no first name is
+`Byron`, not `Byron,`. Without `label`, a record is named by its first text field.
+
+When a template isn't enough, give `BaseKtAdmin` a function. It wins over the schema; returning `null` falls back to it.
+
+```kotlin
+install(BaseKtAdmin) {
+    label("questions") { record -> (record["text"] as? Value.Text)?.value?.lineSequence()?.firstOrNull() }
+}
+```
+
+Labels are worked out on the server and read through the resource service, so a caller only gets the labels of records
+they may read, within their scopes; any other reference shows its id. A label is at most 120 characters.
+
 ## Extending the panel
 
 For bespoke resource workspaces or standalone operator pages in React and TypeScript, `basekt-admin-ui.jar` bundles the

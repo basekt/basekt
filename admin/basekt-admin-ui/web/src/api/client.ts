@@ -1,4 +1,4 @@
-import type { AdminAggregatePage, AdminPage, AdminSchema, ApiError, BulkDeleteResult, JsonObject } from "@wire"
+import type { AdminAggregatePage, AdminLabels, AdminPage, AdminSchema, ApiError, BulkDeleteResult, JsonObject } from "@wire"
 
 /** The call a failure came from: its method and path (with the query, never a token), and its request id, if any. */
 export interface FailedCall {
@@ -113,6 +113,13 @@ export class AdminApi {
 
   list(resource: string, params: ListParams): Promise<AdminPage> {
     return this.json("GET", `${this.records(resource)}${query(params)}`)
+  }
+
+  /** The labels of [resource]'s records with [ids] that the caller may read. */
+  labels(resource: string, ids: string[]): Promise<AdminLabels> {
+    const params = new URLSearchParams()
+    for (const id of ids) params.append("id", id)
+    return this.json("GET", `/resources/${encodeURIComponent(resource)}/labels?${params}`)
   }
 
   get(resource: string, id: string): Promise<JsonObject> {

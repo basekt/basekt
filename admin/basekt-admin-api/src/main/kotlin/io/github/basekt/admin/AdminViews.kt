@@ -25,6 +25,12 @@ public data class AdminView(
     val detailLayout: DetailLayout = DetailLayout.PAGE,
     /** An integer field (`int` or `long`) that orders records when the caller drags or moves rows, or `null`. */
     val orderField: String? = null,
+    /**
+     * How a record is named where another record points to it (list cells, detail views, pickers): a field name such
+     * as `name`, or a template such as `{lastName}, {firstName}`. `null` names a record by its first text field. A
+     * label function given to `BaseKtAdmin` wins over it.
+     */
+    val label: String? = null,
 )
 
 /** Which fields of a record populate each card when a resource's list is switched to grid view. */
@@ -107,6 +113,7 @@ public class CardViewBuilder internal constructor() {
 public class AdminViewBuilder internal constructor() {
     private var cards: AdminCardView? = null
     private var orderField: String? = null
+    private var label: String? = null
 
     /** How selecting a record opens its detail view. [DetailLayout.PAGE] by default. */
     public var detailLayout: DetailLayout = DetailLayout.PAGE
@@ -136,7 +143,15 @@ public class AdminViewBuilder internal constructor() {
         orderField = property.name
     }
 
-    internal fun build(): AdminView = AdminView(cards, detailLayout, orderField)
+    /**
+     * Names a record where another record points to it: a field name, such as `label("name")`, or a template whose
+     * `{field}` placeholders are filled in, such as `label("{lastName}, {firstName}")`.
+     */
+    public fun label(template: String) {
+        label = template
+    }
+
+    internal fun build(): AdminView = AdminView(cards, detailLayout, orderField, label)
 }
 
 /**
@@ -188,6 +203,18 @@ public fun Schema.adminViewProblems(): List<String> {
                 when {
                     field == null -> problems += "$at names $slot '$name', which isn't a field of '${resource.name}'."
                     field.hidden -> problems += "$at names $slot '$name', a hidden field."
+                }
+            }
+        }
+        view.label?.let { template ->
+            val names = labelFields(template)
+            if (names.isEmpty()) problems += "$at has a label with no field in it: name a field, or use {field} placeholders."
+            for (name in names) {
+                if (name == Resource.ID) continue
+                val field = resource.field(name)
+                when {
+                    field == null -> problems += "$at's label names '$name', which isn't a field of '${resource.name}'."
+                    field.hidden -> problems += "$at's label names '$name', a hidden field."
                 }
             }
         }

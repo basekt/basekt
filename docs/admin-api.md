@@ -10,7 +10,8 @@ install(BaseKtAdmin) { path = "/admin/api" }           // basekt-admin-api
 | Route under `/admin/api` | What it does |
 |---|---|
 | `GET /schema` | what the caller may see and do: `"version": 1`, the resources, fields, relations and allowed operations, and whether a resource is [read-only](admin-panel.md#live-read-only-resources) |
-| `GET /resources/{name}/records` | a page with a `total`: the same filters, sort and cursor, plus `search` |
+| `GET /resources/{name}/records` | a page with a `total`: the same filters, sort and cursor, plus `search`, and the [labels](admin-panel.md#naming-records) of its records and of the records they point to |
+| `GET /resources/{name}/labels?id=…&id=…` | the labels of the named records the caller may read |
 | `POST`, `GET`, `PATCH`, `DELETE /resources/{name}/records[/{id}]` | create, read, update and delete |
 | `POST /resources/{name}/bulk-delete` | deletes several records and reports each one |
 | `GET /resources/{name}/export.csv` | the list as CSV |

@@ -223,14 +223,44 @@ function BackToList({ resource }: { resource: AdminResource }) {
 }
 
 function ReadOnly({ resource, record }: { resource: AdminResource; record: JsonObject }) {
+  const { api } = usePanel()
+  const references = resource.fields.filter((field) => field.type === "reference" && field.target && record[field.name] != null)
+  const wanted = references.map((field) => `${field.target}/${String(record[field.name])}`).join(",")
+  // The records this one points to, named by their labels: one call per target resource.
+  const labels = useAsync(async () => {
+    const ids = new Map<string, Set<string>>()
+    for (const field of references) {
+      const target = field.target as string
+      ids.set(target, (ids.get(target) ?? new Set()).add(String(record[field.name])))
+    }
+    const named: Record<string, Record<string, string>> = {}
+    await Promise.all(
+      [...ids].map(async ([target, set]) => {
+        named[target] = (await api.labels(target, [...set]).catch(() => ({ labels: {} }))).labels
+      }),
+    )
+    return named
+  }, [api, wanted])
+
   return (
     <dl className="grid gap-x-6 gap-y-3 rounded-md border p-4 sm:grid-cols-[12rem_1fr]">
-      {resource.fields.map((field) => (
-        <div key={field.name} className="contents">
-          <dt className="text-sm text-muted-foreground">{humanize(field.name)}</dt>
-          <dd>{formatValue(field, record[field.name])}</dd>
-        </div>
-      ))}
+      {resource.fields.map((field) => {
+        const value = record[field.name]
+        return (
+          <div key={field.name} className="contents">
+            <dt className="text-sm text-muted-foreground">{humanize(field.name)}</dt>
+            <dd>
+              {field.type === "reference" && field.target && value != null ? (
+                <Link to={{ screen: "detail", resource: field.target, id: String(value) }} title={String(value)} className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground">
+                  {labels.data?.[field.target]?.[String(value)] ?? String(value)}
+                </Link>
+              ) : (
+                formatValue(field, value)
+              )}
+            </dd>
+          </div>
+        )
+      })}
     </dl>
   )
 }

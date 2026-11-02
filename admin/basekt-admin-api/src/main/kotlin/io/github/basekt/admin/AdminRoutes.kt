@@ -47,7 +47,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 
-internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) {
+internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings, labels: Labels) {
     val service = runtime.service
     route(settings.path) {
         get("schema") {
@@ -62,7 +62,8 @@ internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) 
                         val page = service.list(resource, caller, query)
                         val scope = service.scopeFilter(resource, Operation.READ, caller)
                         val counted = listOfNotNull(query.filter, scope).let { if (it.size > 1) Filter.And(it) else it.firstOrNull() }
-                        respondJson(AdminPage.serializer(), page.toAdmin(resource, count(runtime, resource, counted)))
+                        val named = labels.forPage(resource, page.items, caller)
+                        respondJson(AdminPage.serializer(), page.toAdmin(resource, count(runtime, resource, counted), named))
                     }
                 }
                 post {
@@ -100,6 +101,16 @@ internal fun Route.adminRoutes(runtime: BaseKtRuntime, settings: AdminSettings) 
             post("actions/{action}") {
                 handle(runtime) { caller ->
                     respondAnswer(service.run(resource(runtime), call.parameters["action"]!!, caller, null, optionalBody()))
+                }
+            }
+            get("labels") {
+                handle(runtime) { caller ->
+                    val resource = resource(runtime)
+                    val ids = call.request.queryParameters.getAll("id").orEmpty().filter { it.isNotEmpty() }.distinct()
+                    if (ids.size > settings.maxPageSize) {
+                        throw ApiException(ErrorCode.BAD_REQUEST, "Ask for at most ${settings.maxPageSize} labels at once.")
+                    }
+                    respondJson(AdminLabels.serializer(), AdminLabels(labels.read(resource.name, ids, caller)))
                 }
             }
             post("bulk-delete") {
@@ -267,8 +278,8 @@ private suspend fun RoutingContext.exportCsv(runtime: BaseKtRuntime, settings: A
     }
 }
 
-private fun Page.toAdmin(resource: Resource, total: Long?): AdminPage =
-    AdminPage(items.map(resource::encodeRecord), nextCursor, hasNext, total)
+private fun Page.toAdmin(resource: Resource, total: Long?, labels: Map<String, Map<String, String>>): AdminPage =
+    AdminPage(items.map(resource::encodeRecord), nextCursor, hasNext, total, labels)
 
 /** Resolves the caller, runs [block], and answers any [ApiException] with its [ApiError]. */
 private suspend fun RoutingContext.handle(runtime: BaseKtRuntime, block: suspend RoutingContext.(Identity?) -> Unit) {
