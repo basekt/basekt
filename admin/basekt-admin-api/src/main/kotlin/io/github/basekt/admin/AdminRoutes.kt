@@ -12,6 +12,7 @@ import io.github.basekt.schema.Relation
 import io.github.basekt.schema.Report
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.encodeRecord
+import io.github.basekt.schema.isStructured
 import io.github.basekt.schema.toJson
 import io.github.basekt.server.ApiError
 import io.github.basekt.server.ApiException
@@ -179,7 +180,7 @@ internal fun adminSchema(runtime: BaseKtRuntime, caller: Identity?): AdminSchema
             },
             operations = operations,
             searchable = resource.searchable(provider),
-            sortable = (listOf(Resource.ID) + resource.visibleFields().map { it.name }).filter { provider == null || it in provider.sorts },
+            sortable = (listOf(Resource.ID) + resource.visibleFields().filterNot { it.isStructured }.map { it.name }).filter { provider == null || it in provider.sorts },
             group = resource.group,
             reports = if (Operation.READ in operations) resource.reports.map { it.toAdmin() } else emptyList(),
             links = if (Operation.READ in operations) resource.adminLinks else emptyList(),
@@ -216,14 +217,14 @@ private fun Report.toAdmin(): AdminReport = AdminReport(
 )
 
 private fun Field.toAdmin(scopedValues: Set<String>?): AdminField =
-    AdminField(name, type, required, values, target, rules, bucket, scopedValues?.sorted(), auto, list, markdown)
+    AdminField(name, type, required, values, target, rules, bucket, scopedValues?.sorted(), auto, list, markdown, fields?.map { it.toAdmin(null) }, itemIds)
 
 /** The fields a panel may show: the ones that aren't [Field.hidden]. */
 private fun Resource.visibleFields(): List<Field> = fields.filterNot { it.hidden }
 
 /** The text fields that `search` looks in: for a provided resource, the ones its [provider] can search. */
 private fun Resource.searchable(provider: RecordProvider?): List<String> =
-    visibleFields().filter { it.type == FieldType.STRING || it.type == FieldType.ENUM }.map { it.name }
+    visibleFields().filter { !it.isStructured && (it.type == FieldType.STRING || it.type == FieldType.ENUM) }.map { it.name }
         .filter { provider == null || FilterOperator.CONTAINS in provider.filters[it].orEmpty() }
 
 /** Parses the list parameters: BaseKt's filters, sort, limit and cursor, plus `search` over the searchable fields. */

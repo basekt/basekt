@@ -12,6 +12,7 @@ import io.github.basekt.data.Direction
 import io.github.basekt.data.DuplicateIdException
 import io.github.basekt.data.Filter
 import io.github.basekt.data.InvalidQueryException
+import io.github.basekt.data.ListFields
 import io.github.basekt.data.Measure
 import io.github.basekt.data.Query
 import io.github.basekt.data.Repository
@@ -48,6 +49,12 @@ import kotlin.time.Instant
 public abstract class DataSourceContract {
     /** Returns a new, empty data source that can store [contractSchema]'s resources. */
     protected abstract fun createDataSource(): DataSource
+
+    /**
+     * Returns a new, empty data source that can store [listSchema]'s resources, for a source that offers [ListFields].
+     * The default, `null`, skips the list tests.
+     */
+    protected open fun createListDataSource(): DataSource? = null
 
     private val groups: Resource = contractSchema.resource("groups")!!
     private val entries: Resource = contractSchema.resource("entries")!!
@@ -314,6 +321,56 @@ public abstract class DataSourceContract {
             }
         }
         assertEquals(listOf("kept", "outer"), source.list(entries).items.ids())
+    }
+
+    private val notes: Resource = listSchema.resource("notes")!!
+
+    private fun step(id: String, text: String, vararg more: Pair<String, Value?>) =
+        Value.Object(linkedMapOf<String, Value?>(Resource.ID to text(id), "text" to text(text)) + more)
+
+    private fun texts(vararg values: String) = Value.Items(values.map(::text))
+
+    /** A source that offers [ListFields] keeps a record's lists and object lists whole and in order. Others skip this. */
+    @Test
+    public fun listsAndObjectListsRoundTripInOrder(): Unit = runTest {
+        val source = createListDataSource() ?: return@runTest
+        val steps = Value.Items(listOf(step("s2", "second", "done" to Value.Bool(true), "minutes" to int(3)), step("s1", "first")))
+        val created = source.create(notes, mapOf(Resource.ID to text("n1"), "tags" to texts("b", "a", "b"), "scores" to Value.Items(listOf(int(3), int(1))), "steps" to steps))
+        val read = source.get(notes, "n1")!!
+        assertEquals(created, read)
+        assertEquals(texts("b", "a", "b"), read["tags"])
+        assertEquals(steps, read["steps"], "an item keeps its id, its order and only the fields it was given")
+        assertEquals(Value.Items(emptyList()), source.create(notes, mapOf(Resource.ID to text("n2"), "tags" to texts()))["tags"])
+    }
+
+    /** An update replaces a list whole, and a null clears it. Sources without [ListFields] skip this. */
+    @Test
+    public fun anUpdateReplacesAListWhole(): Unit = runTest {
+        val source = createListDataSource() ?: return@runTest
+        source.create(notes, mapOf(Resource.ID to text("n1"), "tags" to texts("a", "b"), "steps" to Value.Items(listOf(step("s1", "first"), step("s2", "second")))))
+        val reordered = Value.Items(listOf(step("s2", "second, edited"), step("s1", "first")))
+        source.update(notes, "n1", mapOf("steps" to reordered, "tags" to null))
+        val read = source.get(notes, "n1")!!
+        assertEquals(reordered, read["steps"])
+        assertNull(read["tags"])
+    }
+
+    /** `has` finds the records whose list holds any of the values; lists can't be sorted or compared. */
+    @Test
+    public fun hasLooksInsideLists(): Unit = runTest {
+        val source = createListDataSource() ?: return@runTest
+        source.create(notes, mapOf(Resource.ID to text("n1"), "tags" to texts("red", "blue"), "scores" to Value.Items(listOf(int(1), int(2)))))
+        source.create(notes, mapOf(Resource.ID to text("n2"), "tags" to texts("green"), "scores" to Value.Items(listOf(int(2)))))
+        source.create(notes, mapOf(Resource.ID to text("n3")))
+        fun has(field: String, vararg values: Value) = Query(filter = Filter.Has(field, values.toList()), sort = listOf(Sort(Resource.ID)))
+        assertEquals(listOf("n1"), source.list(notes, has("tags", text("blue"))).items.ids())
+        assertEquals(listOf("n1", "n2"), source.list(notes, has("tags", text("red"), text("green"))).items.ids())
+        assertEquals(listOf("n1", "n2"), source.list(notes, has("scores", int(2))).items.ids())
+        assertEquals(emptyList(), source.list(notes, has("tags", text("pink"))).items.ids())
+        assertEquals(listOf("n3"), source.list(notes, Query(filter = Filter.Not(Filter.Has("tags", listOf(text("red"), text("green")))), sort = listOf(Sort(Resource.ID)))).items.ids())
+        assertFailsWith<InvalidQueryException> { source.list(notes, Query(sort = listOf(Sort("tags")))) }
+        assertFailsWith<InvalidQueryException> { source.list(notes, Query(filter = Filter.Compare("tags", Comparison.EQ, text("red")))) }
+        assertFailsWith<InvalidQueryException> { source.list(notes, Query(filter = Filter.Has("steps", listOf(text("x"))))) }
     }
 
     /** A source that offers [Counting] counts what [DataSource.list] would return. Other sources skip this test. */
@@ -844,6 +901,21 @@ public abstract class DataSourceContract {
         public val typedEntries: Model<Entry> = model<Entry>("entries") {
             belongsTo(Entry::groupId, "groups")
             file(Entry::attachment, "docs")
+        }
+
+        /** A resource with lists of each kind: text and number lists, and an object list whose items have ids. */
+        public val listSchema: Schema = schema {
+            resource("notes") {
+                string("title")
+                string("tags") { list() }
+                int("scores") { list() }
+                objects("steps") {
+                    itemIds()
+                    string("text") { required() }
+                    bool("done")
+                    int("minutes")
+                }
+            }
         }
 
         /** Two resources that use every field type: `groups`, and `entries` that belong to a group. */

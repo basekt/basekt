@@ -170,6 +170,7 @@ internal class ResourceTable(val resource: Resource, mapping: TableMapping) : Ta
             FieldType.DECIMAL -> decimal(name, mapping.decimalPrecision, mapping.decimalScale).nullable()
             FieldType.BOOL -> bool(name).nullable()
             FieldType.INSTANT -> registerColumn<Instant>(name, InstantColumnType()).nullable()
+            FieldType.OBJECT -> throw IllegalArgumentException("'$name': list and object fields aren't stored by basekt-data-exposed yet.")
         }
         return column as Column<Any?>
     }
@@ -211,7 +212,7 @@ internal class Stored(private val type: FieldType, val sql: SqlType) {
         is Value.Decimal -> BigDecimal(value.literal)
         is Value.Bool -> value.value
         is Value.Timestamp -> value.value
-        is Value.Items -> throw IllegalArgumentException("A list is an action input, so it has no column.")
+        is Value.Items, is Value.Object -> throw IllegalArgumentException("A list has no column: list and object fields aren't stored by basekt-data-exposed yet.")
     }
 
     /** Converts [text] to what the column stores, or returns `null` when it isn't a value the column holds. */
@@ -237,6 +238,7 @@ internal class Stored(private val type: FieldType, val sql: SqlType) {
         FieldType.DECIMAL -> Value.Decimal.of((stored as BigDecimal).stripTrailingZeros().toPlainString())
         FieldType.BOOL -> Value.Bool(stored as Boolean)
         FieldType.INSTANT -> Value.Timestamp(stored as Instant)
+        FieldType.OBJECT -> throw IllegalArgumentException("An object has no column: list and object fields aren't stored by basekt-data-exposed yet.")
     }
 }
 

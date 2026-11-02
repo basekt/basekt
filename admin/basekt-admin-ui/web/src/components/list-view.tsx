@@ -744,6 +744,25 @@ type Labels = Record<string, Record<string, string>>
 function Cell({ field, record, labels }: { field: AdminField; record: JsonObject; labels: Labels }) {
   const value = record[field.name]
   if (value === null || value === undefined) return <span className="text-muted-foreground">—</span>
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-muted-foreground">—</span>
+    const target = field.target
+    if (field.type === "reference" && target) {
+      return (
+        <>
+          {value.map((item, i) => (
+            <span key={i}>
+              {i > 0 && ", "}
+              <Link to={{ screen: "detail", resource: target, id: String(item) }} title={String(item)} className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground">
+                {labels[target]?.[String(item)] ?? String(item)}
+              </Link>
+            </span>
+          ))}
+        </>
+      )
+    }
+    return <>{formatValue(field, value)}</>
+  }
   if (field.type === "enum") return <Badge variant="outline">{String(value)}</Badge>
   if (field.type === "file" && typeof value === "string") return <FilePreview fileKey={value} />
   if (field.type === "reference" && field.target) {

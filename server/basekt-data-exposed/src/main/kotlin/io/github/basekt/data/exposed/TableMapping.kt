@@ -260,6 +260,7 @@ public enum class SqlType {
             FieldType.DECIMAL -> listOf(DECIMAL)
             FieldType.BOOL -> listOf(BOOLEAN)
             FieldType.INSTANT -> listOf(TIMESTAMPTZ, TIMESTAMP)
+            FieldType.OBJECT -> emptyList()
         }
     }
 }

@@ -75,7 +75,7 @@ class ListInputsTest {
     fun `each item is checked, and a required list needs an item`() = harbour {
         val long = moor("""{"tags": ["fine", "far too long"], "crateIds": ["k1"]}""")
         assertEquals(HttpStatusCode.UnprocessableEntity, long.status)
-        assertEquals("tags", long.json()["fields"]!!.jsonArray.single().jsonObject["field"]!!.jsonPrimitive.content)
+        assertEquals("tags.1", long.json()["fields"]!!.jsonArray.single().jsonObject["field"]!!.jsonPrimitive.content, "the error names the item")
 
         val negative = moor("""{"crateIds": ["k1"], "loads": [1, -1]}""")
         assertEquals("min", negative.json()["fields"]!!.jsonArray.single().jsonObject["code"]!!.jsonPrimitive.content)

@@ -57,6 +57,8 @@ internal fun DocumentMapping.predicate(filter: Filter): BsonDocument = when (fil
     is Filter.Compare -> compare(filter.field, filter.op, filter.value)
     is Filter.In -> doc(key(filter.field), doc("\$in", BsonArray(filter.values.map { encode(filter.field, it) })))
     is Filter.Contains -> doc(key(filter.field), BsonDocument("\$regex", BsonString(escapeRegex(filter.text))).append("\$options", BsonString("i")))
+    // An array field matches `$in` when any of its items is one of the values.
+    is Filter.Has -> doc(key(filter.field), doc("\$in", BsonArray(filter.values.map { encode(filter.field, it) })))
     is Filter.IsNull -> if (filter.isNull) isNull(filter.field) else isNotNull(filter.field)
     is Filter.And -> allOf(filter.filters.map { predicate(it) })
     is Filter.Or -> anyOf(filter.filters.map { predicate(it) })

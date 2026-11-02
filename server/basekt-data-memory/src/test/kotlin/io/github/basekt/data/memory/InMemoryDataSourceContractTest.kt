@@ -5,4 +5,6 @@ import io.github.basekt.testing.DataSourceContract
 
 class InMemoryDataSourceContractTest : DataSourceContract() {
     override fun createDataSource(): DataSource = InMemoryDataSource()
+
+    override fun createListDataSource(): DataSource = InMemoryDataSource()
 }

@@ -28,7 +28,7 @@ The schema serves:
 | Route | What it does |
 |---|---|
 | `GET /api/schema` | the schema as JSON. The same model can be written as JSON and read with `Schema.fromJson`. |
-| `GET /api/{resource}` | a page of records: `items`, `nextCursor` and `hasNext`. Takes `field=value` and `field[op]=value` filters (`op` is eq, ne, gt, gte, lt, lte, in, contains or null), plus `sort=-price,name`, `limit` and `cursor`. |
+| `GET /api/{resource}` | a page of records: `items`, `nextCursor` and `hasNext`. Takes `field=value` and `field[op]=value` filters (`op` is eq, ne, gt, gte, lt, lte, in, contains or null, and [has](#lists-and-embedded-items) for a list), plus `sort=-price,name`, `limit` and `cursor`. |
 | `POST /api/{resource}` | creates a record |
 | `GET`, `PATCH`, `DELETE /api/{resource}/{id}` | reads, patches or deletes one record. A delete follows the [delete rules](#deleting-records) of the records that belong to it |
 | `GET /api/{resource}/{id}/{relation}` | the record a `belongsTo` points to, or a page of a `hasMany` |
@@ -46,6 +46,43 @@ An id a proxy sends in that header is kept when it is a plain token. An unexpect
 the method and the path (never the body or credentials), so a client's report finds the log line. Rename the header
 with `basekt.requestIdHeader`; a browser on another origin reads it only if your CORS settings expose it. Other modules
 answer their errors the same way with `call.answeringErrors { }` and `call.respondError(...)`.
+
+## Lists and embedded items
+
+What belongs to one record, such as a question's choices, a recipe's steps or a post's tags, can be kept inside it
+instead of in a resource of its own, and is then written and read with the record:
+
+```kotlin
+resource("recipes") {
+    string("title") { required() }
+    objects("steps") {                        // a list of objects
+        itemIds()                             // each step keeps an id of its own
+        string("text") { required(); markdown() }
+        int("minutes") { min(0) }
+    }
+    string("tags") { list(); length(max = 20) } // a list of values
+    reference("cookIds", "cooks") { list() }    // a list of references
+}
+```
+
+```json
+{"title": "Soup", "steps": [{"text": "Chop"}, {"id": "s-boil", "text": "Boil", "minutes": 10}], "tags": ["warm"]}
+```
+
+- A **list** (`list()`) holds values of its field's type, in order. The field's rules and values apply to each item,
+  and a required list needs at least one. A Markdown field may be a list; a file field may not.
+- An **object list** (`objects`) holds items with fields of their own: values, value lists and Markdown, each with
+  `required` and rules. An item can't hold another object list, a file or a reference yet.
+- With `itemIds()`, every item has an `id`. An item that comes without one gets one from the server (24 hex digits,
+  the shape of a MongoDB ObjectId) and keeps it through every later edit and reorder, so another record can point at
+  an item. Two items of a list can't share an id.
+- A write carries the whole list: a `PATCH` with `steps` replaces the steps, in the order given.
+- An error names the item: `steps.1.text` for the second step's text, `tags.0` for the first tag.
+- `field[has]=a,b` finds the records whose list holds `a` or `b`. A list can't be sorted on, compared with `eq` or
+  ranges, searched, made unique, set automatically, totalled in a report, scoped on or used by a relation.
+
+Lists need a data source that offers `ListFields`: the in-memory and MongoDB adapters do, and BaseKt refuses to start
+with a schema that has lists on one that doesn't. See [Adapters](adapters.md).
 
 ## Record ids
 

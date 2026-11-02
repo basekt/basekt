@@ -191,7 +191,7 @@ internal fun Resource.parse(field: String, text: String): Value = when (field(fi
     FieldType.INT, FieldType.LONG -> Value.Integer(text.toLongOrNull() ?: throw ShopException(400, "'$field' needs a whole number."))
     FieldType.DECIMAL -> Value.Decimal.parseOrNull(text) ?: throw ShopException(400, "'$field' needs a number.")
     FieldType.BOOL -> Value.Bool(text.toBooleanStrictOrNull() ?: throw ShopException(400, "'$field' needs true or false."))
-    FieldType.INSTANT -> throw ShopException(400, "'$field' can't be filtered.")
+    FieldType.INSTANT, FieldType.OBJECT -> throw ShopException(400, "'$field' can't be filtered.")
 }
 
 internal fun Value?.toJson(): JsonElement = when (this) {
@@ -202,6 +202,7 @@ internal fun Value?.toJson(): JsonElement = when (this) {
     is Value.Bool -> JsonPrimitive(value)
     is Value.Timestamp -> JsonPrimitive(value.toString())
     is Value.Items -> JsonArray(values.map { it.toJson() })
+    is Value.Object -> JsonObject(values.mapValues { (_, value) -> value.toJson() })
 }
 
 internal fun StorefrontItem.toJson(): JsonObject =

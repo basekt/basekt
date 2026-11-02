@@ -79,6 +79,18 @@ public open class FieldsBuilder internal constructor() {
     public fun file(name: String, bucket: String, block: FieldBuilder.() -> Unit = {}): Unit =
         field(name, FieldType.FILE, block, bucket = bucket)
 
+    /**
+     * Declares a list of objects kept inside the record, such as a question's options: [block] declares each item's
+     * fields, and may give items ids of their own with [ObjectFieldsBuilder.itemIds].
+     */
+    public fun objects(name: String, block: ObjectFieldsBuilder.() -> Unit) {
+        val builder = ObjectFieldsBuilder().apply(block)
+        fields += Field(
+            name, FieldType.OBJECT, required = builder.required, list = true,
+            fields = builder.fields.toList(), itemIds = builder.itemIds,
+        )
+    }
+
     private fun field(
         name: String,
         type: FieldType,
@@ -88,6 +100,23 @@ public open class FieldsBuilder internal constructor() {
         bucket: String? = null,
     ) {
         fields += FieldBuilder().apply(block).build(name, type, values, target, bucket)
+    }
+}
+
+/** Declares the fields of each item of an [FieldsBuilder.objects] list, and whether items have ids. */
+@SchemaDsl
+public class ObjectFieldsBuilder internal constructor() : FieldsBuilder() {
+    internal var required = false
+    internal var itemIds = false
+
+    /** Makes the list required: a record needs at least one item. */
+    public fun required() {
+        required = true
+    }
+
+    /** Gives each item an id of its own, kept through edits and reorders. See [Field.itemIds]. */
+    public fun itemIds() {
+        itemIds = true
     }
 }
 
@@ -290,7 +319,7 @@ public class FieldBuilder internal constructor() {
         required = true
     }
 
-    /** Makes the field a list of values of its type. Only an action's or a transition's input may be one. See [Field.list]. */
+    /** Makes the field a list of values of its type, kept in order. See [Field.list]. */
     public fun list() {
         list = true
     }

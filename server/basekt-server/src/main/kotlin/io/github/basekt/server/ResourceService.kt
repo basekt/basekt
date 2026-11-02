@@ -32,6 +32,7 @@ import io.github.basekt.schema.Scope
 import io.github.basekt.schema.Value
 import io.github.basekt.schema.WriteMode
 import io.github.basekt.schema.decodeRecord
+import io.github.basekt.schema.withItemIds
 import io.github.basekt.schema.encodeRecord
 import io.github.basekt.schema.validateRecord
 import io.ktor.util.logging.KtorSimpleLogger
@@ -709,7 +710,8 @@ public class ResourceService(
 
     private fun decode(resource: Resource, body: JsonObject, mode: WriteMode): Record =
         when (val result = resource.decodeRecord(body, mode, validators)) {
-            is DecodeResult.Valid -> result.record
+            // An item of an object list that came without an id gets one now, before hooks see the record.
+            is DecodeResult.Valid -> resource.withItemIds(result.record, ::newItemId)
             is DecodeResult.Invalid -> throw invalid(result.errors)
         }
 
@@ -721,7 +723,12 @@ public class ResourceService(
                 continue
             }
             val field = checkNotNull(resource.field(name)) { "A hook on '${resource.name}' set the unknown field '$name'." }
-            check(value == null || value.fits(field.type)) {
+            val fits = when {
+                value == null -> true
+                field.list -> value is Value.Items && value.values.all { it.fits(field.type) }
+                else -> value.fits(field.type)
+            }
+            check(fits) {
                 "A hook on '${resource.name}' set '$name' to '$value', which isn't a ${field.type.name.lowercase()}."
             }
         }
@@ -873,3 +880,13 @@ private const val SCAN_PAGE = 500
 
 private fun Query.narrowed(filter: Filter?): Query =
     if (filter == null) this else copy(filter = this.filter?.let { Filter.And(listOf(it, filter)) } ?: filter)
+
+/**
+ * A new id for an item of an object list: 24 hex digits, the seconds since 1970 and 12 random bytes' worth, the shape
+ * of a MongoDB ObjectId, so an adapter can store it as one.
+ */
+internal fun newItemId(): String {
+    val seconds = (System.currentTimeMillis() / 1000).toString(16).padStart(8, '0').takeLast(8)
+    val random = java.security.SecureRandom()
+    return seconds + (1..16).joinToString("") { random.nextInt(16).toString(16) }
+}

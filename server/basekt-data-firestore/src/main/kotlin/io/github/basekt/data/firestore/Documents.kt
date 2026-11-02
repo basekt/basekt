@@ -36,7 +36,7 @@ internal class DocumentMapping(val resource: Resource, val collection: Collectio
             is Value.Decimal -> if (decimals == DecimalStorage.STRING) value.literal else BigDecimal(value.literal).toDouble()
             is Value.Bool -> value.value
             is Value.Timestamp -> Timestamp.ofTimeSecondsAndNanos(value.value.epochSeconds, value.value.nanosecondsOfSecond)
-            is Value.Items -> throw IllegalArgumentException("A list can't be stored in '${resource.name}.$field': only an action's input may hold one.")
+            is Value.Items, is Value.Object -> throw IllegalArgumentException("A list can't be stored in '${resource.name}.$field': list and object fields aren't stored by basekt-data-firestore yet.")
         }
     }
 
@@ -79,6 +79,7 @@ internal class DocumentMapping(val resource: Resource, val collection: Collectio
             }
             FieldType.BOOL -> (raw as? Boolean)?.let { Value.Bool(it) }
             FieldType.INSTANT -> (raw as? Timestamp)?.let { Value.Timestamp(Instant.fromEpochSeconds(it.seconds, it.nanos)) }
+            FieldType.OBJECT -> null
         }
     }
 }

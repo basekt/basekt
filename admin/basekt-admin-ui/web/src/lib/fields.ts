@@ -3,9 +3,13 @@ import type { AdminField, AdminResource, FieldType, JsonValue } from "@wire"
 /** The record id every resource has, which the schema's field list leaves out. */
 export const ID = "id"
 
-/** A label for a field or resource name: `categoryId` → "Category", `placedAt` → "Placed at", `order_items` → "Order items". */
+/**
+ * A label for a field or resource name: `categoryId` → "Category", `authorIds` → "Authors", `placedAt` → "Placed at",
+ * `order_items` → "Order items".
+ */
 export function humanize(name: string): string {
   const words = name
+    .replace(/Ids$/, "s")
     .replace(/Id$/, "")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
@@ -19,9 +23,30 @@ export function recordId(record: { [key: string]: JsonValue }): string {
   return String(record[ID] ?? "")
 }
 
+/**
+ * What one item of a list field is called, for its buttons and counts: `options` → "option", `authorIds` → "author",
+ * `categories` → "category".
+ */
+export function itemNoun(field: AdminField): string {
+  const words = humanize(field.name).toLowerCase().replace(/ ids$/, "")
+  if (words.endsWith("ies")) return words.slice(0, -3) + "y"
+  if (words.endsWith("s") && !words.endsWith("ss")) return words.slice(0, -1)
+  return words
+}
+
+/** "1 option", "4 options". */
+export function countOf(field: AdminField, count: number): string {
+  return `${count} ${itemNoun(field)}${count === 1 ? "" : "s"}`
+}
+
 /** A short text for a value in a table cell or a read-only view. */
 export function formatValue(field: AdminField | undefined, value: JsonValue | undefined): string {
   if (value === null || value === undefined || value === "") return "—"
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "—"
+    if (field && field.type === "object") return countOf(field, value.length)
+    return value.map((item) => formatValue(field && { ...field, list: false }, item)).join(", ")
+  }
   switch (field?.type) {
     case "bool":
       return value ? "Yes" : "No"
@@ -35,7 +60,7 @@ export function formatValue(field: AdminField | undefined, value: JsonValue | un
 }
 
 /** A filter operator of the admin API's `field[op]=value` syntax. `eq` is written `field=value`. */
-export type FilterOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "null"
+export type FilterOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "null" | "has"
 
 /** What each operator is called in the filter menu. */
 export const opLabels: Record<FilterOp, string> = {
@@ -47,6 +72,7 @@ export const opLabels: Record<FilterOp, string> = {
   lte: "≤",
   contains: "contains",
   null: "is empty",
+  has: "has",
 }
 
 /** The operators that make sense for a field type. */
@@ -75,7 +101,8 @@ export function opsFor(type: FieldType): FilterOp[] {
  */
 export function filterChoices(resource: AdminResource): { field: AdminField; ops: FilterOp[] }[] {
   return resource.fields.flatMap((field) => {
-    const suited = opsFor(field.type)
+    // A list is asked whether it has a value; an object list can't be filtered on.
+    const suited: FilterOp[] = field.type === "object" ? [] : field.list ? ["has"] : opsFor(field.type)
     const declared = resource.filters?.find((f) => f.field === field.name)?.operators
     const ops = resource.filters ? suited.filter((op) => declared?.some((d) => d === op)) : suited
     return ops.length > 0 ? [{ field, ops }] : []

@@ -193,10 +193,14 @@ public data class AdminField(
     val scopedValues: List<String>? = null,
     /** What the server sets the field to, or `null` for a field the caller writes. A panel leaves it out of forms. */
     val auto: Auto? = null,
-    /** Whether the field is a list of values, as an action's input can be. A panel asks for one item per line. */
+    /** Whether the field holds a list of values, kept in order. A panel edits its items one by one. */
     val list: Boolean = false,
     /** The options of a Markdown field, or `null` for plain text. A panel edits the field as Markdown. */
     val markdown: MarkdownOptions? = null,
+    /** The fields of each item of an `object` list, or `null` for any other field. A panel edits each item's fields together. */
+    val fields: List<AdminField>? = null,
+    /** Whether each item of an `object` list has an `id`. A panel keeps an item's id when it edits it, and doesn't show it. */
+    val itemIds: Boolean = false,
 )
 
 /** A relation as an admin panel sees it. */

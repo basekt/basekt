@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { ChevronLeft, ExternalLink, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
-import type { AdminResource, JsonObject } from "@wire"
+import type { AdminField, AdminResource, JsonObject, JsonValue } from "@wire"
 import { ActionButtons } from "@/components/action-button"
 import { ErrorState } from "@/components/error-state"
 import {
@@ -225,13 +225,15 @@ function BackToList({ resource }: { resource: AdminResource }) {
 function ReadOnly({ resource, record }: { resource: AdminResource; record: JsonObject }) {
   const { api } = usePanel()
   const references = resource.fields.filter((field) => field.type === "reference" && field.target && record[field.name] != null)
-  const wanted = references.map((field) => `${field.target}/${String(record[field.name])}`).join(",")
+  // A reference list points at several records; each one is named.
+  const idsOf = (value: JsonValue | undefined): string[] => (Array.isArray(value) ? value.map(String) : value == null ? [] : [String(value)])
+  const wanted = references.map((field) => `${field.target}/${idsOf(record[field.name]).join("|")}`).join(",")
   // The records this one points to, named by their labels: one call per target resource.
   const labels = useAsync(async () => {
     const ids = new Map<string, Set<string>>()
     for (const field of references) {
       const target = field.target as string
-      ids.set(target, (ids.get(target) ?? new Set()).add(String(record[field.name])))
+      for (const one of idsOf(record[field.name])) ids.set(target, (ids.get(target) ?? new Set()).add(one))
     }
     const named: Record<string, Record<string, string>> = {}
     await Promise.all(
@@ -251,9 +253,20 @@ function ReadOnly({ resource, record }: { resource: AdminResource; record: JsonO
             <dt className="text-sm text-muted-foreground">{humanize(field.name)}</dt>
             <dd>
               {field.type === "reference" && field.target && value != null ? (
-                <Link to={{ screen: "detail", resource: field.target, id: String(value) }} title={String(value)} className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground">
-                  {labels.data?.[field.target]?.[String(value)] ?? String(value)}
-                </Link>
+                idsOf(value).map((one, i) => (
+                  <span key={one}>
+                    {i > 0 && ", "}
+                    <Link to={{ screen: "detail", resource: field.target!, id: one }} title={one} className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground">
+                      {labels.data?.[field.target!]?.[one] ?? one}
+                    </Link>
+                  </span>
+                ))
+              ) : field.type === "object" && Array.isArray(value) && value.length > 0 ? (
+                <ol className="list-decimal space-y-1 pl-5">
+                  {value.map((item, i) => (
+                    <li key={i}>{itemSummary(field, item)}</li>
+                  ))}
+                </ol>
               ) : (
                 formatValue(field, value)
               )}
@@ -263,6 +276,16 @@ function ReadOnly({ resource, record }: { resource: AdminResource; record: JsonO
       })}
     </dl>
   )
+}
+
+/** An object list's item as one line: each set field's name and value. */
+function itemSummary(field: AdminField, item: JsonValue): string {
+  if (item === null || typeof item !== "object" || Array.isArray(item)) return formatValue(undefined, item)
+  return (field.fields ?? [])
+    .filter((sub) => item[sub.name] != null && item[sub.name] !== "")
+    .map((sub) => (sub.type === "bool" ? (item[sub.name] ? humanize(sub.name) : null) : `${humanize(sub.name)}: ${formatValue(sub, item[sub.name])}`))
+    .filter((part) => part !== null)
+    .join(" · ")
 }
 
 function DeleteButton({ resource, id, onDeleted }: { resource: AdminResource; id: string; onDeleted: () => void }) {

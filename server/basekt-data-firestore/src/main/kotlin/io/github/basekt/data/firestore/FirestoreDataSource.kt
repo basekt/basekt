@@ -9,6 +9,7 @@ import com.google.cloud.firestore.DocumentReference
 import com.google.cloud.firestore.DocumentSnapshot
 import com.google.cloud.firestore.Firestore
 import com.google.cloud.firestore.FirestoreException
+import com.google.cloud.firestore.Query as FirestoreQuery
 import com.google.cloud.firestore.QuerySnapshot
 import com.google.cloud.firestore.Transaction
 import com.google.cloud.firestore.TransactionOptions
@@ -27,18 +28,12 @@ import io.github.basekt.data.Sequencing
 import io.github.basekt.data.checkConditionalUpdate
 import io.github.basekt.data.checkQuery
 import io.github.basekt.data.plus
+import io.github.basekt.data.structuredFields
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.Value
 import io.grpc.StatusRuntimeException
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -46,7 +41,13 @@ import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
-import com.google.cloud.firestore.Query as FirestoreQuery
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 /**
  * A [DataSource] over Cloud Firestore, in the database [firestore] opens: one top-level collection per resource, laid
@@ -96,6 +97,8 @@ public class FirestoreDataSource(
 
     init {
         schema.requireValid()
+        val structured = schema.structuredFields()
+        require(structured.isEmpty()) { "basekt-data-firestore can't store list or object fields yet, which ${structured.joinToString()} are." }
         mapping.check(schema)
         require(maxScan >= 0) { "maxScan can't be negative, not $maxScan." }
         require(transactionRetryTimeout >= Duration.ZERO) { "transactionRetryTimeout can't be negative, not $transactionRetryTimeout." }

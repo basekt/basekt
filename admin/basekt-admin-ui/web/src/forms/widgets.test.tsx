@@ -36,7 +36,7 @@ vi.mock("@/forms/markdown-editor", () => ({
 describe("a Markdown field", () => {
   const body: AdminField = {
     name: "body", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false,
-    markdown: { math: true, images: false, maxLength: 500 },
+    markdown: { math: true, images: false, maxLength: 500 }, fields: null, itemIds: false,
   }
 
   it("opens in the visual editor, told whether formulas are allowed", async () => {
@@ -82,7 +82,7 @@ describe("a Markdown field", () => {
   })
 
   it("says nothing of formulas when they are off", async () => {
-    renderWidget({ ...body, markdown: { math: false, images: true, maxLength: 100 } }, "")
+    renderWidget({ ...body, markdown: { math: false, images: true, maxLength: 100 }, fields: null, itemIds: false }, "")
     const editor = await screen.findByLabelText("Visual editor")
     expect((editor as HTMLTextAreaElement).dataset.math).toBe("false")
     expect(screen.queryByText(/formulas/)).toBeNull()
@@ -91,21 +91,58 @@ describe("a Markdown field", () => {
 
 describe("the widget registry", () => {
   it("has a widget for every field type, and a fallback for new ones", () => {
-    const types: FieldType[] = ["string", "int", "long", "decimal", "bool", "instant", "enum", "reference", "file"]
+    const types: FieldType[] = ["string", "int", "long", "decimal", "bool", "instant", "enum", "reference", "file", "object"]
     expect(Object.keys(widgets).sort()).toEqual([...types].sort())
     expect(widgetFor({ ...fieldOf(books, "title"), type: "geopoint" as FieldType })).toBe(fallbackWidget)
   })
 
-  it("edits a list one item per line, with numbers for integer fields", async () => {
-    const tags = renderWidget({ ...fieldOf(books, "title"), list: true }, null)
-    await userEvent.type(screen.getByLabelText("title"), "a{Enter}b")
+  it("edits a list item by item: adds, moves and removes them, and leaves an empty new item out", async () => {
+    const user = userEvent.setup()
+    const tags = renderWidget({ ...fieldOf(books, "title"), name: "tags", list: true }, null)
+    expect(screen.getByText("No tags yet.")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Add tag" }))
+    await user.type(screen.getAllByRole("textbox").at(-1)!, "a")
+    await user.click(screen.getByRole("button", { name: "Add tag" }))
+    await user.type(screen.getAllByRole("textbox").at(-1)!, "b")
     expect(tags.value()).toEqual(["a", "b"])
+
+    await user.click(screen.getByRole("button", { name: "Move tag 2 up" }))
+    expect(tags.value()).toEqual(["b", "a"])
+    await user.click(screen.getByRole("button", { name: "Add tag" }))
+    expect(tags.value()).toEqual(["b", "a"])
+    await user.click(screen.getByRole("button", { name: "Remove tag 1" }))
+    expect(tags.value()).toEqual(["a"])
   })
 
   it("sends the items of an integer list as numbers", async () => {
-    const loads = renderWidget({ ...fieldOf(books, "pages"), list: true }, null)
-    await userEvent.type(screen.getByLabelText("pages"), "3{Enter}x")
+    const user = userEvent.setup()
+    const loads = renderWidget({ ...fieldOf(books, "pages"), list: true }, [3])
+    await user.click(screen.getByRole("button", { name: "Add page" }))
+    await user.type(screen.getAllByRole("textbox").at(-1)!, "x")
     expect(loads.value()).toEqual([3, "x"])
+  })
+
+  it("edits an object list as cards of fields, and keeps each item's id", async () => {
+    const user = userEvent.setup()
+    const choices: AdminField = {
+      ...fieldOf(books, "title"), name: "choices", type: "object", list: true, required: true, itemIds: true, rules: [],
+      fields: [
+        { ...fieldOf(books, "title"), name: "text", required: true, rules: [] },
+        { ...fieldOf(books, "lendable"), name: "isCorrect" },
+      ],
+    }
+    const value = renderWidget(choices, [{ id: "c1", text: "Mars", isCorrect: false }])
+    expect(screen.getByDisplayValue("Mars")).toBeInTheDocument()
+    expect(screen.getByText("Is correct")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("switch"))
+    expect(value.value()).toEqual([{ id: "c1", text: "Mars", isCorrect: true }])
+
+    await user.click(screen.getByRole("button", { name: "Add choice" }))
+    await user.type(screen.getAllByRole("textbox").at(-1)!, "Jupiter")
+    expect(value.value()).toEqual([{ id: "c1", text: "Mars", isCorrect: true }, { text: "Jupiter" }])
+    await user.click(screen.getByRole("button", { name: "Move choice 2 up" }))
+    expect(value.value()).toEqual([{ text: "Jupiter" }, { id: "c1", text: "Mars", isCorrect: true }])
   })
 
   it("edits text, and clears an optional field to null", async () => {

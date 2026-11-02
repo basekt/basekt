@@ -3,6 +3,7 @@ package io.github.basekt.admin
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Value
+import io.github.basekt.schema.toJson
 import java.io.Writer
 
 /**
@@ -24,6 +25,8 @@ internal class CsvWriter(private val out: Writer, resource: Resource) {
                 when (val value = record[column]) {
                     null -> ""
                     is Value.Text -> guard(value.value)
+                    // A list's items are joined with "; ", and an item of an object list is its JSON.
+                    is Value.Items -> guard(value.values.joinToString("; ") { if (it is Value.Text) it.value else it.toJson().toString() })
                     else -> value.toString()
                 }
             },

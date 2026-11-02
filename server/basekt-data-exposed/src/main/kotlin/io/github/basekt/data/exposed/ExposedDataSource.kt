@@ -17,10 +17,14 @@ import io.github.basekt.data.Sequencing
 import io.github.basekt.data.checkAggregate
 import io.github.basekt.data.checkConditionalUpdate
 import io.github.basekt.data.checkQuery
+import io.github.basekt.data.structuredFields
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Schema
 import io.github.basekt.schema.Value
+import java.sql.SQLException
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,9 +45,6 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.sql.SQLException
-import java.util.UUID
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * A [DataSource] over Exposed and JDBC, for Postgres, MySQL, H2 and the other databases Exposed supports. Each
@@ -82,6 +83,8 @@ public class ExposedDataSource(
 
     init {
         schema.requireValid()
+        val structured = schema.structuredFields()
+        require(structured.isEmpty()) { "basekt-data-exposed can't store list or object fields yet, which ${structured.joinToString()} are." }
         val problems = mapping.problems(schema, counterTable.tableName)
         require(problems.isEmpty()) { "The table mapping doesn't fit the schema:\n" + problems.joinToString("\n") { "- $it" } }
         tables = schema.resources.associate { it.name to ResourceTable(it, mapping) }

@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { widgetFor } from "@/forms/widgets"
-import { humanize } from "@/lib/fields"
+import { humanize, itemNoun } from "@/lib/fields"
 import { usePanel } from "@/panel"
 
 /** Errors from a failed save, split into those a field shows and those the form shows above its fields. */
@@ -19,16 +19,29 @@ export interface FormErrors {
 
 const noErrors: FormErrors = { fields: {}, form: [], message: null }
 
-/** Spreads an API error over the form: each field error under its field, the rest above the form. */
+/**
+ * Spreads an API error over the form: each field error under its field, the rest above the form. An error about an
+ * item of a list (`options.1.text`) goes under the list, and says which item and field it is about.
+ */
 export function errorsFrom(resource: AdminResource, failure: ApiFailure): FormErrors {
-  const names = new Set([...resource.fields, ...(idField(resource) ? [idField(resource)!] : [])].map((f) => f.name))
+  const all = [...resource.fields, ...(idField(resource) ? [idField(resource)!] : [])]
+  const byName = new Map(all.map((f) => [f.name, f]))
   const fields: Record<string, FieldError[]> = {}
   const form: FieldError[] = []
   for (const error of failure.error?.fields ?? []) {
-    if (names.has(error.field)) (fields[error.field] ??= []).push(error)
-    else form.push(error)
+    const [root, ...path] = error.field.split(".")
+    const field = byName.get(root)
+    if (!field) form.push(error)
+    else (fields[root] ??= []).push(path.length === 0 ? error : { ...error, message: `${itemPlace(field, path)}: ${error.message}` })
   }
   return { fields, form, message: failure.message }
+}
+
+/** Where in a list an error is: "Option 2" or "Option 2, text". */
+function itemPlace(field: AdminField, path: string[]): string {
+  const [index, ...rest] = path
+  const item = /^\d+$/.test(index) ? `${humanize(itemNoun(field))} ${Number(index) + 1}` : humanize(index)
+  return rest.length === 0 ? item : `${item}, ${rest.map(humanize).join(", ").toLowerCase()}`
 }
 
 /**
@@ -37,7 +50,7 @@ export function errorsFrom(resource: AdminResource, failure: ApiFailure): FormEr
  */
 export function idField(resource: AdminResource): AdminField | null {
   if (resource.id?.source !== "natural") return null
-  return { name: "id", type: "string", required: true, values: null, target: null, rules: resource.id.rules, bucket: null, scopedValues: null, auto: null, list: false, markdown: null }
+  return { name: "id", type: "string", required: true, values: null, target: null, rules: resource.id.rules, bucket: null, scopedValues: null, auto: null, list: false, markdown: null, fields: null, itemIds: false }
 }
 
 /**

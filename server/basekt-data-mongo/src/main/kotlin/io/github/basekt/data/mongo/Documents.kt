@@ -5,6 +5,7 @@ import io.github.basekt.schema.FieldType
 import io.github.basekt.schema.Record
 import io.github.basekt.schema.Resource
 import io.github.basekt.schema.Value
+import org.bson.BsonArray
 import org.bson.BsonBoolean
 import org.bson.BsonDateTime
 import org.bson.BsonDecimal128
@@ -35,15 +36,30 @@ internal class DocumentMapping(val resource: Resource, mapping: MongoMapping) {
     /** The type of [field], counting the id as text. */
     private fun typeOf(field: String): FieldType = if (field == Resource.ID) FieldType.STRING else resource.field(field)!!.type
 
-    /** Encodes [value] for [field]. */
-    fun encode(field: String, value: Value): BsonValue = when (value) {
-        is Value.Text -> if (field in objectIdFields && ObjectId.isValid(value.value)) BsonObjectId(ObjectId(value.value)) else BsonString(value.value)
+    /**
+     * Encodes [value] for [field]. A list is an array of its items, and an object a sub-document whose id, if it has
+     * one, is its `_id`. An item of a list named in [MongoMapping.objectIds] is stored as an ObjectId, and so is an
+     * object's id when `field.id` is named.
+     */
+    fun encode(field: String, value: Value): BsonValue = encodeAs(typeOf(field), field in objectIdFields, value, field)
+
+    private fun encodeAs(type: FieldType, objectId: Boolean, value: Value, field: String): BsonValue = when (value) {
+        is Value.Text -> if (objectId && ObjectId.isValid(value.value)) BsonObjectId(ObjectId(value.value)) else BsonString(value.value)
         // An int field is an int32, and a comparison with it by a long still compares by value.
-        is Value.Integer -> if (typeOf(field) == FieldType.INT && value.value in Int.MIN_VALUE..Int.MAX_VALUE) BsonInt32(value.value.toInt()) else BsonInt64(value.value)
+        is Value.Integer -> if (type == FieldType.INT && value.value in Int.MIN_VALUE..Int.MAX_VALUE) BsonInt32(value.value.toInt()) else BsonInt64(value.value)
         is Value.Decimal -> BsonDecimal128(Decimal128(BigDecimal(value.literal)))
         is Value.Bool -> BsonBoolean(value.value)
         is Value.Timestamp -> BsonDateTime(value.value.toEpochMilliseconds())
-        is Value.Items -> throw IllegalArgumentException("A list can't be stored in '${resource.name}.$field': only an action's input may hold one.")
+        is Value.Items -> BsonArray(value.values.map { encodeAs(type, objectId, it, field) })
+        is Value.Object -> {
+            val list = resource.field(field)
+            val document = BsonDocument()
+            value.values[Resource.ID]?.let { document[ID_KEY] = encodeAs(FieldType.STRING, "$field.${Resource.ID}" in objectIdFields, it, field) }
+            for (sub in list?.fields.orEmpty()) {
+                if (sub.name in value.values) document[sub.name] = value.values[sub.name]?.let { encodeAs(sub.type, false, it, field) } ?: BsonNull.VALUE
+            }
+            document
+        }
     }
 
     /** Encodes an optional value: `null` is stored as a BSON null. */
@@ -65,7 +81,22 @@ internal class DocumentMapping(val resource: Resource, mapping: MongoMapping) {
         return record
     }
 
-    private fun decode(field: Field, bson: BsonValue?): Value? = decodeValue(field.type, bson)
+    private fun decode(field: Field, bson: BsonValue?): Value? {
+        if (bson == null || bson is BsonNull) return null
+        if (field.list) {
+            val array = bson as? BsonArray ?: return null
+            val item = field.copy(list = false)
+            return Value.Items(array.mapNotNull { decode(item, it) })
+        }
+        if (field.type == FieldType.OBJECT) {
+            val document = bson as? BsonDocument ?: return null
+            val values = linkedMapOf<String, Value?>()
+            if (field.itemIds) document[ID_KEY]?.takeUnless { it is BsonNull }?.let { values[Resource.ID] = Value.Text(text(it)) }
+            for (sub in field.fields.orEmpty()) if (document.containsKey(sub.name)) values[sub.name] = decode(sub, document[sub.name])
+            return Value.Object(values)
+        }
+        return decodeValue(field.type, bson)
+    }
 
     /** Reads [bson] as a value of [type]: what a field of that type holds. A number may be any numeric type. */
     fun decodeValue(type: FieldType, bson: BsonValue?): Value? {
@@ -80,6 +111,7 @@ internal class DocumentMapping(val resource: Resource, mapping: MongoMapping) {
             }
             FieldType.BOOL -> (bson as? BsonBoolean)?.let { Value.Bool(it.value) }
             FieldType.INSTANT -> (bson as? BsonDateTime)?.let { Value.Timestamp(Instant.fromEpochMilliseconds(it.value)) }
+            FieldType.OBJECT -> null
         }
     }
 

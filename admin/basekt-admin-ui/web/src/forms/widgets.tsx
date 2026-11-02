@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, type ReactNode } from "react"
 import type { AdminField, FieldType, JsonValue } from "@wire"
 import { FileWidget } from "@/forms/file-widget"
+import { ListWidget } from "@/forms/list-widget"
 import { ReferencePicker } from "@/forms/reference-picker"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -33,6 +34,8 @@ export const widgets: Record<FieldType, Widget> = {
   enum: EnumWidget,
   reference: ReferenceWidget,
   file: FileWidget,
+  // An object field is always a list, so widgetFor gives it the list widget first; this is for completeness.
+  object: ListWidget,
 }
 
 /** The widget for a type this panel doesn't know: a text box, so the value can still be read and edited. */
@@ -43,30 +46,6 @@ export function widgetFor(field: AdminField): Widget {
   if (field.list) return ListWidget
   if (field.markdown) return MarkdownWidget
   return (widgets as Partial<Record<string, Widget>>)[field.type] ?? fallbackWidget
-}
-
-/** A list, edited as one item per line. Items of an integer field are sent as numbers once they parse. */
-function ListWidget({ field, id, value, onChange, invalid, describedBy }: WidgetProps) {
-  const [text, setText] = useState(Array.isArray(value) ? value.join("\n") : "")
-  const numeric = field.type === "int" || field.type === "long"
-  const change = (next: string) => {
-    setText(next)
-    const lines = next.split("\n").map((line) => line.trim()).filter((line) => line !== "")
-    if (lines.length === 0) onChange(field.required ? [] : null)
-    else onChange(lines.map((line) => (numeric && /^-?\d+$/.test(line) && Number.isSafeInteger(Number(line)) ? Number(line) : line)))
-  }
-  return (
-    <textarea
-      id={id}
-      rows={4}
-      value={text}
-      onChange={(e) => change(e.target.value)}
-      aria-invalid={invalid}
-      aria-describedby={describedBy}
-      placeholder="One per line"
-      className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-16 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-    />
-  )
 }
 
 /** The visual editor is a separate chunk: it is large, and most forms have no Markdown field. */
@@ -128,7 +107,7 @@ function MarkdownWidget({ field, id, value, onChange, invalid, describedBy }: Wi
           className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 aria-invalid:border-destructive flex min-h-32 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:ring-[3px]"
         />
       )}
-      <p className="text-muted-foreground text-xs">{`Markdown${formulas}. ${text.length} of ${options.maxLength} characters.`}</p>
+      <p data-slot="markdown-help" className="text-muted-foreground text-xs">{`Markdown${formulas}. ${text.length} of ${options.maxLength} characters.`}</p>
     </div>
   )
 }

@@ -411,6 +411,17 @@ private class OpenApiWriter(private val schema: Schema, private val options: Ope
                 schema["maxLength"] = JsonPrimitive(1024)
                 schema["pattern"] = str("^${jsEscape(field.bucket.orEmpty())}(/[A-Za-z0-9][A-Za-z0-9._-]*)+$")
             }
+            // An item of an object list: a write replaces the whole list, so an item's required fields are always required.
+            FieldType.OBJECT -> {
+                val subFields = field.fields.orEmpty()
+                val properties = linkedMapOf<String, JsonElement>()
+                if (field.itemIds) properties[Resource.ID] = obj("type" to str("string"), "description" to str("The item's id. An item sent without one gets one."))
+                for (sub in subFields) properties[sub.name] = fieldSchema(sub, mode, nullable = !sub.required)
+                schema["type"] = str("object")
+                schema["properties"] = JsonObject(properties)
+                subFields.filter { it.required }.map { it.name }.takeIf { it.isNotEmpty() }?.let { schema["required"] = strings(it) }
+                if (mode != Mode.OUTPUT) schema["additionalProperties"] = JsonPrimitive(false)
+            }
         }
         return schema
     }
@@ -529,6 +540,8 @@ private class OpenApiWriter(private val schema: Schema, private val options: Ope
         FieldType.DECIMAL -> obj("type" to str("string"), "pattern" to str(DECIMAL_PATTERN))
         FieldType.BOOL -> obj("type" to str("boolean"))
         FieldType.INSTANT -> obj("type" to str("string"), "format" to str("date-time"))
+        // Lists aren't filterable parameters, so an object never is one.
+        FieldType.OBJECT -> obj("type" to str("string"))
     }
 
     // BaseKt's own types

@@ -26,6 +26,15 @@ class MongoContractTest : DataSourceContract() {
         }
     }
 
+    override fun createListDataSource(): DataSource {
+        assumeTrue(mongoAvailable(), "No MongoDB: pass -Pbasekt.mongo.url, start Docker, or pass -Pbasekt.mongo.embedded=true.")
+        val name = freshDatabaseName()
+        return MongoDataSource(mongoClient, name, listSchema).also {
+            runBlocking { it.migrate() }
+            databases += name
+        }
+    }
+
     @AfterEach
     fun dropDatabases(): Unit = runBlocking {
         if (databases.isNotEmpty()) {

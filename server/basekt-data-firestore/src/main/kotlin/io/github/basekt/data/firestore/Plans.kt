@@ -192,7 +192,7 @@ internal class Planner(private val mapping: DocumentMapping) {
                 return true
             }
             is Filter.And -> return false
-            is Filter.Contains, is Filter.Not -> return false
+            is Filter.Contains, is Filter.Not, is Filter.Has -> return false
         }
     }
 
@@ -236,6 +236,7 @@ internal fun Record.matches(filter: Filter): Boolean = when (filter) {
     } ?: false
     is Filter.In -> this[filter.field]?.let { it in filter.values } ?: false
     is Filter.Contains -> (this[filter.field] as Value.Text?)?.value?.contains(filter.text, ignoreCase = true) ?: false
+    is Filter.Has -> (this[filter.field] as? Value.Items)?.values?.any { it in filter.values } ?: false
     is Filter.IsNull -> (this[filter.field] == null) == filter.isNull
     is Filter.And -> filter.filters.all { matches(it) }
     is Filter.Or -> filter.filters.any { matches(it) }
