@@ -46,6 +46,12 @@ describe("the formatting toolbar", () => {
     expect(run).toHaveBeenLastCalledWith(insertImageCommand.key, { src: "/files/a.png", alt: "" })
   })
 
+  it("keeps to marks, a link, a picture and formulas when compact, as in a list's item", () => {
+    render(<FormatToolbar run={vi.fn()} images compact formula={<button type="button">Formula</button>} />)
+    const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent)
+    expect(names).toEqual(["Bold", "Italic", "Strikethrough", "Code", "Link", "Picture", "Formula"])
+  })
+
   it("adds nothing for an empty address", async () => {
     const user = userEvent.setup()
     const run = vi.fn()

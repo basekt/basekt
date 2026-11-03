@@ -55,8 +55,8 @@
 }
 
 /*
- * A Markdown field shows its tabs, its formula button and its help line while it is being edited (or its formula menu
- * is open), and only its text otherwise, so a form of several of them stays short.
+ * A Markdown field shows its toolbar and its help line while it is being edited (or its formula menu is open), and only
+ * its text otherwise, so a form of several of them stays short. In a list's item the toolbar is the compact one.
  */
 [data-slot="markdown-field"]:not(:focus-within):not(:has([data-state="open"])) :is([data-slot="markdown-toolbar"], [data-slot="markdown-help"]) {
   display: none;

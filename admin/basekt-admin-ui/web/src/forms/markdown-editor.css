@@ -5,7 +5,7 @@
 .markdown-editor {
   border: 1px solid var(--input);
   border-radius: var(--radius-md, 0.5rem);
-  background: var(--background);
+  background: var(--card);
   overflow: hidden;
 }
 
@@ -19,7 +19,7 @@
 }
 
 .markdown-editor .milkdown {
-  --crepe-color-background: var(--background);
+  --crepe-color-background: var(--card);
   --crepe-color-on-background: var(--foreground);
   --crepe-color-surface: var(--card);
   --crepe-color-surface-low: var(--muted);

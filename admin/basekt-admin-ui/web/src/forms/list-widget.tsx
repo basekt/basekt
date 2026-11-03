@@ -61,7 +61,7 @@ export function ListWidget({ field, id, value, onChange, invalid, describedBy, l
   const body = (item: JsonValue, index: number, inline: boolean) => {
     const itemId = `${id}-${keys[index]}`
     return Item ? (
-      <Item field={itemField} id={itemId} value={item} onChange={(next) => set(index, next)} invalid={false} />
+      <Item field={itemField} id={itemId} value={item} onChange={(next) => set(index, next)} invalid={false} dense />
     ) : (
       <ObjectItem field={field} id={itemId} value={item} inline={inline} onChange={(next) => set(index, next)} />
     )
@@ -198,7 +198,7 @@ function ObjectItem({ field, id, value, inline, onChange }: { field: AdminField;
         {sub.required && <span className="text-destructive"> *</span>}
       </Label>
     )
-    const widget = <Widget field={sub} id={subId} value={item[sub.name]} onChange={(next) => onChange({ ...item, [sub.name]: next })} invalid={false} />
+    const widget = <Widget field={sub} id={subId} value={item[sub.name]} onChange={(next) => onChange({ ...item, [sub.name]: next })} invalid={false} dense />
     if (sub.type === "bool") {
       return (
         <div key={sub.name} className="flex shrink-0 items-center gap-2">

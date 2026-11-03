@@ -17,6 +17,8 @@ export interface WidgetProps {
   describedBy?: string
   /** How a list field lays out its items, from the resource's `adminView { listStyle(...) }`. Cards when unset. */
   listStyle?: ListStyle
+  /** Whether the widget is an item of a list, so it keeps to its essentials, such as a Markdown field's smaller toolbar. */
+  dense?: boolean
 }
 
 /** A form control for one kind of field. It reads and writes the value as the admin API's JSON has it. */
@@ -58,7 +60,7 @@ const MarkdownEditor = lazy(() => import("@/forms/markdown-editor"))
  * allows them, formulas as they are typed; the source box shows the Markdown that is saved. Both read and write the
  * same text, so a person can switch at any time.
  */
-function MarkdownWidget({ field, id, value, onChange, invalid, describedBy }: WidgetProps) {
+function MarkdownWidget({ field, id, value, onChange, invalid, describedBy, dense }: WidgetProps) {
   const options = field.markdown!
   const text = value == null ? "" : String(value)
   const [mode, setMode] = useState<"visual" | "source">("visual")
@@ -103,6 +105,7 @@ function MarkdownWidget({ field, id, value, onChange, invalid, describedBy }: Wi
             value={text}
             math={options.math}
             images={options.images}
+            compact={dense === true}
             trailing={tabs}
             invalid={invalid}
             describedBy={describedBy}
