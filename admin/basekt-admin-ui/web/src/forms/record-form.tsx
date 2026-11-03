@@ -133,6 +133,7 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
           onChange={(value) => set(field, value)}
           invalid={fieldErrors.length > 0}
           describedBy={fieldErrors.length > 0 ? `${id}-error` : undefined}
+          listStyle={resource.view?.listStyles?.[field.name]}
         />
         {fieldErrors.length > 0 && (
           <p id={`${id}-error`} className="text-sm text-destructive">

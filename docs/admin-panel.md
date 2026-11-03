@@ -258,6 +258,14 @@ item's id is kept but not shown. An error on an item (`steps.1.text`) appears un
 In a table, an object list shows its count ("4 steps") and a reference list the labels of what it points to. The filter
 menu offers `has` for a list.
 
+`adminView { listStyle("steps", ListStyle.TABS) }` chooses how a list's items are laid out in the form:
+
+| Style | Looks like | Suits |
+|---|---|---|
+| `CARDS` (default) | a card per item, its fields stacked | items of a few fields |
+| `ROWS` | a line per item, its fields side by side, every item in view | short items read together, such as a question's options |
+| `TABS` | a tab per item, named by its text (with a check when its first true-or-false field is on), one shown at a time, and a `+` tab that adds one | long items, such as a lesson's sections |
+
 ## Naming records
 
 Where a record points to another one (a list cell, a detail view, a reference picker), the panel shows the other

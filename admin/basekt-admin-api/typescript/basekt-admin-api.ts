@@ -222,6 +222,7 @@ export interface AdminView {
   label: string | null;
   aside: string[];
   folded: string[];
+  listStyles: Record<string, ListStyle>;
 }
 
 export interface AdminCardView {
@@ -232,6 +233,8 @@ export interface AdminCardView {
 }
 
 export type DetailLayout = "page" | "split" | "sheet";
+
+export type ListStyle = "cards" | "rows" | "tabs";
 
 export interface AdminPage {
   items: JsonObject[];

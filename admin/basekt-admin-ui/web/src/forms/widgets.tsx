@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, type ReactNode } from "react"
-import type { AdminField, FieldType, JsonValue } from "@wire"
+import type { AdminField, FieldType, JsonValue, ListStyle } from "@wire"
 import { FileWidget } from "@/forms/file-widget"
 import { ListWidget } from "@/forms/list-widget"
 import { ReferencePicker } from "@/forms/reference-picker"
@@ -15,6 +15,8 @@ export interface WidgetProps {
   onChange: (value: JsonValue) => void
   invalid: boolean
   describedBy?: string
+  /** How a list field lays out its items, from the resource's `adminView { listStyle(...) }`. Cards when unset. */
+  listStyle?: ListStyle
 }
 
 /** A form control for one kind of field. It reads and writes the value as the admin API's JSON has it. */
