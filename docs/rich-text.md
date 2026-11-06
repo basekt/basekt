@@ -25,6 +25,7 @@ The text is CommonMark with GitHub tables, strikethrough and task lists.
 |---|---|---|
 | `math()` | off | allows TeX formulas: `$x^2$` inline and `$$ ... $$` as a block |
 | `images()` | off | allows images that point at `http`, `https` or a path on the same site |
+| `images(bucket = "pictures")` | none | also lets the admin panel upload a picture to that `BaseKtFiles` bucket |
 | `maxLength(n)` | 50 000 | caps the text. The schema enforces it, with or without the plugin |
 
 `install(BaseKtRichText)` checks every create and update of a Markdown field, from every route, inside the write's
@@ -100,6 +101,12 @@ A native app draws the TeX with its own renderer; GoLearn's Compose apps do this
 
 A picture, such as a photo or a diagram, is an image: upload it to a `BaseKtFiles` bucket and refer to it from the text
 by its path, `![A parabola](/files/images/seed/parabola.png)`, on a field that says `images()`.
+
+With `images(bucket = "pictures")` the admin panel's picture button also offers to choose a picture from the computer:
+it uploads it to that bucket and adds it by its path. `BaseKtFiles` must define the bucket, and should let everyone read
+it, since the text is shown to people who aren't signed in to the admin. A picture in text is found by no query, so a
+bucket that Markdown fields upload to is never swept, and its files are never deleted for a file field that stops
+pointing to them. Give text pictures a bucket of their own.
 
 Keep each picture as a record with a **file field**, like the sample's `pictures` resource:
 

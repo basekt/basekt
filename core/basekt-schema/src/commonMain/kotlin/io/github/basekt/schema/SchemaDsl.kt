@@ -424,6 +424,7 @@ public class FieldBuilder internal constructor() {
 public class MarkdownBuilder internal constructor() {
     private var math = false
     private var images = false
+    private var imageBucket: String? = null
     private var maxLength = MarkdownOptions.DEFAULT_MAX_LENGTH
 
     /** Allows TeX formulas: `$x^2$` inline and `$$...$$` as a block. */
@@ -431,9 +432,13 @@ public class MarkdownBuilder internal constructor() {
         math = true
     }
 
-    /** Allows images that point at `http`, `https` or a path on the same site. */
-    public fun images() {
+    /**
+     * Allows images that point at `http`, `https` or a path on the same site. With [bucket], a `BaseKtFiles` bucket,
+     * the admin panel also uploads pictures there: `images(bucket = "pictures")`.
+     */
+    public fun images(bucket: String? = null) {
         images = true
+        imageBucket = bucket
     }
 
     /** Caps the text at [characters] characters, [MarkdownOptions.DEFAULT_MAX_LENGTH] unless set. */
@@ -441,7 +446,7 @@ public class MarkdownBuilder internal constructor() {
         maxLength = characters
     }
 
-    internal fun build(): MarkdownOptions = MarkdownOptions(math, images, maxLength)
+    internal fun build(): MarkdownOptions = MarkdownOptions(math, images, maxLength, imageBucket)
 }
 
 /** Declares who may perform each [Operation]. */

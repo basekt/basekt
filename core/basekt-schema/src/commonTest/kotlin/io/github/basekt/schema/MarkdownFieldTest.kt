@@ -49,4 +49,16 @@ class MarkdownFieldTest {
         assertTrue(problems { string("s") { markdown { maxLength(0) } } }.any { "maxLength must be between" in it })
         assertTrue(problems { string("s") { markdown { maxLength(MarkdownOptions.LIMIT + 1) } } }.any { "maxLength must be between" in it })
     }
+
+    @Test
+    fun `pictures may have a bucket to be uploaded to, with a sensible name`() {
+        val pages = schema { resource("pages") { string("body") { markdown { images(bucket = "pictures") } } } }
+        assertEquals(MarkdownOptions(images = true, imageBucket = "pictures"), pages.resource("pages")!!.field("body")!!.markdown)
+        assertEquals(pages, Schema.fromJson(pages.toJson()))
+
+        val refused = runCatching {
+            schema { resource("pages") { string("body") { markdown { images(bucket = "/up") } } } }
+        }.exceptionOrNull() as InvalidSchemaException
+        assertTrue(refused.problems.single().message.startsWith("A Markdown field's image bucket is a name"))
+    }
 }

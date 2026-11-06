@@ -152,6 +152,56 @@ class FileFieldsTest {
     }
 
     @Test
+    fun `a bucket Markdown pictures go to is never swept, nor emptied by a file field`() = testApplication {
+        application {
+            install(BaseKt) {
+                dataSource = InMemoryDataSource()
+                identities = IdentityResolver { Identity("staff-1", setOf("staff")) }
+                resources {
+                    resource("pages") {
+                        file("cover", "pictures")
+                        objects("sections") { string("body") { markdown { images(bucket = "pictures") } } }
+                        permissions { read(everyone); write("staff") }
+                    }
+                }
+            }
+            install(BaseKtFiles) {
+                store = this@FileFieldsTest.store
+                sweepEvery = null
+                bucket("pictures") { accept("image/png"); read(everyone); write("staff") }
+            }
+        }
+        val cover = upload("pictures")
+        val inText = upload("pictures")
+        write("POST", "/api/pages", """{"id": "p1", "cover": "$cover", "sections": [{"body": "![](/files/$inText)"}]}""")
+        write("PATCH", "/api/pages/p1", """{"cover": null}""")
+
+        assertEquals(0, application.attributes[FileFieldsKey].sweep(Clock.System.now() + 25.hours))
+        assertEquals(true, exists(inText))
+        assertEquals(true, exists(cover), "the text might show it too")
+    }
+
+    @Test
+    fun `Markdown fields need the buckets they upload pictures to`() {
+        val failure = assertFailsWith<IllegalArgumentException> {
+            testApplication {
+                application {
+                    install(BaseKt) {
+                        dataSource = InMemoryDataSource()
+                        resources { resource("pages") { string("body") { markdown { images(bucket = "pictures") } } } }
+                    }
+                    install(BaseKtFiles) {
+                        store = InMemoryBlobStore()
+                        bucket("other") { read(everyone) }
+                    }
+                }
+                client.delete("/")
+            }
+        }
+        assertEquals("Markdown fields upload pictures to buckets BaseKtFiles doesn't define: pictures.", failure.message)
+    }
+
+    @Test
     fun `file fields need their buckets`() {
         assertFailsWith<IllegalArgumentException> {
             testApplication {

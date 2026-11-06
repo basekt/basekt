@@ -28,10 +28,18 @@ function renderWidget(field: AdminField, initial: JsonValue = null, fetch = fake
 
 // The visual editor is ProseMirror, which jsdom can't run: a text box that follows the same contract stands in for it.
 vi.mock("@/forms/markdown-editor", () => ({
-  default: (props: { value: string; math: boolean; images: boolean; trailing?: ReactNode; onChange: (markdown: string) => void }) => (
+  default: (props: { value: string; math: boolean; images: boolean; uploadImage?: unknown; autoFocus?: boolean; trailing?: ReactNode; onChange: (markdown: string) => void }) => (
     <>
       {props.trailing}
-      <textarea aria-label="Visual editor" data-math={String(props.math)} data-images={String(props.images)} defaultValue={props.value} onChange={(e) => props.onChange(e.target.value)} />
+      <textarea
+        aria-label="Visual editor"
+        data-math={String(props.math)}
+        data-images={String(props.images)}
+        data-upload={String(props.uploadImage !== undefined)}
+        autoFocus={props.autoFocus}
+        defaultValue={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+      />
     </>
   ),
 }))
@@ -39,7 +47,7 @@ vi.mock("@/forms/markdown-editor", () => ({
 describe("a Markdown field", () => {
   const body: AdminField = {
     name: "body", type: "string", required: false, values: null, target: null, rules: [], bucket: null, scopedValues: null, auto: null, list: false,
-    markdown: { math: true, images: false, maxLength: 500 }, fields: null, itemIds: false,
+    markdown: { math: true, images: false, maxLength: 500, imageBucket: null }, fields: null, itemIds: false,
   }
 
   it("opens in the visual editor, told whether formulas are allowed", async () => {
@@ -77,6 +85,21 @@ describe("a Markdown field", () => {
     expect(((await screen.findByLabelText("Visual editor")) as HTMLTextAreaElement).value).toBe("one two")
   })
 
+  it("keeps the tabs over the source box and moves the focus into the box it switches to", async () => {
+    renderWidget(body, "one")
+    await userEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    expect(screen.getByLabelText("Markdown source")).toHaveFocus()
+    // The tabs over the source box aren't part of the toolbar, which hides while the field isn't being edited.
+    expect(screen.getByRole("tablist").dataset.slot).toBe("markdown-tabs")
+    await userEvent.click(screen.getByRole("tab", { name: "Visual" }))
+    expect(await screen.findByLabelText("Visual editor")).toHaveFocus()
+  })
+
+  it("offers to upload a picture only where the field has a bucket for them", async () => {
+    renderWidget({ ...body, markdown: { math: false, images: true, maxLength: 100, imageBucket: "pictures" } }, "")
+    expect((await screen.findByLabelText("Visual editor")).dataset.upload).toBe("true")
+  })
+
   it("sends null when an optional field is emptied", async () => {
     const { value } = renderWidget(body, "a")
     await userEvent.click(screen.getByRole("tab", { name: "Markdown" }))
@@ -85,7 +108,7 @@ describe("a Markdown field", () => {
   })
 
   it("says nothing of formulas when they are off", async () => {
-    renderWidget({ ...body, markdown: { math: false, images: true, maxLength: 100 }, fields: null, itemIds: false }, "")
+    renderWidget({ ...body, markdown: { math: false, images: true, maxLength: 100, imageBucket: null }, fields: null, itemIds: false }, "")
     const editor = await screen.findByLabelText("Visual editor")
     expect((editor as HTMLTextAreaElement).dataset.math).toBe("false")
     expect(screen.queryByText(/formulas/)).toBeNull()

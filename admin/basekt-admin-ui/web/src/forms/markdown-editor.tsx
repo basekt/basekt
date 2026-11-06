@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Crepe, CrepeFeature } from "@milkdown/crepe"
+import { editorViewCtx } from "@milkdown/kit/core"
 import { callCommand, insert } from "@milkdown/kit/utils"
 import katex from "katex"
 import { Sigma } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { formulaCategories, type FormulaPreset } from "@/forms/formula-presets"
-import { FormatToolbar, type RunCommand } from "@/forms/markdown-toolbar"
+import { FormatToolbar, type RunCommand, type UploadImage } from "@/forms/markdown-toolbar"
 import "@milkdown/crepe/theme/common/style.css"
 import "katex/dist/katex.min.css"
 import "@/forms/markdown-editor.css"
@@ -18,10 +19,14 @@ export interface MarkdownEditorProps {
   math: boolean
   /** Whether pictures are allowed, so the toolbar offers to add one. */
   images: boolean
+  /** Uploads a picture, where the field has a bucket for them, so the toolbar offers to choose one from the computer. */
+  uploadImage?: UploadImage
   /** What ends the toolbar's row, such as the visual and source tabs. */
   trailing?: ReactNode
   /** A smaller toolbar, of marks, a link, a picture and formulas, for an item of a list. */
   compact?: boolean
+  /** Whether the text takes the focus once the editor is ready, as it does after switching from the source box. */
+  autoFocus?: boolean
   invalid: boolean
   describedBy?: string
   onChange: (markdown: string) => void
@@ -32,7 +37,7 @@ export interface MarkdownEditorProps {
  * as they are typed, with a menu of formulas to start from. It reads and writes Markdown, so what it saves is the same
  * text the source box shows. It is a separate chunk, loaded only when a form has a Markdown field.
  */
-export default function MarkdownEditor({ value, math, images, trailing, compact = false, invalid, describedBy, onChange }: MarkdownEditorProps) {
+export default function MarkdownEditor({ value, math, images, uploadImage, trailing, compact = false, autoFocus = false, invalid, describedBy, onChange }: MarkdownEditorProps) {
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<Crepe | null>(null)
   const report = useRef(onChange)
@@ -49,6 +54,9 @@ export default function MarkdownEditor({ value, math, images, trailing, compact 
         // The image block would write the picture's ratio over its alt text (`![1.00](...)`), so pictures stay plain
         // Markdown images: they show in the editor, keep their alt text, and are added in the Markdown tab.
         [CrepeFeature.ImageBlock]: false,
+        // The block handle (a "+" and a drag grip) follows the pointer from line to line and covers the start of a
+        // nested list in a narrow field. The toolbar does what its menu does.
+        [CrepeFeature.BlockEdit]: false,
         // CodeMirror is the heaviest part of the editor. Only a field with formulas needs it: the formula box is one.
         [CrepeFeature.CodeMirror]: math,
       },
@@ -61,6 +69,7 @@ export default function MarkdownEditor({ value, math, images, trailing, compact 
       created = true
       editor.current = crepe
       if (cancelled) void crepe.destroy()
+      else if (autoFocus) crepe.editor.action((ctx) => ctx.get(editorViewCtx).focus())
     })
     return () => {
       cancelled = true
@@ -82,7 +91,7 @@ export default function MarkdownEditor({ value, math, images, trailing, compact 
 
   return (
     <div className="markdown-editor-frame space-y-1.5">
-      <FormatToolbar run={run} images={images} compact={compact} formula={math ? <FormulaMenu onInsert={insertFormula} /> : undefined} trailing={trailing} />
+      <FormatToolbar run={run} images={images} uploadImage={uploadImage} compact={compact} formula={math ? <FormulaMenu onInsert={insertFormula} /> : undefined} trailing={trailing} />
       <div ref={host} className="markdown-editor" data-invalid={invalid || undefined} aria-describedby={describedBy} />
     </div>
   )

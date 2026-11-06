@@ -354,7 +354,8 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
       {bulkFailed.length > 0 && <BulkFailures failed={bulkFailed} onDismiss={() => setBulkFailed([])} />}
       {reorderError != null && <ErrorState error={reorderError} onRetry={() => setReorderError(null)} />}
 
-      <div className={cn("grid items-start gap-6", showSplitPane && "lg:grid-cols-[minmax(0,1fr)_24rem]")}>
+      {/* The inspector takes up to half the width, so a record's longer text (a Markdown field) has room to be edited. */}
+      <div className={cn("grid items-start gap-6", showSplitPane && "lg:grid-cols-[minmax(0,1fr)_minmax(24rem,45%)] 2xl:grid-cols-[minmax(0,1fr)_minmax(24rem,50%)]")}>
         {listBody}
         {showSplitPane && (
           <aside aria-label="Record inspector" className="rounded-lg border bg-card p-4 lg:sticky lg:top-6">
@@ -375,7 +376,7 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
           <DialogContent
             showCloseButton={false}
             aria-describedby={undefined}
-            className="top-0 right-0 left-auto h-full max-w-xl translate-x-0 translate-y-0 content-start overflow-y-auto rounded-none border-l p-6 sm:max-w-xl"
+            className="top-0 right-0 left-auto h-full max-w-2xl translate-x-0 translate-y-0 content-start overflow-y-auto rounded-none border-l p-6 sm:max-w-2xl"
           >
             <DialogTitle className="sr-only">Inspect {inspectedId}</DialogTitle>
             <RecordInspector

@@ -25,6 +25,9 @@ import kotlin.time.Instant
  * - a write may only point a file field at a file that exists;
  * - after a commit, a file a record no longer points to is deleted, unless another record still does;
  * - [sweep] deletes uploads no record ever pointed to, once they're old enough.
+ *
+ * Pictures in Markdown text are found by no query, so a bucket that a Markdown field uploads its pictures to is never
+ * swept, and its files are never deleted for a file field that stops pointing to them.
  */
 internal class FileFields(
     private val schema: Schema,
@@ -37,9 +40,15 @@ internal class FileFields(
     private val fields: List<Pair<Resource, Field>> =
         schema.resources.flatMap { resource -> resource.fields.filter { it.type == FieldType.FILE }.map { resource to it } }
 
+    /** The buckets Markdown fields upload their pictures to, in a list's items too. */
+    private val pictureBuckets: Set<String> =
+        schema.resources.flatMap { resource -> resource.fields.flatMap(::withItemFields) }.mapNotNull { it.markdown?.imageBucket }.toSet()
+
     init {
         val missing = fields.map { it.second.bucket!! }.filterNot { it in buckets }.toSet()
         require(missing.isEmpty()) { "File fields use buckets BaseKtFiles doesn't define: ${missing.joinToString()}." }
+        val missingPictures = pictureBuckets.filterNot { it in buckets }
+        require(missingPictures.isEmpty()) { "Markdown fields upload pictures to buckets BaseKtFiles doesn't define: ${missingPictures.joinToString()}." }
     }
 
     override suspend fun check(resource: Resource, record: Record, transaction: DataSource): List<FieldError> =
@@ -57,6 +66,7 @@ internal class FileFields(
             is Change.Deleted -> fileKeys(change.resource, change.before)
         }
         for (key in dropped) {
+            if (key.first in pictureBuckets) continue
             try {
                 if (!referenced(key)) store.delete(key)
             } catch (e: Exception) {
@@ -73,7 +83,7 @@ internal class FileFields(
     suspend fun sweep(now: Instant = Clock.System.now()): Int {
         val listing = store as? BlobListing ?: return 0
         var deleted = 0
-        for (bucket in fields.mapNotNull { buckets[it.second.bucket] }.distinct()) {
+        for (bucket in fields.mapNotNull { buckets[it.second.bucket] }.distinct().filterNot { it.name in pictureBuckets }) {
             val after = bucket.deleteUnattachedAfter ?: continue
             var cursor: BlobKey? = null
             while (true) {
@@ -92,6 +102,8 @@ internal class FileFields(
         }
         return deleted
     }
+
+    private fun withItemFields(field: Field): List<Field> = listOf(field) + field.fields.orEmpty().flatMap(::withItemFields)
 
     private fun fileKeys(resource: Resource, record: Record): List<BlobKey> =
         resource.fields.filter { it.type == FieldType.FILE }
