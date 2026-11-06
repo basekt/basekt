@@ -231,8 +231,8 @@ model<Poster>("posters") {
 
 - `cards` enables a **Grid / Table** toggle on the list view, rendering each record as a card with optional image/file
   preview, title, subtitle and badge.
-- `DetailLayout.SPLIT` opens an inline inspector beside the list on wide viewports and a slide-over sheet on narrow
-  ones; `DetailLayout.SHEET` opens a slide-over sheet at every viewport width.
+- `DetailLayout.SPLIT` opens an inline inspector beside the list on wide viewports, taking up to half the width, and a
+  slide-over sheet on narrow ones; `DetailLayout.SHEET` opens a slide-over sheet at every viewport width.
 - `reorderable` adds drag-and-drop and accessible up/down controls when the caller may update the resource, writing the
   updated `Int` or `Long` position field through the admin API.
 - `aside("era", "position")` puts those fields in a column beside the others in the record's form, once the form is wide
@@ -247,7 +247,9 @@ with its text. While it is being edited, it shows one row of formatting buttons:
 heading and subheading, bulleted and numbered lists, quote, link, picture (where the field allows pictures), table,
 undo and redo, the formula menu (where it allows formulas), and the Visual and Markdown tabs. An item of a list (an
 option, a hint) gets a smaller one: the marks, link, picture and formula menu. Each button runs the
-editor's own command, so it writes the same Markdown as typing would; selecting text and typing `/` work as before.
+editor's own command, so it writes the same Markdown as typing would. The picture button takes an address or, on a
+field with an [image bucket](rich-text.md#images-and-storage), a picture chosen from the computer. Over the Markdown
+source the Visual and Markdown tabs always show, and switching tabs moves the focus into the box switched to.
 
 ## Lists and embedded items
 

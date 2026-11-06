@@ -245,6 +245,11 @@ public data class MarkdownOptions(
     val images: Boolean = false,
     /** The most characters the text may have. */
     val maxLength: Int = DEFAULT_MAX_LENGTH,
+    /**
+     * The `BaseKtFiles` bucket pictures are uploaded to from the admin panel, which then offers to choose a picture
+     * from the computer, or `null` to add pictures by address only. Only a field with [images] has one.
+     */
+    val imageBucket: String? = null,
 ) {
     /** Constants for every Markdown field. */
     public companion object {

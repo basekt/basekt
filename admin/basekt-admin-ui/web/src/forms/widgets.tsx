@@ -6,6 +6,8 @@ import { ReferencePicker } from "@/forms/reference-picker"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import type { UploadImage } from "@/forms/markdown-toolbar"
+import { usePanel } from "@/panel"
 
 /** What a widget gets: its field, the control's id for the label, the current JSON value, and how to change it. */
 export interface WidgetProps {
@@ -62,10 +64,17 @@ const MarkdownEditor = lazy(() => import("@/forms/markdown-editor"))
  */
 function MarkdownWidget({ field, id, value, onChange, invalid, describedBy, dense }: WidgetProps) {
   const options = field.markdown!
+  const { files } = usePanel()
+  const bucket = options.imageBucket
+  const uploadImage: UploadImage | undefined =
+    options.images && bucket ? (file, onProgress) => files.upload(bucket, file, onProgress).then((ref) => ref.url) : undefined
   const text = value == null ? "" : String(value)
   const [mode, setMode] = useState<"visual" | "source">("visual")
   // The visual editor keeps its own text once it starts, so it starts over after the source box changed the text.
   const [revision, setRevision] = useState(0)
+  // A tab is replaced along with the box it switches to, so the focus moves into the new box: the field stays the one
+  // being edited, and its toolbar and tabs stay in view.
+  const [switched, setSwitched] = useState(false)
   const set = (next: string) => onChange(next === "" && !field.required ? null : next)
   const formulas = options.math ? ", with formulas: $x^2$ inline or $$ ... $$ as a block" : ""
   const tab = (name: "visual" | "source", label: string) => (
@@ -74,16 +83,20 @@ function MarkdownWidget({ field, id, value, onChange, invalid, describedBy, dens
       role="tab"
       aria-selected={mode === name}
       onClick={() => {
-        if (name === "visual" && mode === "source") setRevision((n) => n + 1)
+        if (mode === name) return
+        if (name === "visual") setRevision((n) => n + 1)
         setMode(name)
+        setSwitched(true)
       }}
       className={`rounded-md px-2.5 py-1 text-xs font-medium ${mode === name ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
     >
       {label}
     </button>
   )
+  // In the visual editor the tabs end its toolbar, and show with it. Over the source box they always show, at the
+  // toolbar's end too, so the way back to the visual editor is always there and the box doesn't move when it is focused.
   const tabs = (
-    <div role="tablist" aria-label="How to edit the text" data-slot="markdown-toolbar" className="flex gap-1">
+    <div role="tablist" aria-label="How to edit the text" data-slot="markdown-tabs" className="flex justify-end gap-1">
       {tab("visual", "Visual")}
       {tab("source", "Markdown")}
     </div>
@@ -105,7 +118,9 @@ function MarkdownWidget({ field, id, value, onChange, invalid, describedBy, dens
             value={text}
             math={options.math}
             images={options.images}
+            uploadImage={uploadImage}
             compact={dense === true}
+            autoFocus={switched}
             trailing={tabs}
             invalid={invalid}
             describedBy={describedBy}
@@ -117,6 +132,7 @@ function MarkdownWidget({ field, id, value, onChange, invalid, describedBy, dens
           {tabs}
           <textarea
             aria-label="Markdown source"
+            autoFocus={switched}
             rows={12}
             value={text}
             onChange={(e) => set(e.target.value)}

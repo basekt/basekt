@@ -46,6 +46,33 @@ describe("the formatting toolbar", () => {
     expect(run).toHaveBeenLastCalledWith(insertImageCommand.key, { src: "/files/a.png", alt: "" })
   })
 
+  it("uploads a picture chosen from the computer and adds it by the address it is served at", async () => {
+    const user = userEvent.setup()
+    const run = vi.fn()
+    const upload = vi.fn(async (_file: File, onProgress: (fraction: number) => void) => {
+      onProgress(1)
+      return "/files/pictures/k1/cat.png"
+    })
+    render(<FormatToolbar run={run} images uploadImage={upload} />)
+    await user.click(screen.getByRole("button", { name: "Picture" }))
+    const cat = new File([new Uint8Array([1])], "cat.png", { type: "image/png" })
+    await user.upload(await screen.findByLabelText("Picture file"), cat)
+    expect(upload.mock.calls[0]![0]).toBe(cat)
+    expect(run).toHaveBeenLastCalledWith(insertImageCommand.key, { src: "/files/pictures/k1/cat.png", alt: "" })
+    expect(screen.queryByRole("button", { name: /Choose from this computer/ })).not.toBeInTheDocument()
+  })
+
+  it("shows why an upload failed and keeps the popover open", async () => {
+    const user = userEvent.setup()
+    const run = vi.fn()
+    render(<FormatToolbar run={run} images uploadImage={() => Promise.reject(new Error("The file is too large."))} />)
+    await user.click(screen.getByRole("button", { name: "Picture" }))
+    await user.upload(await screen.findByLabelText("Picture file"), new File([new Uint8Array([1])], "big.png", { type: "image/png" }))
+    expect(await screen.findByText("The file is too large.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Choose from this computer/ })).toBeEnabled()
+    expect(run).not.toHaveBeenCalled()
+  })
+
   it("keeps to marks, a link, a picture and formulas when compact, as in a list's item", () => {
     render(<FormatToolbar run={vi.fn()} images compact formula={<button type="button">Formula</button>} />)
     const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent)

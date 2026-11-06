@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 import type { CmdKey } from "@milkdown/kit/core"
 import { redoCommand, undoCommand } from "@milkdown/kit/plugin/history"
 import {
@@ -28,6 +28,7 @@ import {
   Strikethrough,
   Table,
   Undo2,
+  Upload,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 /** Runs one of the editor's commands, with what it takes. */
 export type RunCommand = <T>(command: CmdKey<T>, payload?: T) => void
+
+/** Uploads a picture, reporting progress from 0 to 1, and gives the address it is served at. Fails with a message to show. */
+export type UploadImage = (file: File, onProgress: (fraction: number) => void) => Promise<string>
 
 /** One button: what it is called, its icon, and the command it runs. */
 interface Tool {
@@ -68,11 +72,12 @@ const history: Tool[] = [
  * The formatting buttons above a Markdown editor: marks, blocks, a link, a picture where the field allows pictures, a
  * table, undo and redo, then [formula] and, at the end of the row, [trailing] (the visual and source tabs). Each button
  * runs the editor's own command, so it writes the same Markdown as typing would. A button keeps the editor's selection,
- * so it formats what was selected.
+ * so it formats what was selected. A picture is added by its address or, with [uploadImage], chosen from the computer.
  */
-export function FormatToolbar({ run, images, compact = false, formula, trailing }: {
+export function FormatToolbar({ run, images, uploadImage, compact = false, formula, trailing }: {
   run: RunCommand
   images: boolean
+  uploadImage?: UploadImage
   /** Only the marks, a link, a picture and [formula]: for an item of a list, which is a line or two. */
   compact?: boolean
   formula?: ReactNode
@@ -105,7 +110,9 @@ export function FormatToolbar({ run, images, compact = false, formula, trailing 
         </>
       )}
       <AddressButton label="Link" icon={Link} placeholder="https://…" onAdd={(href) => run(toggleLinkCommand.key, { href })} />
-      {images && <AddressButton label="Picture" icon={Image} placeholder="https://… or /files/…" onAdd={(src) => run(insertImageCommand.key, { src, alt: "" })} />}
+      {images && (
+        <AddressButton label="Picture" icon={Image} placeholder="https://… or /files/…" upload={uploadImage} onAdd={(src) => run(insertImageCommand.key, { src, alt: "" })} />
+      )}
       {!compact && (
         <>
           {button({ label: "Table", icon: Table, run: (r) => r(insertTableCommand.key, { row: 3, col: 3 }) })}
@@ -128,10 +135,22 @@ function Separator() {
   return <span aria-hidden className="bg-border mx-0.5 h-5 w-px" />
 }
 
-/** A button that asks for an address (a link's or a picture's) and adds it at the selection. */
-function AddressButton({ label, icon: Icon, placeholder, onAdd }: { label: string; icon: LucideIcon; placeholder: string; onAdd: (address: string) => void }) {
+/**
+ * A button that asks for an address (a link's or a picture's) and adds it at the selection. With [upload] it also offers
+ * to choose a file from the computer, which is uploaded and added by the address it is served at.
+ */
+function AddressButton({ label, icon: Icon, placeholder, upload, onAdd }: {
+  label: string
+  icon: LucideIcon
+  placeholder: string
+  upload?: UploadImage
+  onAdd: (address: string) => void
+}) {
   const [open, setOpen] = useState(false)
   const [address, setAddress] = useState("")
+  const [progress, setProgress] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const chooser = useRef<HTMLInputElement>(null)
   const submit = (event: { preventDefault: () => void; stopPropagation: () => void }) => {
     event.preventDefault()
     event.stopPropagation()
@@ -140,18 +159,65 @@ function AddressButton({ label, icon: Icon, placeholder, onAdd }: { label: strin
     setAddress("")
     setOpen(false)
   }
+  const send = async (file: File) => {
+    if (!upload) return
+    setError(null)
+    setProgress(0)
+    try {
+      onAdd(await upload(file, setProgress))
+      setOpen(false)
+    } catch (failure) {
+      setError(failure instanceof Error && failure.message ? failure.message : "The upload failed.")
+    } finally {
+      setProgress(null)
+      if (chooser.current) chooser.current.value = ""
+    }
+  }
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        // An upload under way finishes in the open popover, so its result or its error is seen.
+        if (progress === null) setOpen(next)
+        if (!next) setError(null)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={label} title={label} onMouseDown={(event) => event.preventDefault()}>
           <Icon />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-2">
+      <PopoverContent align="start" className="grid w-80 max-w-[calc(100vw-2rem)] gap-2 p-2">
+        {upload && (
+          <>
+            <input
+              ref={chooser}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              tabIndex={-1}
+              aria-label={`${label} file`}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void send(file)
+              }}
+            />
+            <Button type="button" variant="outline" size="sm" disabled={progress !== null} onClick={() => chooser.current?.click()}>
+              <Upload /> {progress === null ? "Choose from this computer" : "Uploading…"}
+            </Button>
+            {progress !== null && (
+              <div role="progressbar" aria-label="Uploading" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)} className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full bg-primary transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
+              </div>
+            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <p className="text-muted-foreground text-xs">Or add one by its address:</p>
+          </>
+        )}
         {/* Not a <form>: this sits inside the record's form, and a nested form would submit the record. */}
         <div className="flex gap-2" role="group" aria-label={label}>
           <Input
-            autoFocus
+            autoFocus={!upload}
             value={address}
             onChange={(event) => setAddress(event.target.value)}
             onKeyDown={(event) => {

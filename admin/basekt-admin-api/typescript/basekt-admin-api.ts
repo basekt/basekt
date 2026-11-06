@@ -131,6 +131,7 @@ export interface MarkdownOptions {
   math: boolean;
   images: boolean;
   maxLength: number;
+  imageBucket: string | null;
 }
 
 export interface AdminRelation {

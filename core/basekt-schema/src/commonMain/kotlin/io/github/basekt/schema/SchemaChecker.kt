@@ -134,6 +134,12 @@ internal object SchemaChecker {
             if (options.maxLength !in 1..MarkdownOptions.LIMIT) {
                 problem(at, "A Markdown field's maxLength must be between 1 and ${MarkdownOptions.LIMIT}, not ${options.maxLength}.")
             }
+            when {
+                options.imageBucket == null -> Unit
+                !options.images -> problem(at, "Only a Markdown field that allows images has an image bucket.")
+                !bucketPattern.matches(options.imageBucket) ->
+                    problem(at, "A Markdown field's image bucket is a name of letters, digits, '.', '_' and '-', starting with a letter or digit.")
+            }
         }
         if (field.hidden && field.required) problem(at, "A hidden field can't be required: no client could fill it in.")
         if (field.unique && field.auto != null && field.auto !is Auto.Sequence) {
