@@ -120,6 +120,10 @@ class AdminViewsTest {
         assertTrue(problems { adminView { cards(subtitle = "secret") } }.single().contains("a hidden field"))
         assertEquals(emptyList(), problems { adminView { cards(title = "id") } })
 
+        assertEquals(emptyList(), problems { string("tags") { list() }; adminView { listStyle("tags", ListStyle.TABS) } })
+        assertTrue(problems { adminView { listStyle("missing", ListStyle.ROWS) } }.single().contains("isn't a field"))
+        assertTrue(problems { adminView { listStyle("title", ListStyle.ROWS) } }.single().contains("isn't a list"))
+        assertTrue(problems { string("notes") { list(); hidden() }; adminView { listStyle("notes", ListStyle.ROWS) } }.single().contains("hidden"))
         assertTrue(problems { adminView { aside("missing") } }.single().contains("isn't a field"))
         assertTrue(problems { adminView { folded("secret") } }.single().contains("a hidden field"))
         assertTrue(problems { adminView { aside("seq") } }.single().contains("the server sets"))

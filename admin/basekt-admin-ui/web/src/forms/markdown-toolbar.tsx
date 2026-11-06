@@ -70,9 +70,11 @@ const history: Tool[] = [
  * runs the editor's own command, so it writes the same Markdown as typing would. A button keeps the editor's selection,
  * so it formats what was selected.
  */
-export function FormatToolbar({ run, images, formula, trailing }: {
+export function FormatToolbar({ run, images, compact = false, formula, trailing }: {
   run: RunCommand
   images: boolean
+  /** Only the marks, a link, a picture and [formula]: for an item of a list, which is a line or two. */
+  compact?: boolean
   formula?: ReactNode
   trailing?: ReactNode
 }) {
@@ -96,13 +98,21 @@ export function FormatToolbar({ run, images, formula, trailing }: {
     <div role="toolbar" aria-label="Formatting" data-slot="markdown-toolbar" className="flex flex-wrap items-center gap-0.5 rounded-md border bg-muted/40 p-0.5">
       {marks.map(button)}
       <Separator />
-      {blocks.map(button)}
-      <Separator />
+      {!compact && (
+        <>
+          {blocks.map(button)}
+          <Separator />
+        </>
+      )}
       <AddressButton label="Link" icon={Link} placeholder="https://…" onAdd={(href) => run(toggleLinkCommand.key, { href })} />
       {images && <AddressButton label="Picture" icon={Image} placeholder="https://… or /files/…" onAdd={(src) => run(insertImageCommand.key, { src, alt: "" })} />}
-      {button({ label: "Table", icon: Table, run: (r) => r(insertTableCommand.key, { row: 3, col: 3 }) })}
-      <Separator />
-      {history.map(button)}
+      {!compact && (
+        <>
+          {button({ label: "Table", icon: Table, run: (r) => r(insertTableCommand.key, { row: 3, col: 3 }) })}
+          <Separator />
+          {history.map(button)}
+        </>
+      )}
       {formula && (
         <>
           <Separator />

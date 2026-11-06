@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { ChevronLeft, ExternalLink, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import type { AdminField, AdminResource, JsonObject, JsonValue } from "@wire"
@@ -53,9 +53,16 @@ export function RecordView({ resource, id }: { resource: AdminResource; id: stri
           )}
         </div>
       </div>
-      <RecordBody resource={resource} id={id} record={record} />
+      <Surface>
+        <RecordBody resource={resource} id={id} record={record} />
+      </Surface>
     </div>
   )
+}
+
+/** The card a record's page puts its form on, so the fields stand out from the page behind them. */
+function Surface({ children }: { children: ReactNode }) {
+  return <div className="bg-card text-card-foreground grid gap-6 rounded-xl border p-5 shadow-xs sm:p-6">{children}</div>
 }
 
 /**
@@ -184,16 +191,18 @@ export function CreateView({ resource }: { resource: AdminResource }) {
         <BackToList resource={resource} />
         <h1 className="text-2xl font-semibold tracking-tight">New {humanize(resource.name).toLowerCase()}</h1>
       </div>
-      <RecordForm
-        resource={resource}
-        mode="create"
-        initial={{}}
-        onCancel={toList}
-        onSaved={(saved) => {
-          toast.success(`Created ${recordId(saved)}.`)
-          navigate({ screen: "detail", resource: resource.name, id: recordId(saved) }, { replace: true })
-        }}
-      />
+      <Surface>
+        <RecordForm
+          resource={resource}
+          mode="create"
+          initial={{}}
+          onCancel={toList}
+          onSaved={(saved) => {
+            toast.success(`Created ${recordId(saved)}.`)
+            navigate({ screen: "detail", resource: resource.name, id: recordId(saved) }, { replace: true })
+          }}
+        />
+      </Surface>
     </div>
   )
 }

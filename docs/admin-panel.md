@@ -242,10 +242,11 @@ model<Poster>("posters") {
 
 `BaseKtAdmin` validates every `adminView` field reference and numeric type at startup.
 
-Every form keeps its Save button in reach at the bottom of the screen. A Markdown editor starts at a few lines and grows
+A record's page shows its form on a card, and keeps its Save button in reach at the bottom of the screen. A Markdown editor starts at a few lines and grows
 with its text. While it is being edited, it shows one row of formatting buttons: bold, italic, strikethrough, code,
 heading and subheading, bulleted and numbered lists, quote, link, picture (where the field allows pictures), table,
-undo and redo, the formula menu (where it allows formulas), and the Visual and Markdown tabs. Each button runs the
+undo and redo, the formula menu (where it allows formulas), and the Visual and Markdown tabs. An item of a list (an
+option, a hint) gets a smaller one: the marks, link, picture and formula menu. Each button runs the
 editor's own command, so it writes the same Markdown as typing would; selecting text and typing `/` work as before.
 
 ## Lists and embedded items
@@ -257,6 +258,14 @@ item's id is kept but not shown. An error on an item (`steps.1.text`) appears un
 
 In a table, an object list shows its count ("4 steps") and a reference list the labels of what it points to. The filter
 menu offers `has` for a list.
+
+`adminView { listStyle("steps", ListStyle.TABS) }` chooses how a list's items are laid out in the form:
+
+| Style | Looks like | Suits |
+|---|---|---|
+| `CARDS` (default) | a card per item, its fields stacked | items of a few fields |
+| `ROWS` | a line per item, its fields side by side, every item in view | short items read together, such as a question's options |
+| `TABS` | a tab per item, named by its text (with a check when its first true-or-false field is on), one shown at a time, and a `+` tab that adds one | long items, such as a lesson's sections |
 
 ## Naming records
 

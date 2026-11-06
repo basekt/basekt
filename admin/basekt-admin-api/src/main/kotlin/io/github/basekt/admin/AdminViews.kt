@@ -38,7 +38,22 @@ public data class AdminView(
     val aside: List<String> = emptyList(),
     /** The fields a record's form keeps closed until they have a value, behind an "Add" button: ones rarely filled in. */
     val folded: List<String> = emptyList(),
+    /** How a record's form lays out the items of a list field, by field; a list not named here is [ListStyle.CARDS]. */
+    val listStyles: Map<String, ListStyle> = emptyMap(),
 )
+
+/** How a record's form lays out the items of a list field. */
+@Serializable
+public enum class ListStyle {
+    /** A card per item, its fields stacked: for items of a few fields. */
+    @SerialName("cards") CARDS,
+
+    /** A line per item, its fields side by side: for short items read together, such as a question's options. */
+    @SerialName("rows") ROWS,
+
+    /** A tab per item, one shown at a time, and a tab that adds one: for long items, such as a lesson's sections. */
+    @SerialName("tabs") TABS,
+}
 
 /** Which fields of a record populate each card when a resource's list is switched to grid view. */
 @Serializable
@@ -123,6 +138,7 @@ public class AdminViewBuilder internal constructor() {
     private var label: String? = null
     private val aside = mutableListOf<String>()
     private val folded = mutableListOf<String>()
+    private val listStyles = linkedMapOf<String, ListStyle>()
 
     /** How selecting a record opens its detail view. [DetailLayout.PAGE] by default. */
     public var detailLayout: DetailLayout = DetailLayout.PAGE
@@ -170,7 +186,12 @@ public class AdminViewBuilder internal constructor() {
         folded += fields
     }
 
-    internal fun build(): AdminView = AdminView(cards, detailLayout, orderField, label, aside.toList(), folded.toList())
+    /** Lays out the items of the list field [field] as [style] in a record's form. See [ListStyle]. */
+    public fun listStyle(field: String, style: ListStyle) {
+        listStyles[field] = style
+    }
+
+    internal fun build(): AdminView = AdminView(cards, detailLayout, orderField, label, aside.toList(), folded.toList(), listStyles.toMap())
 }
 
 /**
@@ -247,6 +268,14 @@ public fun Schema.adminViewProblems(): List<String> {
                 }
             }
             names.groupBy { it }.filter { it.value.size > 1 }.keys.forEach { problems += "$at puts '$it' $kind twice." }
+        }
+        for (name in view.listStyles.keys) {
+            val field = resource.field(name)
+            when {
+                field == null -> problems += "$at gives '$name' a list style, but it isn't a field of '${resource.name}'."
+                !field.list -> problems += "$at gives '$name' a list style, but it isn't a list."
+                field.hidden -> problems += "$at gives '$name' a list style, but it is hidden."
+            }
         }
         if (view.folded.any { it in view.aside }) problems += "$at puts ${view.folded.filter { it in view.aside }.joinToString()} both aside and folded."
         view.orderField?.let { name ->

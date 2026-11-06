@@ -133,6 +133,7 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
           onChange={(value) => set(field, value)}
           invalid={fieldErrors.length > 0}
           describedBy={fieldErrors.length > 0 ? `${id}-error` : undefined}
+          listStyle={resource.view?.listStyles?.[field.name]}
         />
         {fieldErrors.length > 0 && (
           <p id={`${id}-error`} className="text-sm text-destructive">
@@ -164,13 +165,13 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
       <div className={cn("grid gap-5", side.length > 0 && "@3xl:grid-cols-[minmax(0,1fr)_18rem] @3xl:items-start")}>
         <div className="grid min-w-0 grid-cols-1 gap-5">{main.map(fieldBlock)}</div>
         {side.length > 0 && (
-          <div data-slot="form-aside" className="grid min-w-0 grid-cols-1 gap-5 @3xl:sticky @3xl:top-4 @3xl:rounded-md @3xl:border @3xl:p-4">
+          <div data-slot="form-aside" className="grid min-w-0 grid-cols-1 gap-5 @3xl:sticky @3xl:top-4 @3xl:rounded-lg @3xl:border @3xl:bg-muted/40 @3xl:p-4">
             {side.map(fieldBlock)}
           </div>
         )}
       </div>
       {/* Save stays in reach at the bottom of the screen, however long the form. */}
-      <div className="bg-background/95 sticky bottom-0 z-10 -mx-1 flex gap-2 border-t px-1 py-3 backdrop-blur">
+      <div className="bg-card sticky bottom-0 z-10 -mx-1 flex gap-2 border-t px-1 py-3">
         <Button type="submit" disabled={saving}>
           {mode === "create" ? "Create" : "Save"}
         </Button>

@@ -20,6 +20,8 @@ export interface MarkdownEditorProps {
   images: boolean
   /** What ends the toolbar's row, such as the visual and source tabs. */
   trailing?: ReactNode
+  /** A smaller toolbar, of marks, a link, a picture and formulas, for an item of a list. */
+  compact?: boolean
   invalid: boolean
   describedBy?: string
   onChange: (markdown: string) => void
@@ -30,7 +32,7 @@ export interface MarkdownEditorProps {
  * as they are typed, with a menu of formulas to start from. It reads and writes Markdown, so what it saves is the same
  * text the source box shows. It is a separate chunk, loaded only when a form has a Markdown field.
  */
-export default function MarkdownEditor({ value, math, images, trailing, invalid, describedBy, onChange }: MarkdownEditorProps) {
+export default function MarkdownEditor({ value, math, images, trailing, compact = false, invalid, describedBy, onChange }: MarkdownEditorProps) {
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<Crepe | null>(null)
   const report = useRef(onChange)
@@ -80,7 +82,7 @@ export default function MarkdownEditor({ value, math, images, trailing, invalid,
 
   return (
     <div className="markdown-editor-frame space-y-1.5">
-      <FormatToolbar run={run} images={images} formula={math ? <FormulaMenu onInsert={insertFormula} /> : undefined} trailing={trailing} />
+      <FormatToolbar run={run} images={images} compact={compact} formula={math ? <FormulaMenu onInsert={insertFormula} /> : undefined} trailing={trailing} />
       <div ref={host} className="markdown-editor" data-invalid={invalid || undefined} aria-describedby={describedBy} />
     </div>
   )
