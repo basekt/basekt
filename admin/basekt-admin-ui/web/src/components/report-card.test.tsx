@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
-import { fakeFetch, helpDeskSchema, librarySchema, tickets } from "@/test/fixtures"
+import { books, fakeFetch, helpDeskSchema, librarySchema, tickets } from "@/test/fixtures"
 import { renderPanel } from "@/test/render"
 
 describe("the reports on the home screen", () => {
@@ -115,5 +115,27 @@ describe("the reports on the home screen", () => {
     expect(await screen.findByRole("heading", { name: "Test", level: 1 })).toBeInTheDocument()
     expect(screen.queryByRole("region", { name: "Reports" })).not.toBeInTheDocument()
     expect(screen.queryByRole("group", { name: "Report range" })).not.toBeInTheDocument()
+  })
+
+  it("ask for the labels of what a reference field's groups point to", async () => {
+    const byAuthor = { name: "booksByAuthor", chart: "bar" as const, groupBy: "authorId", function: "count" as const, field: null, measure: "count", order: "valueDesc" as const, limit: 12, bucket: null, timeZone: null, filters: [], range: null, compare: null }
+    const schema = { ...librarySchema, resources: librarySchema.resources.map((r) => (r.name === "books" ? { ...books, reports: [byAuthor] } : r)) }
+    const labelled: string[][] = []
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: schema }
+      if (url.pathname === "/admin/api/resources/books/aggregate") {
+        return { body: { groups: [{ key: { authorId: "a1" }, values: { count: 3 } }, { key: { authorId: "a2" }, values: { count: 1 } }], hasMore: false } }
+      }
+      if (url.pathname === "/admin/api/resources/authors/labels") {
+        labelled.push(url.searchParams.getAll("id"))
+        return { body: { labels: { a1: "Ursula K. Le Guin" } } }
+      }
+      return undefined
+    })
+    renderPanel("/admin/", fetch)
+
+    const reports = await screen.findByRole("region", { name: "Reports" })
+    expect(within(reports).getByRole("figure", { name: "Books by author" })).toBeInTheDocument()
+    await waitFor(() => expect(labelled).toEqual([["a1", "a2"]]))
   })
 })

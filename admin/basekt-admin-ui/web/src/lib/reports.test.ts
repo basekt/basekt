@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { AdminReport } from "@wire"
-import { compareOf, describeRange, describeReport, formatBucket, rangeDates, reportParams, reportPoints } from "@/lib/reports"
+import { compareOf, describeRange, describeReport, formatBucket, groupTargets, rangeDates, reportParams, reportPoints } from "@/lib/reports"
 import { books, tickets } from "@/test/fixtures"
 
 const feesByAuthor: AdminReport = {
@@ -27,7 +27,7 @@ describe("reports", () => {
       ],
       hasMore: false,
     })
-    expect(points).toEqual([{ label: "a1", value: 2.25 }, { label: "None", value: 0 }])
+    expect(points).toEqual([{ label: "a1", key: "a1", value: 2.25 }, { label: "None", value: 0 }])
   })
 
   it("show a time series' latest buckets in time order", () => {
@@ -153,7 +153,7 @@ describe("reports", () => {
     expect(describeReport(weekly, { now })).toBe("Count by day, last 3 days vs previous period")
   })
 
-  it("compare groups by their labels, and a number with its earlier value", () => {
+  it("compare groups by their keys, and a number with its earlier value", () => {
     const perState: AdminReport = { ...tickets.reports[0], chart: "bar", range: { field: "openedAt", last: 7, unit: "day" }, compare: "previousYear" }
     const points = reportPoints(
       perState, tickets,
@@ -161,10 +161,26 @@ describe("reports", () => {
       {},
       { groups: [{ key: { state: "closed" }, values: { count: 9 } }], hasMore: false },
     )
-    expect(points).toEqual([{ label: "open", value: 5, previous: 0 }, { label: "closed", value: 2, previous: 9 }])
+    expect(points).toEqual([{ label: "open", key: "open", value: 5, previous: 0 }, { label: "closed", key: "closed", value: 2, previous: 9 }])
     const total: AdminReport = { ...tickets.reports[1], range: { field: "openedAt", last: 7, unit: "day" }, compare: "previousPeriod" }
     const number = reportPoints(total, tickets, { groups: [{ key: {}, values: { sum_views: 12 } }], hasMore: false }, {}, { groups: [{ key: {}, values: { sum_views: 10 } }], hasMore: false })
     expect(number).toEqual([{ label: "None", value: 12, previous: 10 }])
+  })
+
+  it("name the groups of a reference field by what they point to, and pair them by id", () => {
+    const page = { groups: [{ key: { authorId: "a1" }, values: { sum_fee: 5 } }, { key: { authorId: "a2" }, values: { sum_fee: 3 } }, { key: { authorId: "gone" }, values: { sum_fee: 1 } }], hasMore: false }
+    const previous = { groups: [{ key: { authorId: "a2" }, values: { sum_fee: 8 } }], hasMore: false }
+    expect(groupTargets(feesByAuthor, books, [page, previous])).toEqual({ target: "authors", ids: ["a1", "a2", "gone"] })
+    expect(groupTargets(tickets.reports[0], tickets, [page])).toBeNull()
+
+    const compared: AdminReport = { ...feesByAuthor, range: { field: "publishedAt", last: 7, unit: "day" }, compare: "previousPeriod" }
+    // Two authors may share a name: the earlier value still goes to the same author.
+    const names = { a1: "Ursula K. Le Guin", a2: "Ursula K. Le Guin" }
+    expect(reportPoints(compared, books, page, {}, previous, names)).toEqual([
+      { label: "Ursula K. Le Guin", key: "a1", value: 5, previous: 0 },
+      { label: "Ursula K. Le Guin", key: "a2", value: 3, previous: 8 },
+      { label: "gone", key: "gone", value: 1, previous: 0 },
+    ])
   })
 
   it("count back whole spans before the current one, as yesterday, last week or last month do", () => {

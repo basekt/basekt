@@ -7,12 +7,26 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { humanize } from "@/lib/fields"
-import { compareOf, describeCompare, describeReport, reportParams, reportPoints, type RangeChoice, type ReportPoint, type ReportView } from "@/lib/reports"
+import {
+  compareOf,
+  describeCompare,
+  describeReport,
+  groupTargets,
+  reportParams,
+  reportPoints,
+  type GroupNames,
+  type RangeChoice,
+  type ReportPoint,
+  type ReportView,
+} from "@/lib/reports"
 import { useAsync } from "@/lib/use-async"
 import { usePanel } from "@/panel"
 
 /** The theme's chart colours, which pie slices take in turn. */
 const colors = [1, 2, 3, 4, 5].map((n) => `var(--chart-${n})`)
+
+/** How many labels the panel asks for at once, below the admin API's usual page limit (200). */
+const LABELS_AT_ONCE = 100
 
 /**
  * A report of [resource] as a card: its title, what it shows, and its chart, loaded from the aggregate route. [range],
@@ -31,7 +45,16 @@ export function ReportCard({ resource, report, range = null }: { resource: Admin
         api.aggregate(resource.name, reportParams(report, at)),
         compare ? api.aggregate(resource.name, reportParams(report, at, "previous")) : undefined,
       ])
-      return reportPoints(report, resource, page, at, previous)
+      // Groups of a reference field are named by what they point to. Records the caller can't read keep their ids.
+      const targets = groupTargets(report, resource, previous ? [page, previous] : [page])
+      const names: GroupNames = {}
+      if (targets) {
+        for (let i = 0; i < targets.ids.length; i += LABELS_AT_ONCE) {
+          const answer = await api.labels(targets.target, targets.ids.slice(i, i + LABELS_AT_ONCE)).catch(() => ({ labels: {} }))
+          Object.assign(names, answer.labels)
+        }
+      }
+      return reportPoints(report, resource, page, at, previous, names)
     },
     [api, resource, report, JSON.stringify(view.range), compare],
   )

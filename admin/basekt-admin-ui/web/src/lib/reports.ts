@@ -10,7 +10,12 @@ export interface ReportPoint {
   label: string
   value: number | null
   previous?: number | null
+  /** The group's own key, which a comparison pairs groups by: two groups can share a label. */
+  key?: string
 }
+
+/** The labels of the records a report's groups point to, by id, for a report grouped by a reference field. */
+export type GroupNames = Record<string, string>
 
 /** The most points a time series is filled out to; a sparser one keeps only the spans that have records. */
 const MAX_FILLED_POINTS = 400
@@ -92,9 +97,10 @@ export function reportParams(report: AdminReport, view: ReportView = {}, period:
 }
 
 /**
- * The groups of [page] as labelled numbers. A group without a value counts as 0, and one without a key as "None".
+ * The groups of [page] as labelled numbers. A group without a value counts as 0, and one without a key as "None". A
+ * group of a reference field is labelled by [names], the label of the record it points to, or by its id without one.
  * With [previous], the page of the earlier window, each point also holds its [ReportPoint.previous] value: the span in
- * the same place for a time series, the group with the same label otherwise.
+ * the same place for a time series, the group with the same key otherwise.
  */
 export function reportPoints(
   report: AdminReport,
@@ -102,13 +108,31 @@ export function reportPoints(
   page: AdminAggregatePage,
   view: ReportView = {},
   previous?: AdminAggregatePage,
+  names: GroupNames = {},
 ): ReportPoint[] {
-  const current = pointsOf(report, resource, page, windowOf(report, view))
+  const current = pointsOf(report, resource, page, windowOf(report, view), names)
   if (!previous || !compareOf(report, view)) return current
-  const before = pointsOf(report, resource, previous, previousWindow(report, view))
+  const before = pointsOf(report, resource, previous, previousWindow(report, view), names)
   if (report.bucket && latestFirst(report)) return current.map((point, i) => ({ ...point, previous: before[i]?.value ?? null }))
-  const byLabel = new Map(before.map((point) => [point.label, point.value]))
-  return current.map((point) => ({ ...point, previous: byLabel.get(point.label) ?? emptyValue(report) }))
+  const byKey = new Map(before.map((point) => [point.key ?? point.label, point.value]))
+  return current.map((point) => ({ ...point, previous: byKey.get(point.key ?? point.label) ?? emptyValue(report) }))
+}
+
+/**
+ * The target resource and the ids of the records that [report]'s groups in [pages] point to, when it is grouped by a
+ * reference field, so their labels can be asked for; `null` otherwise.
+ */
+export function groupTargets(report: AdminReport, resource: AdminResource, pages: AdminAggregatePage[]): { target: string; ids: string[] } | null {
+  const field = resource.fields.find((f) => f.name === report.groupBy)
+  if (!field || field.type !== "reference" || !field.target || field.list) return null
+  const ids = new Set<string>()
+  for (const page of pages) {
+    for (const group of page.groups) {
+      const key = group.key[field.name]
+      if (typeof key === "string") ids.add(key)
+    }
+  }
+  return { target: field.target, ids: [...ids] }
 }
 
 /** The earlier window [report] is compared with this time: the viewer's choice, or the report's own. Null without a range. */
@@ -117,7 +141,7 @@ export function compareOf(report: AdminReport, view: ReportView = {}): ReportCom
   return view.compare === undefined ? report.compare : view.compare
 }
 
-function pointsOf(report: AdminReport, resource: AdminResource, page: AdminAggregatePage, window: Window | null): ReportPoint[] {
+function pointsOf(report: AdminReport, resource: AdminResource, page: AdminAggregatePage, window: Window | null, names: GroupNames): ReportPoint[] {
   if (report.bucket && latestFirst(report)) {
     return timeSeries(report, report.bucket, page, window?.field === report.groupBy ? window : null)
   }
@@ -125,8 +149,12 @@ function pointsOf(report: AdminReport, resource: AdminResource, page: AdminAggre
   return page.groups.map((group) => {
     const key = report.groupBy === null ? null : group.key[report.groupBy]
     const label =
-      key === null || key === undefined ? "None" : report.bucket ? formatBucket(String(key), report.bucket, zoneOf(report)) : formatValue(field, key)
-    return { label, value: toNumber(group.values[report.measure]) }
+      key === null || key === undefined
+        ? "None"
+        : report.bucket
+          ? formatBucket(String(key), report.bucket, zoneOf(report))
+          : (typeof key === "string" ? names[key] : undefined) ?? formatValue(field, key)
+    return { label, value: toNumber(group.values[report.measure]), key: key === null || key === undefined ? undefined : String(key) }
   })
 }
 
