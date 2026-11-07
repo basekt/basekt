@@ -752,12 +752,15 @@ function ReorderControls({
 /** How to name records, by resource and id: the `labels` of the page they came with. */
 type Labels = Record<string, Record<string, string>>
 
+/** A MongoDB ObjectId, as text: 24 hex digits. */
+const objectId = /^[0-9a-f]{24}$/i
+
 /**
- * An id as the table shows it: whole when it is short, and otherwise its last 8 characters, the part of a MongoDB
- * ObjectId that differs from one record to the next (its first ones are the time it was made).
+ * An id as the table shows it: a MongoDB ObjectId by its last 8 characters, the part that differs from one record to
+ * the next (its first ones are the time it was made), and any other id whole, since it is usually meant to be read.
  */
 export function shortId(id: string): string {
-  return id.length > 12 ? `…${id.slice(-8)}` : id
+  return objectId.test(id) ? `…${id.slice(-8)}` : id
 }
 
 /**

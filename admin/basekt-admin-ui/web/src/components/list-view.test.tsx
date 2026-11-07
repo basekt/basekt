@@ -32,6 +32,8 @@ describe("the list view", () => {
   it("shows a long id by its last characters, keeping the whole id as its name and in a tooltip", async () => {
     expect(shortId("b1")).toBe("b1")
     expect(shortId("let-prof-ed")).toBe("let-prof-ed")
+    expect(shortId("course-weights:let-prof-ed")).toBe("course-weights:let-prof-ed")
+    expect(shortId("3f1c9a2e-77b0-4c1d-9e8a-5b6c7d8e9f01")).toBe("3f1c9a2e-77b0-4c1d-9e8a-5b6c7d8e9f01")
     expect(shortId("67b47e9f26f61a5a182eccc1")).toBe("…182eccc1")
     const long = "67b47e9f26f61a5a182eccc1"
     const fetch = fakeFetch(({ url }) => {
