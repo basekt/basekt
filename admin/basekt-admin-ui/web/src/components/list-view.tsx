@@ -762,6 +762,12 @@ type Labels = Record<string, Record<string, string>>
 /** What the ID column's badge calls each format the schema can declare. */
 const idFormatNames: Record<IdFormat, string> = { objectId: "ObjectId", uuid: "UUID" }
 
+/** The shape of each format, as the server checks it, so an id written around the API that doesn't fit shows whole. */
+const idShapes: Record<IdFormat, RegExp> = {
+  objectId: /^[0-9a-f]{24}$/,
+  uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+}
+
 /** What the badge says when hovered. */
 const idFormatHelp: Record<IdFormat, string> = {
   objectId: "MongoDB ObjectIds, shown by their last 8 characters. Hover one for all of it.",
@@ -771,10 +777,10 @@ const idFormatHelp: Record<IdFormat, string> = {
 /**
  * An id as the table shows it. An id of a [format] the resource declares is shown by its last 8 characters: the part of
  * an ObjectId that differs from one record to the next (its first ones are the time it was made), and of a UUID the
- * random end. Any other id is shown whole, since it is usually meant to be read.
+ * random end. Any other id, and one that doesn't have the declared shape, is shown whole.
  */
 export function shortId(id: string, format: IdFormat | null | undefined): string {
-  return format && id.length > 9 ? `…${id.slice(-8)}` : id
+  return format && idShapes[format].test(id) ? `…${id.slice(-8)}` : id
 }
 
 /**

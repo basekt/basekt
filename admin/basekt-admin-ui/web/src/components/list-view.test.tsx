@@ -34,6 +34,8 @@ describe("the list view", () => {
     expect(shortId("3f1c9a2e-77b0-4c1d-9e8a-5b6c7d8e9f01", "uuid")).toBe("…7d8e9f01")
     expect(shortId("67b47e9f26f61a5a182eccc1", null)).toBe("67b47e9f26f61a5a182eccc1")
     expect(shortId("course-weights:let-prof-ed", undefined)).toBe("course-weights:let-prof-ed")
+    // A record written around the API keeps an id of another shape: it shows whole.
+    expect(shortId("let-prof-ed", "objectId")).toBe("let-prof-ed")
     const long = "67b47e9f26f61a5a182eccc1"
     const schema = { ...librarySchema, resources: librarySchema.resources.map((r) => (r.name === "books" ? { ...r, id: { ...r.id, format: "objectId" as const } } : r)) }
     const fetch = fakeFetch(({ url }) => {
