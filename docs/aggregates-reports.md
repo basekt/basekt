@@ -56,7 +56,9 @@ resource("orders") {
 
 A report is a `number`, `bar`, `line` or `pie`. It counts records, or takes the `sum`, `avg`, `min` or `max` of a
 number field, for each value of its group field. Bars and pies show the largest groups first, and lines go in group
-order. `order(...)` changes that, and `limit(...)` caps the groups.
+order. `order(...)` changes that, and `limit(...)` caps the groups. A report grouped by a reference field names each bar or slice by the
+[label](admin-panel.md#naming-records) of the record it points to, such as a course's name, and by its id where the caller can't read
+that record.
 
 ### Time series and time zones
 
