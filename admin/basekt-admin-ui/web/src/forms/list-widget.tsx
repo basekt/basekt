@@ -136,10 +136,11 @@ export function ListWidget({ field, id, value, onChange, invalid, describedBy, l
               aria-label={`${humanize(noun)} ${index + 1}`}
               className={cn(rows ? "px-2 py-1.5" : "rounded-md border p-3", !rows && invalid && "border-destructive/50")}
             >
-              <div className={cn("flex gap-2", rows ? "items-center" : "items-start")}>
+              {/* In a narrow column (a form's aside) the buttons wrap under the item, so its widget keeps the width. */}
+              <div className={cn("flex flex-wrap gap-2", rows ? "items-center" : "items-start")}>
                 <span className={cn("text-muted-foreground w-5 shrink-0 text-xs tabular-nums", !rows && "mt-2")}>{index + 1}</span>
-                <div className={cn("min-w-0 flex-1", !rows && "space-y-3")}>{body(item, index, rows)}</div>
-                <div className="flex shrink-0 gap-0.5">
+                <div className={cn("min-w-0 flex-[1_1_10rem]", !rows && "space-y-3")}>{body(item, index, rows)}</div>
+                <div className="ml-auto flex shrink-0 gap-0.5">
                   {action(`Move ${noun} ${index + 1} up`, <ArrowUp />, () => move(index, -1), index === 0, rows)}
                   {action(`Move ${noun} ${index + 1} down`, <ArrowDown />, () => move(index, 1), index === items.length - 1, rows)}
                   {action(`Remove ${noun} ${index + 1}`, <Trash2 />, () => remove(index), false, rows)}
