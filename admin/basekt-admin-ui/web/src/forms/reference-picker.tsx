@@ -27,7 +27,7 @@ export function labelOf(resource: AdminResource, record: JsonObject): string | n
  * Picks a record of the field's target resource, searching it through the admin API as the viewer types. When
  * the caller may not read the target, it falls back to typing the id.
  */
-export function ReferencePicker({ field, id, value, onChange, invalid, describedBy }: WidgetProps) {
+export function ReferencePicker({ field, id, value, onChange, invalid, describedBy, dense }: WidgetProps) {
   const target = useResource(field.target ?? "")
   if (!target) {
     return (
@@ -41,10 +41,21 @@ export function ReferencePicker({ field, id, value, onChange, invalid, described
       />
     )
   }
-  return <Picker target={target} id={id} value={value == null ? null : String(value)} onChange={onChange} invalid={invalid} describedBy={describedBy} required={field.required} />
+  return (
+    <Picker
+      target={target}
+      id={id}
+      value={value == null ? null : String(value)}
+      onChange={onChange}
+      invalid={invalid}
+      describedBy={describedBy}
+      required={field.required}
+      dense={dense === true}
+    />
+  )
 }
 
-function Picker({ target, id, value, onChange, invalid, describedBy, required }: {
+function Picker({ target, id, value, onChange, invalid, describedBy, required, dense }: {
   target: AdminResource
   id: string
   value: string | null
@@ -52,6 +63,8 @@ function Picker({ target, id, value, onChange, invalid, describedBy, required }:
   invalid: boolean
   describedBy?: string
   required: boolean
+  /** An item of a list, which has a button of its own to remove it: no clear button, and the item's whole width. */
+  dense: boolean
 }) {
   const { api } = usePanel()
   const [open, setOpen] = useState(false)
@@ -79,11 +92,11 @@ function Picker({ target, id, value, onChange, invalid, describedBy, required }:
             aria-expanded={open}
             aria-invalid={invalid}
             aria-describedby={describedBy}
-            className="w-full min-w-0 shrink justify-between font-normal sm:max-w-72"
+            // The name says which record it is; its id is a hover away.
+            title={value ?? undefined}
+            className={cn("w-full min-w-0 shrink justify-between font-normal", !dense && "sm:max-w-72")}
           >
-            <span className={cn("truncate", !value && "text-muted-foreground")}>
-              {value ? (selectedLabel ? `${selectedLabel} (${value})` : value) : "Choose…"}
-            </span>
+            <span className={cn("truncate", !value && "text-muted-foreground")}>{value ? (selectedLabel ?? value) : "Choose…"}</span>
             <ChevronsUpDown className="opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -115,7 +128,7 @@ function Picker({ target, id, value, onChange, invalid, describedBy, required }:
           </Command>
         </PopoverContent>
       </Popover>
-      {value && !required && (
+      {value && !required && !dense && (
         <Button type="button" variant="ghost" size="icon" aria-label="Clear" onClick={() => onChange(null)}>
           <X />
         </Button>

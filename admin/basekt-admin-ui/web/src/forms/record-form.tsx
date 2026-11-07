@@ -161,11 +161,14 @@ export function RecordForm({ resource, mode, initial, recordKey, onSaved, onCanc
           )}
         </Alert>
       )}
-      {/* On a wide form the aside fields sit in a column of their own, so the text being written keeps the width. */}
-      <div className={cn("grid gap-5", side.length > 0 && "@3xl:grid-cols-[minmax(0,1fr)_18rem] @3xl:items-start")}>
+      {/*
+        On a wide form the aside fields sit in a column of their own, so the text being written keeps the width. The column
+        is set off by a rule, not a box of its own inside the card.
+      */}
+      <div className={cn("grid gap-5", side.length > 0 && "@3xl:grid-cols-[minmax(0,1fr)_18rem] @3xl:items-start @5xl:grid-cols-[minmax(0,1fr)_22rem]")}>
         <div className="grid min-w-0 grid-cols-1 gap-5">{main.map(fieldBlock)}</div>
         {side.length > 0 && (
-          <div data-slot="form-aside" className="grid min-w-0 grid-cols-1 gap-5 @3xl:sticky @3xl:top-4 @3xl:rounded-lg @3xl:border @3xl:bg-muted/40 @3xl:p-4">
+          <div data-slot="form-aside" className="grid min-w-0 grid-cols-1 gap-5 @3xl:sticky @3xl:top-4 @3xl:border-l @3xl:pl-5">
             {side.map(fieldBlock)}
           </div>
         )}

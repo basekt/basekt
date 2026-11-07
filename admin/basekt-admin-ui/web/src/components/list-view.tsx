@@ -197,7 +197,8 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
           onMove={moveRecord}
         />
       ) : (
-        <div className="overflow-x-auto rounded-md border">
+        // The table sits on a card, as a record's form does, so it stands out from the page behind it.
+        <div className="bg-card text-card-foreground overflow-x-auto rounded-xl border shadow-xs">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">

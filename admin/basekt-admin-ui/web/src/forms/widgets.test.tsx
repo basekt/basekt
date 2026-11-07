@@ -231,7 +231,9 @@ describe("the widget registry", () => {
     })
     const author = renderWidget(fieldOf(books, "authorId"), "a1", fetch)
     const picker = screen.getByRole("combobox", { name: "authorId" })
-    await waitFor(() => expect(picker).toHaveTextContent("Herbert, Frank (a1)"))
+    await waitFor(() => expect(picker).toHaveTextContent("Herbert, Frank"))
+    expect(picker).not.toHaveTextContent("a1")
+    expect(picker).toHaveAttribute("title", "a1")
 
     await userEvent.click(picker)
     await userEvent.type(await screen.findByPlaceholderText("Search…"), "jane")
