@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent, type FormEvent } from "react"
+import { useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { FilePreview } from "@/forms/file-widget"
 import { formatValue, humanize, ID, recordId } from "@/lib/fields"
 import { isSafeHref, recordLinks } from "@/lib/links"
@@ -651,24 +652,33 @@ function RecordRow({
         </TableCell>
       )}
       <TableCell className="font-mono text-xs">
-        {detailLayout === "page" ? (
-          <Link to={{ screen: "detail", resource: resource.name, id }} className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground">
-            {id}
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={onInspect}
-            aria-pressed={inspected}
-            className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground"
-          >
-            {id}
-          </button>
-        )}
+        <Clipped whole={shortId(id) === id ? undefined : id}>
+          {detailLayout === "page" ? (
+            <Link
+              to={{ screen: "detail", resource: resource.name, id }}
+              aria-label={id}
+              className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground"
+            >
+              {shortId(id)}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onInspect}
+              aria-pressed={inspected}
+              aria-label={id}
+              className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground"
+            >
+              {shortId(id)}
+            </button>
+          )}
+        </Clipped>
       </TableCell>
       {resource.fields.map((field) => (
-        <TableCell key={field.name} className="max-w-64 truncate">
-          <Cell field={field} record={record} labels={labels} />
+        <TableCell key={field.name}>
+          <Clipped className="max-w-64">
+            <Cell field={field} record={record} labels={labels} />
+          </Clipped>
         </TableCell>
       ))}
       {reorderable && (
@@ -741,6 +751,39 @@ function ReorderControls({
 
 /** How to name records, by resource and id: the `labels` of the page they came with. */
 type Labels = Record<string, Record<string, string>>
+
+/**
+ * An id as the table shows it: whole when it is short, and otherwise its last 8 characters, the part of a MongoDB
+ * ObjectId that differs from one record to the next (its first ones are the time it was made).
+ */
+export function shortId(id: string): string {
+  return id.length > 12 ? `…${id.slice(-8)}` : id
+}
+
+/**
+ * A cell's content on one line, cut with an ellipsis where the column ends. Hovering a cut one shows its whole text in
+ * a tooltip; [whole], when given, is shown instead, cut or not.
+ */
+function Clipped({ children, whole, className }: { children: ReactNode; whole?: string; className?: string }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [shown, setShown] = useState<string | null>(null)
+  return (
+    <Tooltip
+      open={shown !== null}
+      onOpenChange={(open) => {
+        const element = box.current
+        setShown(!open || !element ? null : whole ?? (element.scrollWidth > element.clientWidth ? element.textContent : null))
+      }}
+    >
+      <TooltipTrigger asChild>
+        <div ref={box} className={cn("truncate", className)}>
+          {children}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>{shown}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 function Cell({ field, record, labels }: { field: AdminField; record: JsonObject; labels: Labels }) {
   const value = record[field.name]
