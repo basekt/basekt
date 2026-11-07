@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import { apiError, fakeFetch, gallerySchema, helpDeskSchema, librarySchema, page, switchboardSchema } from "@/test/fixtures"
 import { renderPanel } from "@/test/render"
+import { shortId } from "@/components/list-view"
 
 const library = [
   { id: "b1", title: "Dune", pages: 412, fee: "1.50", lendable: true, authorId: "a1" },
@@ -26,6 +27,24 @@ describe("the list view", () => {
     expect(screen.getByText("1–2 of 7")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /new/i })).toHaveAttribute("href", "/admin/r/books/new")
     expect(screen.getByRole("navigation", { name: "Resources" })).toHaveTextContent("BooksAuthors")
+  })
+
+  it("shows a long id by its last characters, keeping the whole id as its name and in a tooltip", async () => {
+    expect(shortId("b1")).toBe("b1")
+    expect(shortId("let-prof-ed")).toBe("let-prof-ed")
+    expect(shortId("67b47e9f26f61a5a182eccc1")).toBe("…182eccc1")
+    const long = "67b47e9f26f61a5a182eccc1"
+    const fetch = fakeFetch(({ url }) => {
+      if (url.pathname === "/admin/api/schema") return { body: librarySchema }
+      if (url.pathname === "/admin/api/resources/books/records") return { body: page([{ ...library[0]!, id: long }], 1, null) }
+    })
+    renderPanel("/admin/r/books", fetch)
+
+    const table = await screen.findByRole("table")
+    const link = await within(table).findByRole("link", { name: long })
+    expect(link).toHaveTextContent("…182eccc1")
+    await userEvent.hover(link)
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(long)
   })
 
   it("names a referenced record by the label the page sent, and keeps its id as the link's title", async () => {
