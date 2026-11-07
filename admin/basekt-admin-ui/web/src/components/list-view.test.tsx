@@ -29,18 +29,23 @@ describe("the list view", () => {
     expect(screen.getByRole("navigation", { name: "Resources" })).toHaveTextContent("BooksAuthors")
   })
 
-  it("shows a long id by its last characters, keeping the whole id as its name and in a tooltip", async () => {
-    expect(shortId("b1")).toBe("b1")
-    expect(shortId("let-prof-ed")).toBe("let-prof-ed")
-    expect(shortId("67b47e9f26f61a5a182eccc1")).toBe("…182eccc1")
+  it("shortens the ids of a declared format, badges the column, and shows other ids whole", async () => {
+    expect(shortId("67b47e9f26f61a5a182eccc1", "objectId")).toBe("…182eccc1")
+    expect(shortId("3f1c9a2e-77b0-4c1d-9e8a-5b6c7d8e9f01", "uuid")).toBe("…7d8e9f01")
+    expect(shortId("67b47e9f26f61a5a182eccc1", null)).toBe("67b47e9f26f61a5a182eccc1")
+    expect(shortId("course-weights:let-prof-ed", undefined)).toBe("course-weights:let-prof-ed")
+    // A record written around the API keeps an id of another shape: it shows whole.
+    expect(shortId("let-prof-ed", "objectId")).toBe("let-prof-ed")
     const long = "67b47e9f26f61a5a182eccc1"
+    const schema = { ...librarySchema, resources: librarySchema.resources.map((r) => (r.name === "books" ? { ...r, id: { ...r.id, format: "objectId" as const } } : r)) }
     const fetch = fakeFetch(({ url }) => {
-      if (url.pathname === "/admin/api/schema") return { body: librarySchema }
+      if (url.pathname === "/admin/api/schema") return { body: schema }
       if (url.pathname === "/admin/api/resources/books/records") return { body: page([{ ...library[0]!, id: long }], 1, null) }
     })
     renderPanel("/admin/r/books", fetch)
 
     const table = await screen.findByRole("table")
+    expect(within(table).getAllByRole("columnheader")[1]).toHaveTextContent("IDObjectId")
     const link = await within(table).findByRole("link", { name: long })
     expect(link).toHaveTextContent("…182eccc1")
     await userEvent.hover(link)

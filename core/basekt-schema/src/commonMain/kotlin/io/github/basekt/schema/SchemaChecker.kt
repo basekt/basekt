@@ -254,6 +254,7 @@ internal object SchemaChecker {
             if (id.key.isNotEmpty()) problem("$at.key", "Only an id of source 'key' has key fields.")
             return
         }
+        if (id.format != null) problem("$at.format", "A key id is made from its fields, so it has no format of its own.")
         if (id.rules.isNotEmpty()) problem("$at.rules", "A key id is made by the server, so it takes no rules: put them on its fields.")
         if (id.key.size < 2) problem("$at.key", "A key needs at least two fields; for one, use a natural id.")
         duplicates(id.key).forEach { problem("$at.key", "'$it' is in the key twice.") }

@@ -160,12 +160,17 @@ public class ModelBuilder<T> @PublishedApi internal constructor(
 
     /** Makes the client choose every record's id, checked by the rules [block] sets. See [ResourceBuilder.naturalId]. */
     public fun naturalId(block: IdBuilder.() -> Unit = {}) {
-        id = IdSpec(IdSource.NATURAL, IdBuilder().apply(block).rules.toList())
+        id = IdSpec(IdSource.NATURAL, IdBuilder().apply(block).rules.toList(), format = id.format)
+    }
+
+    /** Gives every id the shape [format]. See [ResourceBuilder.ids]. */
+    public fun ids(format: IdFormat) {
+        id = id.copy(format = format)
     }
 
     /** Makes each record's id out of [properties]' values. See [ResourceBuilder.keyedBy]. */
     public fun keyedBy(vararg properties: KProperty1<T, *>) {
-        id = IdSpec(IdSource.KEY, key = properties.map { it.name })
+        id = IdSpec(IdSource.KEY, key = properties.map { it.name }, format = id.format)
     }
 
     /** Declares that many [target] records point to this one through their reference field [foreignField]. */

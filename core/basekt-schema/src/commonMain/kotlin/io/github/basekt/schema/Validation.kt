@@ -150,6 +150,7 @@ private fun Resource.checkId(given: Value?, validators: Map<String, FieldValidat
         id.source == IdSource.KEY -> error(FieldErrorCode.READ_ONLY, "The id is made from ${id.key.joinToString(" and ")}.")
         given !is Value.Text -> error(FieldErrorCode.TYPE, "The id must be a non-empty string.")
         else -> IdSpec.problemWith(given.value)?.let { error(FieldErrorCode.TYPE, it) }
+            ?: id.format?.takeUnless { it.matches(given.value) }?.let { error(FieldErrorCode.TYPE, "A '$name' id is ${it.description}.") }
             ?: Field(Resource.ID, FieldType.STRING, rules = id.rules).check(given, validators)
     }
 }

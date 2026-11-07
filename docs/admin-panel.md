@@ -258,8 +258,10 @@ with the widget of its type (a text box, a Markdown editor, a reference picker),
 the item's own fields. Items are added, removed and moved up or down, and the whole list is saved with the record. An
 item's id is kept but not shown. An error on an item (`steps.1.text`) appears under its list as "Step 2, text: …".
 
-A table keeps each cell to one line. An id longer than 12 characters shows its last 8, the part of a MongoDB ObjectId
-that differs between records, and a cell cut off where its column ends shows its whole text in a tooltip on hover.
+A table keeps each cell to one line. The ids of a resource with an [id format](schema.md#id-formats) show their last 8
+characters, the part of an ObjectId that differs between records and a UUID's random end, with the whole id in a
+tooltip, and the ID column says which format they are; other ids show whole. A cell cut off where its column ends
+shows its whole text in a tooltip on hover.
 In a table, an object list shows its count ("4 steps") and a reference list the labels of what it points to. The filter
 menu offers `has` for a list.
 
