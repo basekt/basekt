@@ -142,7 +142,15 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
      * See [IdSource.NATURAL].
      */
     public fun naturalId(block: IdBuilder.() -> Unit = {}) {
-        id = IdSpec(IdSource.NATURAL, IdBuilder().apply(block).rules.toList())
+        id = IdSpec(IdSource.NATURAL, IdBuilder().apply(block).rules.toList(), format = id.format)
+    }
+
+    /**
+     * Gives every id the shape [format], such as [IdFormat.OBJECT_ID]: the server makes generated ids in it and refuses
+     * a given id in another, and the admin panel shows a long one shortened. See [IdSpec.format].
+     */
+    public fun ids(format: IdFormat) {
+        id = id.copy(format = format)
     }
 
     /**
@@ -151,7 +159,7 @@ public class ResourceBuilder internal constructor(private val name: String) : Fi
      * [IdSource.KEY].
      */
     public fun keyedBy(vararg fields: String) {
-        id = IdSpec(IdSource.KEY, key = fields.toList())
+        id = IdSpec(IdSource.KEY, key = fields.toList(), format = id.format)
     }
 
     /**

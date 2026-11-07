@@ -4,6 +4,7 @@ import io.github.basekt.schema.ActionTarget
 import io.github.basekt.schema.Auto
 import io.github.basekt.schema.Chart
 import io.github.basekt.schema.FieldType
+import io.github.basekt.schema.IdFormat
 import io.github.basekt.schema.IdSource
 import io.github.basekt.schema.MarkdownOptions
 import io.github.basekt.schema.Operation
@@ -114,6 +115,8 @@ public data class AdminId(
     val rules: List<Rule> = emptyList(),
     /** For [IdSource.KEY]: the fields whose values make the id, in order. */
     val key: List<String> = emptyList(),
+    /** The shape every id has, such as an ObjectId, which a panel may show shortened; `null` for any text. */
+    val format: IdFormat? = null,
 )
 
 /**

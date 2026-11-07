@@ -318,6 +318,9 @@ public class ResourceService(
         for (hook in hooks.beforeCreate[resource.name].orEmpty()) record = context.hook(record).accepted()
         if (record != stamped) revalidate(resource, record, WriteMode.CREATE)
         if (resource.id.source == IdSource.KEY) record = record + (Resource.ID to Value.Text(keyOf(resource, record)))
+        // A declared format makes the id here, so it has that shape whichever data source stores it.
+        val format = resource.id.format
+        if (format != null && record[Resource.ID] == null) record = record + (Resource.ID to Value.Text(format.newId()))
         checkReferences(tx, resource, record)
         checkUnique(tx, resource, record, null)
         checkExtensions(tx, resource, record)

@@ -2,6 +2,9 @@ package io.github.basekt.schema
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.random.Random
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * Where the [Resource.ID]s of a resource's records come from, and what they may look like. An id never changes once a
@@ -21,6 +24,12 @@ public data class IdSpec(
      * and can't change afterwards, so no two records hold the same values in all of them.
      */
     val key: List<String> = emptyList(),
+    /**
+     * What shape every id takes, such as a MongoDB ObjectId, or `null` for any text. The server makes a generated id
+     * in it, whatever the data source would make, and refuses an id a create gives in another shape; the admin panel
+     * shows a long one shortened. Not for [IdSource.KEY], whose ids the key fields make.
+     */
+    val format: IdFormat? = null,
 ) {
     /**
      * Returns the id that [record]'s [key] fields make, or `null` if one of them has no value. Each value is written as
@@ -90,6 +99,45 @@ public data class IdSpec(
             id.length >= 4 && id.startsWith("__") && id.endsWith("__") -> "An id can't both start and end with '__'."
             else -> null
         }
+    }
+}
+
+/** A shape of [Resource.ID] that a resource can declare. See [IdSpec.format]. */
+@Serializable
+public enum class IdFormat {
+    /** A MongoDB ObjectId as text: 24 lowercase hex digits, the first 8 the seconds since 1970 it was made. */
+    @SerialName("objectId") OBJECT_ID,
+
+    /** A random UUID (version 4) as text: `3f1c9a2e-77b0-4c1d-9e8a-5b6c7d8e9f01`. */
+    @SerialName("uuid") UUID;
+
+    /** Whether [id] has this shape. */
+    public fun matches(id: String): Boolean = when (this) {
+        OBJECT_ID -> objectId.matches(id)
+        UUID -> uuid.matches(id)
+    }
+
+    /** A new id of this shape, made at [now]. */
+    public fun newId(now: Instant = Clock.System.now(), random: Random = Random.Default): String = when (this) {
+        OBJECT_ID -> (now.epochSeconds and 0xFFFFFFFF).toString(16).padStart(8, '0') + hex(random, 16)
+        UUID -> {
+            val digits = hex(random, 32).toCharArray()
+            digits[12] = '4'
+            digits[16] = "89ab"[random.nextInt(4)]
+            String(digits).let { "${it.substring(0, 8)}-${it.substring(8, 12)}-${it.substring(12, 16)}-${it.substring(16, 20)}-${it.substring(20)}" }
+        }
+    }
+
+    /** What an id of this shape looks like, for an error message. */
+    public val description: String get() = when (this) {
+        OBJECT_ID -> "a MongoDB ObjectId: 24 hex digits"
+        UUID -> "a UUID such as 3f1c9a2e-77b0-4c1d-9e8a-5b6c7d8e9f01"
+    }
+
+    private companion object {
+        val objectId = Regex("[0-9a-f]{24}")
+        val uuid = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+        fun hex(random: Random, digits: Int) = (1..digits).joinToString("") { random.nextInt(16).toString(16) }
     }
 }
 

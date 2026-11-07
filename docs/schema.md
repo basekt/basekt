@@ -98,6 +98,15 @@ Every id a create sends, whatever the source, is 1 to 256 characters long, holds
 or `..`, and doesn't both start and end with `__`, so each adapter can store it and a route can name it. A data source
 may store fewer characters: the Exposed adapter's `TableMapping.idLength` is 64 by default.
 
+### Id formats
+
+`ids(IdFormat.OBJECT_ID)` or `ids(IdFormat.UUID)` gives every id of a resource one shape: a MongoDB ObjectId (24
+lowercase hex digits) or a random UUID. The server makes a generated id in that shape, whatever the data source would
+make (the in-memory and Exposed adapters make UUIDs, the MongoDB adapter ObjectIds), and refuses an id a create sends
+in another shape with a `type` error, such as `A 'books' id is a MongoDB ObjectId: 24 hex digits.` A natural id may
+have a format too; a key id can't, since its fields make it. The [admin API](admin-api.md) sends it as `id.format`, and
+the panel shows such ids shortened, with the format on the ID column.
+
 ### Natural ids
 
 ```kotlin

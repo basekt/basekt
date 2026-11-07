@@ -33,7 +33,7 @@ import { useAsync } from "@/lib/use-async"
 import { cn } from "@/lib/utils"
 import { can, usePanel } from "@/panel"
 import { Link, useRouter } from "@/router"
-import type { AdminCardView, AdminField, AdminResource, BulkFailure, JsonObject } from "@wire"
+import type { AdminCardView, AdminField, AdminResource, BulkFailure, IdFormat, JsonObject } from "@wire"
 
 /** One page's place in the list: the cursor that fetches it and the row number it starts at. */
 interface PageMark {
@@ -213,7 +213,14 @@ function ListPages({ resource, search }: { resource: AdminResource; search: URLS
                 )}
                 {fields.map((field) => (
                   <TableHead key={field.name} aria-sort={ariaSort(search, field.name)}>
-                    <SortHeader resource={resource} field={field.name} search={search} setSearch={setSearch} />
+                    <span className="inline-flex items-center gap-1.5">
+                      <SortHeader resource={resource} field={field.name} search={search} setSearch={setSearch} />
+                      {field.type === "id" && resource.id?.format && (
+                        <Badge variant="outline" className="px-1 py-0 font-mono text-[10px] font-normal text-muted-foreground" title={idFormatHelp[resource.id.format]}>
+                          {idFormatNames[resource.id.format]}
+                        </Badge>
+                      )}
+                    </span>
                   </TableHead>
                 ))}
                 {reorderable && (
@@ -652,14 +659,14 @@ function RecordRow({
         </TableCell>
       )}
       <TableCell className="font-mono text-xs">
-        <Clipped whole={shortId(id) === id ? undefined : id}>
+        <Clipped whole={shortId(id, resource.id?.format) === id ? undefined : id}>
           {detailLayout === "page" ? (
             <Link
               to={{ screen: "detail", resource: resource.name, id }}
               aria-label={id}
               className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground"
             >
-              {shortId(id)}
+              {shortId(id, resource.id?.format)}
             </Link>
           ) : (
             <button
@@ -669,7 +676,7 @@ function RecordRow({
               aria-label={id}
               className="underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground"
             >
-              {shortId(id)}
+              {shortId(id, resource.id?.format)}
             </button>
           )}
         </Clipped>
@@ -752,15 +759,22 @@ function ReorderControls({
 /** How to name records, by resource and id: the `labels` of the page they came with. */
 type Labels = Record<string, Record<string, string>>
 
-/** A MongoDB ObjectId, as text: 24 hex digits. */
-const objectId = /^[0-9a-f]{24}$/i
+/** What the ID column's badge calls each format the schema can declare. */
+const idFormatNames: Record<IdFormat, string> = { objectId: "ObjectId", uuid: "UUID" }
+
+/** What the badge says when hovered. */
+const idFormatHelp: Record<IdFormat, string> = {
+  objectId: "MongoDB ObjectIds, shown by their last 8 characters. Hover one for all of it.",
+  uuid: "UUIDs, shown by their last 8 characters. Hover one for all of it.",
+}
 
 /**
- * An id as the table shows it: a MongoDB ObjectId by its last 8 characters, the part that differs from one record to
- * the next (its first ones are the time it was made), and any other id whole, since it is usually meant to be read.
+ * An id as the table shows it. An id of a [format] the resource declares is shown by its last 8 characters: the part of
+ * an ObjectId that differs from one record to the next (its first ones are the time it was made), and of a UUID the
+ * random end. Any other id is shown whole, since it is usually meant to be read.
  */
-export function shortId(id: string): string {
-  return objectId.test(id) ? `…${id.slice(-8)}` : id
+export function shortId(id: string, format: IdFormat | null | undefined): string {
+  return format && id.length > 9 ? `…${id.slice(-8)}` : id
 }
 
 /**

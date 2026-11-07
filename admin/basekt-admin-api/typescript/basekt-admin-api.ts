@@ -205,9 +205,12 @@ export interface AdminId {
   source: IdSource;
   rules: Rule[];
   key: string[];
+  format: IdFormat | null;
 }
 
 export type IdSource = "generated" | "natural" | "key";
+
+export type IdFormat = "objectId" | "uuid";
 
 export interface AdminFilter {
   field: string;
