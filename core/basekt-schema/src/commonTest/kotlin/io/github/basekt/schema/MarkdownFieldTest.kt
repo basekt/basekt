@@ -32,7 +32,7 @@ class MarkdownFieldTest {
     }
 
     @Test
-    fun `options survive the JSON form, and a plain schema is unchanged`() {
+    fun `options survive the JSON form and a plain schema is unchanged`() {
         val again = Schema.fromJson(journal.toJson())
         assertEquals(journal, again)
         assertEquals(true, again.resource("entries")!!.field("body")!!.markdown!!.math)
@@ -41,7 +41,7 @@ class MarkdownFieldTest {
     }
 
     @Test
-    fun `only a string field can be markdown, and the cap must be sensible`() {
+    fun `only a string field can be markdown and the cap must be sensible`() {
         fun problems(build: ResourceBuilder.() -> Unit) = runCatching { schema { resource("things", build) } }.exceptionOrNull()
             .let { (it as? InvalidSchemaException)?.problems.orEmpty().map { p -> p.message } }
         assertTrue(problems { int("n") { markdown() } }.any { "Only a string field can be Markdown" in it })
@@ -51,7 +51,7 @@ class MarkdownFieldTest {
     }
 
     @Test
-    fun `pictures may have a bucket to be uploaded to, with a sensible name`() {
+    fun `pictures may have a bucket to be uploaded to with a sensible name`() {
         val pages = schema { resource("pages") { string("body") { markdown { images(bucket = "pictures") } } } }
         assertEquals(MarkdownOptions(images = true, imageBucket = "pictures"), pages.resource("pages")!!.field("body")!!.markdown)
         assertEquals(pages, Schema.fromJson(pages.toJson()))

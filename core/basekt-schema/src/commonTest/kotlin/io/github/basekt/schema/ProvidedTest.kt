@@ -23,7 +23,7 @@ class ProvidedTest {
     }
 
     @Test
-    fun `a provided resource keeps its flag in the JSON form, and a stored one leaves it out`() {
+    fun `a provided resource keeps its flag in the JSON form and a stored one leaves it out`() {
         val json = stationSchema.toJson()
         assertTrue(stationSchema.resource("readings")!!.provided)
         assertFalse(stationSchema.resource("sensors")!!.provided)
@@ -32,7 +32,7 @@ class ProvidedTest {
     }
 
     @Test
-    fun `everything a write would need is refused on a provided resource, all at once`() {
+    fun `everything a write would need is refused on a provided resource all at once`() {
         val resource = Resource(
             name = "queue",
             fields = listOf(
@@ -62,7 +62,7 @@ class ProvidedTest {
     }
 
     @Test
-    fun `no reference field points to a provided resource, so nothing has many of it either`() {
+    fun `no reference field points to a provided resource so nothing has many of it either`() {
         val problems = Schema(
             listOf(
                 Resource("tickets", listOf(Field("ticketId", FieldType.STRING)), provided = true),

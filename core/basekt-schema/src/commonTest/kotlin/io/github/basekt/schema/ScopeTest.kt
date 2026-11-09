@@ -54,7 +54,7 @@ class ScopeTest {
     }
 
     @Test
-    fun `a scope gives a caller's values, or nothing when it doesn't apply`() {
+    fun `a scope gives a caller's values or nothing when it doesn't apply`() {
         val jobs = workshopSchema.resource("jobs")!!.permissions.scopes.single()
         val sites = mapOf("site" to setOf("north", "south"))
         assertEquals(setOf("north", "south"), jobs.valuesFor(Operation.READ, "u1", setOf("mechanic"), sites))
@@ -97,7 +97,7 @@ class ScopeTest {
     }
 
     @Test
-    fun `a scope with several ways in is data, survives JSON and gives each way's values`() {
+    fun `a scope with several ways in is data and survives JSON and gives each way's values`() {
         val scope = freightSchema.resource("loads")!!.permissions.scopes.single()
         assertEquals(Scope("fromDock", ScopeMatch.Attribute("dock"), setOf(Operation.READ), setOf("dispatcher"), listOf(ScopeClause("toDock", ScopeMatch.Attribute("dock")))), scope)
         assertEquals(freightSchema, Schema.fromJson(freightSchema.toJson()))

@@ -14,6 +14,9 @@ Every module is its own artifact and its own Ktor plugin, published as `io.githu
 | `server:basekt-auth` | ✓ works | Ktor Authentication adapters (JWT, bearer), `PrincipalRoles` mapped to permissions, typed 401 and 403 |
 | `server:basekt-auth-firebase` | ✓ works | Firebase ID tokens as an identity, verified against Google's rotating public keys without the Admin SDK: the uid, roles and record-scope attributes from custom claims, beside other providers on the same routes |
 | `server:basekt-auth-supabase` | ✓ works | Supabase Auth access tokens as an identity, verified via GoTrue or HMAC-SHA256 JWT secret: user ID, roles and record-scope attributes, beside other providers on the same routes |
+| `client:basekt-auth-client` | ✓ works | multiplatform client auth SPI (`jvm`/Android, `wasmJs`, `ios*`): `AuthClient`, `OAuthCapable`, `CompositeAuthClient`, `SessionManager`, RFC 7636 PKCE (`S256`), and loopback / browser `sessionStorage` / deep-link OAuth redirect flows |
+| `client:basekt-auth-client-supabase` | ✓ works | multiplatform Supabase GoTrue client over Ktor `HttpClient`: email/password sign-in and sign-up, refresh, password recovery, and OAuth 2.0 PKCE (`google`, `apple`, `discord`, `github`) |
+| `client:basekt-auth-client-firebase` | ✓ works | multiplatform Firebase Auth client over Ktor `HttpClient`: Identity Toolkit email/password sign-in, sign-up, password reset, and CORS-safe Secure Token refresh |
 | `admin:basekt-admin-api` | ✓ works | `install(BaseKtAdmin)`: a JSON admin API from the schema (per-caller schema, list and search, CRUD, bulk delete, CSV export) and its TypeScript types |
 | `testing:basekt-testing` | ✓ works | the `DataSourceContract`, `BlobStoreContract` and `PaymentProviderContract` suites every adapter runs, plus test fixtures |
 | `admin:basekt-admin-ui` | ✓ works | `install(BaseKtAdminUi)`: a schema-driven admin panel (React, shadcn/ui and Tailwind, prebuilt into the jar) with a typed Kotlin theme |

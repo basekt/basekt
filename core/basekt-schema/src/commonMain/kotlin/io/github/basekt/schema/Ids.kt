@@ -124,7 +124,7 @@ public enum class IdFormat {
             val digits = hex(random, 32).toCharArray()
             digits[12] = '4'
             digits[16] = "89ab"[random.nextInt(4)]
-            String(digits).let { "${it.substring(0, 8)}-${it.substring(8, 12)}-${it.substring(12, 16)}-${it.substring(16, 20)}-${it.substring(20)}" }
+            digits.concatToString().let { "${it.substring(0, 8)}-${it.substring(8, 12)}-${it.substring(12, 16)}-${it.substring(16, 20)}-${it.substring(20)}" }
         }
     }
 

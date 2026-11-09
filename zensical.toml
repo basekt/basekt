@@ -12,6 +12,7 @@ nav = [
   { "Guide" = [
     { "Schema and the REST API" = "schema.md" },
     { "Permissions and record scopes" = "permissions.md" },
+    { "Client authentication" = "client-auth.md" },
     { "Hooks" = "hooks.md" },
     { "Automatic fields" = "automatic-fields.md" },
     { "Concurrent writes" = "concurrent-writes.md" },

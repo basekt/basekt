@@ -122,7 +122,7 @@ class ModelsTest {
     }
 
     @Test
-    fun `missing values take the property defaults, and an empty id is left to the data source`() {
+    fun `missing values take the property defaults and an empty id is left to the data source`() {
         val partial: Record = mapOf("label" to Value.Text("Drums"), "seats" to Value.Integer(4), "fee" to Value.Decimal.of("0"), "minutes" to null)
         val read = sessions.fromRecord(partial)
         assertEquals(Session(label = "Drums", seats = 4, fee = Value.Decimal.of("0")), read)
@@ -144,7 +144,7 @@ class ModelsTest {
     }
 
     @Test
-    fun `typed action inputs support lists, references and defaults and match dynamic action inputs`() {
+    fun `typed action inputs support lists and references and defaults and match dynamic action inputs`() {
         val typedInput = actionInput<RescheduleInput> {
             field(RescheduleInput::seats) { min(1); max(40) }
             reference(RescheduleInput::roomIds, "rooms")
