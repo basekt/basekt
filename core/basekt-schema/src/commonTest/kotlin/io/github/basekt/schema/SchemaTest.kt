@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 class SchemaTest {
     @Test
-    fun `the DSL builds fields, relations and permissions as data`() {
+    fun `the DSL builds fields and relations and permissions as data`() {
         val orders = shopSchema.resource("orders")!!
         assertEquals(
             Field("customerId", FieldType.REFERENCE, required = true, target = "customers"),
@@ -90,7 +90,7 @@ class SchemaTest {
     }
 
     @Test
-    fun `access rules tell anonymous, authenticated and role-holding callers apart`() {
+    fun `access rules tell anonymous and authenticated and role-holding callers apart`() {
         assertTrue(Access.Everyone.allows(null))
         assertFalse(Access.Authenticated.allows(null))
         assertTrue(Access.Authenticated.allows(emptySet()))

@@ -101,7 +101,7 @@ class ReportTest {
     }
 
     @Test
-    fun `a range is a rolling window on an instant field, in the report's zone`() {
+    fun `a range is a rolling window on an instant field in the report's zone`() {
         val ledger = schema {
             resource("deposits") {
                 instant("at")

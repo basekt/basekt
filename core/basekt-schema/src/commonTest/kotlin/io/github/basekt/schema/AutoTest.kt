@@ -48,7 +48,7 @@ class AutoTest {
     }
 
     @Test
-    fun `clients can't set automatic fields, and required ones aren't demanded of them`() {
+    fun `clients can't set automatic fields and required ones aren't demanded of them`() {
         val valid = readings.decodeRecord(json("""{"humidity": "0.4", "createdAt": null}"""), WriteMode.CREATE)
         assertIs<DecodeResult.Valid>(valid)
         assertEquals(mapOf<String, Value?>("humidity" to Value.Decimal.of("0.4")), valid.record)
@@ -84,7 +84,7 @@ class AutoTest {
     }
 
     @Test
-    fun `a version field takes the version an update read, and nothing on create`() {
+    fun `a version field takes the version an update read and nothing on create`() {
         val pages = schema {
             resource("pages") {
                 string("title")
@@ -104,7 +104,7 @@ class AutoTest {
     }
 
     @Test
-    fun `a version needs a number field, and a resource has one at most`() {
+    fun `a version needs a number field and a resource has one at most`() {
         val error = assertFailsWith<InvalidSchemaException> {
             schema {
                 resource("pages") {

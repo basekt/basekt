@@ -7,7 +7,8 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // Kotlin Multiplatform's wasmJs and Native targets register Node.js, Binaryen and Kotlin/Native toolchain
+    // distribution repositories on the root project, which FAIL_ON_PROJECT_REPOS would reject.
     repositories {
         mavenCentral()
     }
@@ -18,6 +19,9 @@ rootProject.name = "basekt"
 // Later modules (realtime, client, more data adapters) are in README.md's roadmap.
 include(
     ":core:basekt-schema",
+    ":client:basekt-auth-client",
+    ":client:basekt-auth-client-firebase",
+    ":client:basekt-auth-client-supabase",
     ":server:basekt-server",
     ":server:basekt-data",
     ":server:basekt-data-memory",
