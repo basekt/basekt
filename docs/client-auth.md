@@ -10,10 +10,10 @@ They depend only on `ktor-client-core`, `kotlinx.coroutines`, and `kotlinx.seria
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation("io.github.basekt:basekt-auth-client:0.17.0-SNAPSHOT")
-            implementation("io.github.basekt:basekt-auth-client-supabase:0.17.0-SNAPSHOT")
+            implementation("io.github.basekt:basekt-auth-client:0.17.0")
+            implementation("io.github.basekt:basekt-auth-client-supabase:0.17.0")
             // Optional, standalone or alongside Supabase for provider migration:
-            implementation("io.github.basekt:basekt-auth-client-firebase:0.17.0-SNAPSHOT")
+            implementation("io.github.basekt:basekt-auth-client-firebase:0.17.0")
         }
     }
 }

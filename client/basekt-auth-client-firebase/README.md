@@ -3,7 +3,7 @@
 Multiplatform Firebase Auth client adapter over Ktor `HttpClient`: Identity Toolkit email/password sign-in, sign-up, password reset, and CORS-safe Secure Token refresh with zero Firebase platform SDK dependencies, issuing ID tokens verified directly by `server:basekt-auth-firebase`.
 
 ```kotlin
-dependencies { implementation("io.github.basekt:basekt-auth-client-firebase:0.17.0-SNAPSHOT") }
+dependencies { implementation("io.github.basekt:basekt-auth-client-firebase:0.17.0") }
 ```
 
 Builds on: `basekt-auth-client`.

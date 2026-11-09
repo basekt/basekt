@@ -3,7 +3,7 @@
 Multiplatform client authentication SPI (`jvm`/Android, `wasmJs`, `iosArm64`, `iosSimulatorArm64`): `AuthClient`, `OAuthCapable`, `CompositeAuthClient`, `SessionManager`, RFC 7636 OAuth 2.0 PKCE (`S256`), and platform redirect flows (`LoopbackOAuthFlow`, `BrowserOAuthFlow`, `DeepLinkOAuthFlow`).
 
 ```kotlin
-dependencies { implementation("io.github.basekt:basekt-auth-client:0.17.0-SNAPSHOT") }
+dependencies { implementation("io.github.basekt:basekt-auth-client:0.17.0") }
 ```
 
 ## What it provides
