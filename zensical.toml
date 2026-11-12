@@ -23,6 +23,7 @@ nav = [
     { "Storefront" = "storefront.md" },
     { "Payments" = "payments.md" },
     { "Discord bot" = "discord-bot.md" },
+    { "Discord account link" = "discord-link.md" },
     { "Rich text and formulas" = "rich-text.md" },
     { "OpenAPI" = "openapi.md" },
   ] },

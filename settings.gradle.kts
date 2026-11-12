@@ -49,6 +49,8 @@ include(
     ":commerce:basekt-payment-kaia",
     ":commerce:basekt-payments",
     ":discord:basekt-discord",
+    ":discord:basekt-discord-link",
+    ":discord:basekt-discord-link-memory",
     ":admin:basekt-admin-api",
     ":admin:basekt-admin-ui",
     ":testing:basekt-testing",
