@@ -37,6 +37,8 @@ include(
     ":server:basekt-storage-s3",
     ":server:basekt-files",
     ":server:basekt-audit",
+    ":server:basekt-notify",
+    ":discord:basekt-notify-discord",
     ":server:basekt-richtext",
     ":server:basekt-openapi",
     ":commerce:basekt-commerce",

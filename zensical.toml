@@ -19,6 +19,7 @@ nav = [
     { "Actions and workflows" = "actions-workflows.md" },
     { "Aggregates and reports" = "aggregates-reports.md" },
     { "Audit" = "audit.md" },
+    { "Notifications" = "notify.md" },
     { "Files and storage" = "files.md" },
     { "Storefront" = "storefront.md" },
     { "Payments" = "payments.md" },
