@@ -1,6 +1,7 @@
 [versions]
 kotlin = "2.4.20"
 ktor = "3.6.0"
+kord = "0.18.1"
 kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.11.0"
 kotlinx-io = "0.9.1"
@@ -30,6 +31,7 @@ kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.re
 markdown = { module = "org.jetbrains:markdown", version.ref = "jetbrains-markdown" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
+kord-core = { module = "dev.kord:kord-core", version.ref = "kord" }
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
 ktor-server-auth = { module = "io.ktor:ktor-server-auth", version.ref = "ktor" }
 ktor-server-auth-jwt = { module = "io.ktor:ktor-server-auth-jwt", version.ref = "ktor" }

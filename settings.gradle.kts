@@ -48,6 +48,7 @@ include(
     ":commerce:basekt-payment-lemonsqueezy",
     ":commerce:basekt-payment-kaia",
     ":commerce:basekt-payments",
+    ":discord:basekt-discord",
     ":discord:basekt-discord-link",
     ":discord:basekt-discord-link-memory",
     ":admin:basekt-admin-api",
