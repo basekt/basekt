@@ -48,6 +48,7 @@ include(
     ":commerce:basekt-payment-paymongo",
     ":commerce:basekt-payment-paymentwall",
     ":commerce:basekt-payment-lemonsqueezy",
+    ":commerce:basekt-payment-hitpay",
     ":commerce:basekt-payment-kaia",
     ":commerce:basekt-payments",
     ":discord:basekt-discord",

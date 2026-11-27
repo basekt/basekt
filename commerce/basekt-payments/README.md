@@ -1,6 +1,6 @@
 # basekt-payments
 
-`install(BaseKtPayments)`: multi-provider payment sessions, signed webhooks and pingbacks, on-chain transfer confirmation, atomic replay protection, refunds and payouts over any `PaymentProvider` (`PayMongo`, `Paymentwall`, `Lemon Squeezy`, `Kaia USDT`, in-memory...).
+`install(BaseKtPayments)`: multi-provider payment sessions, signed webhooks and pingbacks, on-chain transfer confirmation, atomic replay protection, refunds and payouts over any `PaymentProvider` (`PayMongo`, `Paymentwall`, `Lemon Squeezy`, `HitPay`, `Kaia USDT`, in-memory...).
 
 ```kotlin
 dependencies { implementation("io.github.basekt:basekt-payments:0.3.0-SNAPSHOT") }

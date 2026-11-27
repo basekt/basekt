@@ -383,6 +383,7 @@ over any registered providers.
 | `basekt-payment-paymongo` | PayMongo adapter over `paymongo-kotlin`: Checkout Sessions (`v2` and `v1`), Payment Links, refunds, and constant-time HMAC-SHA256 `Paymongo-Signature` verification |
 | `basekt-payment-paymentwall` | Paymentwall Digital Goods and Subscriptions adapter: Signature v3 (`SHA-256`) widget URLs, sender IP allowlist (`216.127.71.0/24` + exact IPs), `GET`/form-`POST` pingbacks and plain-text `"OK"` listener responses |
 | `basekt-payment-lemonsqueezy` | Lemon Squeezy Merchant-of-Record adapter over Ktor `HttpClient`: JSON:API checkouts, subscription customer-portal URLs, and constant-time HMAC-SHA256 `X-Signature` webhook verification |
+| `basekt-payment-hitpay` | HitPay adapter over Ktor `HttpClient`: hosted payment requests (GCash, QRPh, GrabPay, ShopeePay, cards...), refunds, and constant-time HMAC-SHA256 `Hitpay-Signature` webhook verification |
 | `basekt-payment-kaia` | Kaia KIP-7 / ERC-20 `USDT` adapter (`0xd077...4fdb` on Mainnet `8217`, or Kairos `1001`) over Ktor `HttpClient`: EIP-681 transfer instructions, strict `Transfer` log verification, chunked `eth_getLogs` scanning, and `Mutex`-serialized `PayoutCapable` disbursements |
 
 Every payment adapter runs the `PaymentProviderContract` suite from `basekt-testing`.
