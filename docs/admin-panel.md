@@ -4,8 +4,9 @@
 needs no Node. It renders every screen from the [admin API](admin-api.md)'s `/schema`, so adding a resource needs no
 panel change:
 
-- a sidebar of what the caller may see, and a home screen with the [reports](aggregates-reports.md#reports) they may
-  read, as charts, with a [range picker](aggregates-reports.md#rolling-ranges) and a range menu on each card;
+- a sidebar of what the caller may see, under its headings and with each resource's [icon](#resource-view-layouts),
+  which below 768px wide opens from a menu button as a drawer, and a home screen with the
+  [reports](aggregates-reports.md#reports) they may read, as charts, with a [range picker](aggregates-reports.md#rolling-ranges) and a range menu on each card;
 - lists with search, filters, sort, cursor paging, bulk delete and CSV export;
 - forms with a widget per field type, a [visual Markdown editor with a formula menu](rich-text.md#the-admin-panels-editor)
   for Markdown fields, including a searchable picker for references, and validation errors and hook
@@ -239,8 +240,14 @@ model<Poster>("posters") {
   enough (it follows the form's own width, so it works in an inspector too). Put references, kinds and flags there, and
   the text being written keeps the width.
 - `folded("notes")` keeps a rarely filled field closed behind an "Add notes" button until it has a value.
+- `icon("image")` shows a [Lucide](https://lucide.dev/icons) icon beside the resource in the menu and on the home
+  screen, named as on that site (`graduation-cap`, `building-2`). Without one, a resource shows a table. The panel
+  fetches the icons once, the first time one is shown, as a file of their own (770 kB, 200 kB gzipped), so a panel
+  that names none never loads them. A name the panel's Lucide doesn't have shows a table, and the browser's console
+  names it.
 
-`BaseKtAdmin` validates every `adminView` field reference and numeric type at startup.
+`BaseKtAdmin` validates every `adminView` field reference and numeric type at startup, and that an icon's name is in
+Lucide's form: lower case, with dashes.
 
 A record's page shows its form on a card, and keeps its Save button in reach at the bottom of the screen. A Markdown editor starts at a few lines and grows
 with its text. While it is being edited, it shows one row of formatting buttons: bold, italic, strikethrough, code,

@@ -227,6 +227,7 @@ export interface AdminView {
   aside: string[];
   folded: string[];
   listStyles: Record<string, ListStyle>;
+  icon: string | null;
 }
 
 export interface AdminCardView {

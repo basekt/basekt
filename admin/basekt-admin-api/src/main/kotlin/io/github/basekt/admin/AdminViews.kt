@@ -12,6 +12,9 @@ import kotlin.reflect.KProperty1
 /** The key a resource's [AdminView] is kept under in [Resource.extensions]. */
 internal const val ADMIN_VIEW_KEY: String = "admin.view"
 
+/** A Lucide icon's name: lower-case letters and digits in words joined by dashes, such as `graduation-cap` or `gamepad-2`. */
+private val ICON_NAME = Regex("[a-z0-9]+(-[a-z0-9]+)*")
+
 /**
  * How an admin panel presents a resource's list and record detail: optional [cards] for a grid toggle alongside the
  * table, a [detailLayout] for opening a record inline or on its own page, and an [orderField] for drag-and-drop or
@@ -40,6 +43,12 @@ public data class AdminView(
     val folded: List<String> = emptyList(),
     /** How a record's form lays out the items of a list field, by field; a list not named here is [ListStyle.CARDS]. */
     val listStyles: Map<String, ListStyle> = emptyMap(),
+    /**
+     * The [Lucide](https://lucide.dev/icons) icon the menu and the home screen show beside the resource, by its name on
+     * that site, such as `graduation-cap`. `null` shows a table. A name the panel's Lucide doesn't have shows a table
+     * too, and the browser's console names it.
+     */
+    val icon: String? = null,
 )
 
 /** How a record's form lays out the items of a list field. */
@@ -139,6 +148,7 @@ public class AdminViewBuilder internal constructor() {
     private val aside = mutableListOf<String>()
     private val folded = mutableListOf<String>()
     private val listStyles = linkedMapOf<String, ListStyle>()
+    private var icon: String? = null
 
     /** How selecting a record opens its detail view. [DetailLayout.PAGE] by default. */
     public var detailLayout: DetailLayout = DetailLayout.PAGE
@@ -191,7 +201,13 @@ public class AdminViewBuilder internal constructor() {
         listStyles[field] = style
     }
 
-    internal fun build(): AdminView = AdminView(cards, detailLayout, orderField, label, aside.toList(), folded.toList(), listStyles.toMap())
+    /** Shows the [Lucide](https://lucide.dev/icons) icon [name], such as `icon("graduation-cap")`, beside the resource in the menu. */
+    public fun icon(name: String) {
+        icon = name
+    }
+
+    internal fun build(): AdminView =
+        AdminView(cards, detailLayout, orderField, label, aside.toList(), folded.toList(), listStyles.toMap(), icon)
 }
 
 /**
@@ -276,6 +292,9 @@ public fun Schema.adminViewProblems(): List<String> {
                 !field.list -> problems += "$at gives '$name' a list style, but it isn't a list."
                 field.hidden -> problems += "$at gives '$name' a list style, but it is hidden."
             }
+        }
+        view.icon?.let { name ->
+            if (!ICON_NAME.matches(name)) problems += "$at names the icon '$name': an icon is named as on lucide.dev, in lower case with dashes, such as 'graduation-cap'."
         }
         if (view.folded.any { it in view.aside }) problems += "$at puts ${view.folded.filter { it in view.aside }.joinToString()} both aside and folded."
         view.orderField?.let { name ->
