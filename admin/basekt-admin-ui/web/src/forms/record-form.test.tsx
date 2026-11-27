@@ -12,7 +12,7 @@ describe("record forms", () => {
     ...librarySchema,
     resources: librarySchema.resources.map((r) => r.name !== "books" ? r : {
       ...r,
-      view: { cards: null, detailLayout: "page" as const, orderField: null, label: null, aside: ["lendable", "authorId"], folded: ["fee"], listStyles: {} },
+      view: { cards: null, detailLayout: "page" as const, orderField: null, label: null, aside: ["lendable", "authorId"], folded: ["fee"], listStyles: {}, icon: null },
     }),
   }
 

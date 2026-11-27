@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
-import { Database, ExternalLink, LayoutDashboard, LogIn, LogOut, Table2 } from "lucide-react"
+import { Database, ExternalLink, LayoutDashboard, LogIn, LogOut } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
+import { ResourceIcon } from "@/components/resource-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { humanize } from "@/lib/fields"
@@ -58,7 +59,7 @@ export function Layout({ children, customPages = [] }: { children: ReactNode; cu
                       currentResource === resource.name && "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
                     )}
                   >
-                    <Table2 className="size-4 opacity-70" />
+                    <ResourceIcon name={resource.view?.icon} className="size-4 shrink-0 opacity-70" />
                     {humanize(resource.name)}
                   </Link>
                 ))}

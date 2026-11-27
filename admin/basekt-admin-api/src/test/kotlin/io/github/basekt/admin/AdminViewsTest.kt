@@ -45,6 +45,7 @@ private val galleryAndRadio: Schema = schema {
             detailLayout = DetailLayout.SPLIT
             aside("room", "wing")
             folded("photo")
+            icon("frame")
         }
         permissions { read("curator"); write("curator") }
     }
@@ -103,11 +104,13 @@ class AdminViewsTest {
         assertEquals("wing", exhibitView["cards"]!!.jsonObject["badge"]!!.jsonPrimitive.content)
         assertEquals(listOf("room", "wing"), exhibitView["aside"]!!.jsonArray.map { it.jsonPrimitive.content })
         assertEquals(listOf("photo"), exhibitView["folded"]!!.jsonArray.map { it.jsonPrimitive.content })
+        assertEquals("frame", exhibitView["icon"]!!.jsonPrimitive.content)
 
         val trackView = resources.getValue("tracks").jsonObject["view"]!!.jsonObject
         assertEquals("sheet", trackView["detailLayout"]!!.jsonPrimitive.content)
         assertEquals("position", trackView["orderField"]!!.jsonPrimitive.content)
         assertEquals("coverUrl", trackView["cards"]!!.jsonObject["media"]!!.jsonPrimitive.content)
+        assertEquals(JsonNull, trackView["icon"])
 
         assertEquals(JsonNull, resources.getValue("rooms").jsonObject["view"])
     }
@@ -132,6 +135,10 @@ class AdminViewsTest {
         assertTrue(problems { adminView { reorderable("title") } }.single().contains("must be an int or long"))
         assertTrue(problems { adminView { reorderable("secret") } }.single().contains("a hidden field"))
         assertTrue(problems { adminView { reorderable("seq") } }.single().contains("set automatically"))
+        assertEquals(emptyList(), problems { adminView { icon("gamepad-2") } })
+        for (name in listOf("GraduationCap", "graduation_cap", "-cap", "cap-", "", "graduation--cap")) {
+            assertTrue(problems { adminView { icon(name) } }.single().contains("named as on lucide.dev"), name)
+        }
         assertTrue(
             schema {
                 resource("liveQueue") {

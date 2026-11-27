@@ -1,6 +1,6 @@
-import { Table2 } from "lucide-react"
 import { DateRangePicker, useRangeChoice } from "@/components/date-range-picker"
 import { ReportCard } from "@/components/report-card"
+import { ResourceIcon } from "@/components/resource-icon"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { humanize } from "@/lib/fields"
 import { usePanel } from "@/panel"
@@ -51,7 +51,7 @@ export function Home() {
             <Card className="transition-colors group-hover:bg-accent">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Table2 className="size-4 text-muted-foreground" />
+                  <ResourceIcon name={resource.view?.icon} className="size-4 shrink-0 text-muted-foreground" />
                   {humanize(resource.name)}
                 </CardTitle>
                 <CardDescription>

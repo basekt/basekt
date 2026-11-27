@@ -125,6 +125,7 @@ export const posters: AdminResource = {
     aside: [],
     folded: [],
     listStyles: {},
+    icon: null,
   },
 }
 
@@ -153,6 +154,7 @@ export const chapters: AdminResource = {
     aside: [],
     folded: [],
     listStyles: {},
+    icon: null,
   },
 }
 
