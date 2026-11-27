@@ -4,8 +4,9 @@
 needs no Node. It renders every screen from the [admin API](admin-api.md)'s `/schema`, so adding a resource needs no
 panel change:
 
-- a sidebar of what the caller may see, and a home screen with the [reports](aggregates-reports.md#reports) they may
-  read, as charts, with a [range picker](aggregates-reports.md#rolling-ranges) and a range menu on each card;
+- a sidebar of what the caller may see, under its headings and with each resource's [icon](#resource-view-layouts),
+  which below 768px wide opens from a menu button as a drawer, and a home screen with the
+  [reports](aggregates-reports.md#reports) they may read, as charts, with a [range picker](aggregates-reports.md#rolling-ranges) and a range menu on each card;
 - lists with search, filters, sort, cursor paging, bulk delete and CSV export;
 - forms with a widget per field type, a [visual Markdown editor with a formula menu](rich-text.md#the-admin-panels-editor)
   for Markdown fields, including a searchable picker for references, and validation errors and hook
