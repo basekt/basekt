@@ -15,13 +15,13 @@ Builds on: basekt-storefront, basekt-payment, basekt-payments.
 ```kotlin
 dependencies {
     implementation("io.github.basekt:basekt-commerce:VERSION")
-    implementation("io.github.basekt:basekt-payment-paymongo:VERSION")   // or -paymentwall, -lemonsqueezy, -kaia
+    implementation("io.github.basekt:basekt-payment-paymongo:VERSION")   // or -paymentwall, -lemonsqueezy, -hitpay, -kaia
 }
 ```
 
 ## Good to know
 
-- Pulls in `basekt-storefront`, `basekt-payment` and `basekt-payments`; add the payment adapter(s) you use (`basekt-payment-paymongo`, `basekt-payment-paymentwall`, `basekt-payment-lemonsqueezy`, `basekt-payment-kaia`, or `basekt-payment-memory` for tests). Holds and customer accounts are planned, each as its own module.
+- Pulls in `basekt-storefront`, `basekt-payment` and `basekt-payments`; add the payment adapter(s) you use (`basekt-payment-paymongo`, `basekt-payment-paymentwall`, `basekt-payment-lemonsqueezy`, `basekt-payment-hitpay`, `basekt-payment-kaia`, or `basekt-payment-memory` for tests). Holds and customer accounts are planned, each as its own module.
 
 ## Documentation
 

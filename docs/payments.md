@@ -5,7 +5,7 @@ merchant-of-record gateways and on-chain token rails, deduplicates webhooks, pin
 database, updates your record's status in the same transaction, and exposes programmatic refunds and outbound payouts.
 
 Providers sit behind the Ktor-server-free `PaymentProvider` SPI (`basekt-payment`), so a single application can accept
-Philippine Peso (`PHP`) via PayMongo (`basekt-payment-paymongo`), global cards and regional wallets (`USD`, `EUR`,
+Philippine Peso (`PHP`) via PayMongo (`basekt-payment-paymongo`) or HitPay (`basekt-payment-hitpay`), global cards and regional wallets (`USD`, `EUR`,
 `PHP`...) via Paymentwall (`basekt-payment-paymentwall`) or Lemon Squeezy (`basekt-payment-lemonsqueezy`), and Tether
 USD (`USDT`) on Kaia (`basekt-payment-kaia`) without coupling your routes or schema to any provider's wire format.
 Outbound HTTP providers accept a shared Ktor `HttpClient` (including `MockEngine` in unit tests).
@@ -16,6 +16,7 @@ dependencies {
     implementation("io.github.basekt:basekt-payment-paymongo:0.3.0-SNAPSHOT")
     implementation("io.github.basekt:basekt-payment-paymentwall:0.3.0-SNAPSHOT")
     implementation("io.github.basekt:basekt-payment-lemonsqueezy:0.3.0-SNAPSHOT")
+    implementation("io.github.basekt:basekt-payment-hitpay:0.19.0")
     implementation("io.github.basekt:basekt-payment-kaia:0.3.0-SNAPSHOT")
 }
 ```
@@ -205,6 +206,37 @@ pingbacks:
 - **Webhook verification:** verifies `X-Signature` hex HMAC-SHA256 in constant time, ignores webhooks whose `store_id`
   or `test_mode` differs from `LemonSqueezySettings`, and maps `order_created`, `order_refunded`, `subscription_*` and
   `subscription_payment_*` events.
+
+## HitPay (`basekt-payment-hitpay`)
+
+`HitPayPaymentProvider` talks to HitPay's API over Ktor `HttpClient`, live (`https://api.hit-pay.com/v1`) or
+sandbox (`HitPaySettings(sandbox = true)`):
+
+- **Payment requests:** `POST /v1/payment-requests` sends the amount in major units (`450.00`), the session's
+  `referenceId` as `reference_number`, the buyer's email, the record's resource and id as `metadata`, and
+  `expires_after` from the session's expiry. `paymentMethods` limits checkout to codes such as `gcash` or
+  `qrph_netbank`; empty offers every method enabled on the account.
+- **Webhooks:** register `/payments/webhooks/hitpay` in HitPay's dashboard (Developers, Webhooks) for
+  `payment_request.completed` and `payment_request.failed`, and pass that webhook's salt as `webhookSalt`.
+  `Hitpay-Signature`, the hex HMAC-SHA256 of the raw body, is checked in constant time. `charge` events settle too, so
+  `charge.updated` reports refunds made in the dashboard; payouts, invoices, orders and transfers are informational.
+  A payment request's own `webhook` field is deprecated by HitPay, so it isn't used.
+- **Refunds:** implements `Refundable` over `POST /v1/refund`, with the payment id stored by the webhook, or read from
+  the payment request when there is none.
+
+```kotlin
+provider(
+    HitPayPaymentProvider(
+        settings = HitPaySettings(
+            apiKey = hitpayCfg.property("apiKey").getString(),
+            webhookSalt = hitpayCfg.property("webhookSalt").getString(),
+            paymentMethods = listOf("gcash", "qrph_netbank"),
+            defaultSuccessUrl = hitpayCfg.property("successUrl").getString(),
+        ),
+        httpClient = httpClient,
+    ),
+)
+```
 
 ## Kaia USDT (`basekt-payment-kaia`)
 

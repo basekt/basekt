@@ -14,6 +14,7 @@ dependencies {
     testImplementation(project(":commerce:basekt-payment-paymongo"))
     testImplementation(project(":commerce:basekt-payment-paymentwall"))
     testImplementation(project(":commerce:basekt-payment-lemonsqueezy"))
+    testImplementation(project(":commerce:basekt-payment-hitpay"))
     testImplementation(project(":commerce:basekt-payment-kaia"))
     testImplementation(libs.h2)
     testImplementation(libs.ktor.client.mock)
